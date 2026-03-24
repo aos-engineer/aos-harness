@@ -6,6 +6,7 @@ import { loadWorkflow } from "../src/config-loader";
 import { WorkflowRunner } from "../src/workflow-runner";
 import type { WorkflowConfig } from "../src/workflow-runner";
 import { MockAdapter } from "./mock-adapter";
+import { UnsupportedError } from "../src/types";
 
 const fixturesDir = join(import.meta.dir, "..", "fixtures");
 
@@ -541,9 +542,84 @@ describe("execution workflow actions", () => {
   });
 });
 
+// ── UnsupportedError Recovery ─────────────────────────────────────
+
+describe("UnsupportedError recovery", () => {
+  it("handles UnsupportedError from executeCode gracefully", async () => {
+    const adapter = new MockAdapter();
+    adapter.executeCode = async () => { throw new UnsupportedError("executeCode"); };
+
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "unsupported-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "execute-with-tools",
+        agents: ["developer"],
+        prompt: "Run code",
+        code: "console.log('hello')",
+        input: [],
+        output: "result",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toContain("step-a");
+  });
+});
+
 // ── retry_with_feedback Gate ──────────────────────────────────────
 
 describe("retry_with_feedback gate", () => {
+  it("revises artifact during retry_with_feedback when sessionDir is set", async () => {
+    const adapter = new MockAdapter();
+    const sessionDir = mkdtempSync(join(tmpdir(), "aos-retry-test-"));
+
+    let confirmCount = 0;
+    adapter.promptConfirm = async (title: string, message: string) => {
+      adapter.calls.push({ method: "promptConfirm", args: [title, message], timestamp: Date.now() });
+      confirmCount++;
+      return confirmCount > 1;
+    };
+    adapter.promptInput = async (label: string) => {
+      adapter.calls.push({ method: "promptInput", args: [label], timestamp: Date.now() });
+      return "Add error handling";
+    };
+
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "retry-artifact-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "targeted-delegation",
+        agents: ["architect"],
+        prompt: "Design it",
+        input: [],
+        output: "design",
+        review_gate: true,
+      }],
+      gates: [{
+        after: "step-a",
+        type: "user-approval",
+        prompt: "Approve?",
+        on_rejection: "retry_with_feedback",
+      }],
+    };
+
+    const runner = new WorkflowRunner(config, adapter, { sessionDir });
+    await runner.execute();
+
+    expect(confirmCount).toBe(2);
+    const writeCalls = adapter.calls.filter(c => c.method === "writeFile");
+    expect(writeCalls.length).toBeGreaterThan(2);
+  });
+
   it("re-runs step with user feedback on rejection", async () => {
     const adapter = new MockAdapter();
     let confirmCount = 0;

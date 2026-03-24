@@ -73,6 +73,14 @@ describe("resolveTemplate", () => {
     });
   });
 
+  it("resolves hyphenated variable names", () => {
+    const result = resolveTemplate(
+      "Profile: {{profile-name}}",
+      { "profile-name": "strategic-council" }
+    );
+    expect(result).toBe("Profile: strategic-council");
+  });
+
   it("resolves all spec-defined variables", () => {
     const vars = {
       date: "2026-03-23",

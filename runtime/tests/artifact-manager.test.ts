@@ -135,6 +135,44 @@ describe("ArtifactManager", () => {
     expect(true).toBe(true);
   });
 
+  it("creates artifacts with code format (.txt extension)", async () => {
+    await manager.createArtifact("implementation", "const x = 1;", {
+      produced_by: ["developer"],
+      step_id: "implement",
+      format: "code",
+    });
+    const loaded = await manager.loadArtifact("implementation");
+    expect(loaded.manifest.format).toBe("code");
+    expect(loaded.content).toBe("const x = 1;");
+  });
+
+  it("creates artifacts with diagram format (.mmd extension)", async () => {
+    await manager.createArtifact("arch-diagram", "graph TD\n  A-->B", {
+      produced_by: ["architect"],
+      step_id: "design",
+      format: "diagram",
+    });
+    const loaded = await manager.loadArtifact("arch-diagram");
+    expect(loaded.manifest.format).toBe("diagram");
+  });
+
+  it("creates artifacts with structured-data format (.yaml extension)", async () => {
+    await manager.createArtifact("task-list", "tasks:\n  - name: Task 1", {
+      produced_by: ["operator"],
+      step_id: "tasks",
+      format: "structured-data",
+    });
+    const loaded = await manager.loadArtifact("task-list");
+    expect(loaded.manifest.format).toBe("structured-data");
+  });
+
+  it("getAllManifests returns all cached manifests", async () => {
+    await manager.createArtifact("a", "content a", { produced_by: ["x"], step_id: "s", format: "markdown" });
+    await manager.createArtifact("b", "content b", { produced_by: ["y"], step_id: "s", format: "markdown" });
+    const all = manager.getAllManifests();
+    expect(all.length).toBe(2);
+  });
+
   it("uses adapter.readFile for loads", async () => {
     await manager.createArtifact("test", "content", {
       produced_by: ["agent"],

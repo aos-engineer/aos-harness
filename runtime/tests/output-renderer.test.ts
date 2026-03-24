@@ -87,6 +87,23 @@ describe("renderExecutionPackage", () => {
     expect(result).toContain("*Not produced in this session.*");
   });
 
+  it("renders domain in frontmatter when provided", () => {
+    const result = renderExecutionPackage({
+      profile: "test",
+      workflow: "test-workflow",
+      sessionId: "xyz",
+      domain: "saas",
+      participants: [],
+      briefPath: "",
+      transcriptPath: "",
+      durationMinutes: 0,
+      stepsCompleted: [],
+      gatesPassed: [],
+      artifacts: new Map(),
+    });
+    expect(result).toContain("domain: saas");
+  });
+
   it("uses custom sections when provided", () => {
     const result = renderExecutionPackage({
       profile: "test",
