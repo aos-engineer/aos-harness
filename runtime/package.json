@@ -1,0 +1,19 @@
+{
+  "name": "@aos-framework/runtime",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/engine.ts",
+  "scripts": {
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "typecheck": "bun x tsc --noEmit"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/bun": "latest",
+    "typescript": "^5.8.0"
+  }
+}
