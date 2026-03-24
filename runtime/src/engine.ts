@@ -9,6 +9,7 @@
  */
 
 import { join } from "node:path";
+import { mkdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type {
   AOSAdapter,
@@ -18,16 +19,19 @@ import type {
   ConstraintState,
   TranscriptEntry,
 } from "./types";
-import { loadProfile, loadAgent, loadDomain, validateBrief } from "./config-loader";
+import { loadProfile, loadAgent, loadDomain, loadWorkflow, validateBrief } from "./config-loader";
 import { ConstraintEngine } from "./constraint-engine";
 import { DelegationRouter } from "./delegation-router";
 import type { DelegationTarget } from "./delegation-router";
 import { applyDomain } from "./domain-merger";
+import { WorkflowRunner } from "./workflow-runner";
+import type { WorkflowConfig } from "./workflow-runner";
 
 export interface EngineOpts {
   agentsDir: string;
   domain?: string;
   domainDir?: string;
+  workflowsDir?: string;
 }
 
 export class AOSEngine {
@@ -43,6 +47,9 @@ export class AOSEngine {
   private sessionId: string;
   private speaksLastAgent: string | null = null;
   private domainId: string | null = null;
+  private workflowMode: boolean = false;
+  private workflowConfig: WorkflowConfig | null = null;
+  private workflowsDir: string | null = null;
 
   constructor(adapter: AOSAdapter, profilePath: string, opts: EngineOpts) {
     this.adapter = adapter;
@@ -95,9 +102,19 @@ export class AOSEngine {
       this.profile.delegation.bias_limit,
       this.profile.delegation.opening_rounds,
     );
+
+    // Detect workflow mode
+    if (this.profile.workflow) {
+      this.workflowMode = true;
+      this.workflowsDir = opts.workflowsDir ?? null;
+      if (this.workflowsDir) {
+        const workflowDir = join(this.workflowsDir, this.profile.workflow);
+        this.workflowConfig = loadWorkflow(workflowDir);
+      }
+    }
   }
 
-  async start(inputPath: string, opts?: { domain?: string }): Promise<void> {
+  async start(inputPath: string, opts?: { domain?: string; deliberationDir?: string }): Promise<void> {
     const validation = validateBrief(inputPath, this.profile.input.required_sections);
     if (!validation.valid) {
       const missing = validation.missing.map((s) => s.heading).join(", ");
@@ -117,6 +134,34 @@ export class AOSEngine {
       auth_mode: this.adapter.getAuthMode(),
       brief_path: inputPath,
     });
+
+    // Workflow mode: create artifacts directory and run workflow
+    if (this.workflowMode && this.workflowConfig) {
+      const deliberationDir = opts?.deliberationDir ?? join(process.cwd(), ".aos", this.sessionId);
+      const artifactsDir = join(deliberationDir, "artifacts");
+      mkdirSync(artifactsDir, { recursive: true });
+
+      const runner = new WorkflowRunner(this.workflowConfig, this.adapter, {
+        sessionDir: deliberationDir,
+        onTranscriptEvent: (e) => this.pushTranscript(e),
+      });
+
+      const results = await runner.execute();
+      this.workflowResults = results;
+    }
+  }
+
+  /** Results from a completed workflow run, if in workflow mode. */
+  private workflowResults: Map<string, unknown> | null = null;
+
+  /** Get the workflow results (only populated after workflow mode completes). */
+  getWorkflowResults(): Map<string, unknown> | null {
+    return this.workflowResults;
+  }
+
+  /** Check if the engine is running in workflow mode. */
+  isWorkflowMode(): boolean {
+    return this.workflowMode;
   }
 
   async delegateMessage(to: string | string[] | "all", message: string): Promise<AgentResponse[]> {
