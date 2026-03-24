@@ -22,6 +22,23 @@ describe("loadAgent", () => {
     const agent = loadAgent(join(fixturesDir, "agents", "catalyst"));
     expect(agent.schema).toBe("aos/agent/v1");
   });
+
+  it("loads agent with capabilities field", () => {
+    const agent = loadAgent(join(fixturesDir, "agents", "capable-agent"));
+    expect(agent.id).toBe("capable-agent");
+    expect(agent.name).toBe("Capable Agent");
+    expect(agent.capabilities).toBeDefined();
+    expect(agent.capabilities!.can_execute_code).toBe(true);
+    expect(agent.capabilities!.can_produce_files).toBe(true);
+    expect(agent.capabilities!.can_review_artifacts).toBe(true);
+    expect(agent.capabilities!.available_skills).toEqual(["code-review", "testing"]);
+    expect(agent.capabilities!.output_types).toEqual(["text", "markdown", "code", "structured-data"]);
+  });
+
+  it("loads agent without capabilities (defaults to undefined)", () => {
+    const agent = loadAgent(join(fixturesDir, "agents", "catalyst"));
+    expect(agent.capabilities).toBeUndefined();
+  });
 });
 
 describe("loadProfile", () => {

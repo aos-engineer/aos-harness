@@ -10,6 +10,11 @@
     "name": { "type": "string" },
     "description": { "type": "string" },
     "version": { "type": "string" },
+    "workflow": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Reference to a workflow ID (aos/workflow/v1). When set, the engine drives the session through the workflow's steps instead of free-form orchestrator delegation."
+    },
     "assembly": {
       "type": "object",
       "required": ["orchestrator", "perspectives"],
@@ -23,7 +28,12 @@
             "properties": {
               "agent": { "type": "string" },
               "required": { "type": "boolean" },
-              "structural_advantage": { "enum": ["speaks-last"] }
+              "structural_advantage": { "enum": ["speaks-last"] },
+              "role_override": {
+                "type": ["string", "null"],
+                "default": null,
+                "description": "Profile-level instruction that overrides the agent's default output mode. Injected into the agent's system prompt via the {{role_override}} template variable."
+              }
             }
           }
         }
@@ -100,7 +110,7 @@
       "type": "object",
       "required": ["format", "path_template"],
       "properties": {
-        "format": { "type": "string" },
+        "format": { "enum": ["memo", "report", "checklist", "execution-package", "freeform"] },
         "path_template": { "type": "string" },
         "sections": { "type": "array", "items": { "type": "string" } },
         "artifacts": { "type": "array", "items": { "type": "object" } },
@@ -124,13 +134,18 @@
       }
     },
     "budget_estimation": {
-      "type": "object",
-      "properties": {
-        "strategy": { "enum": ["rolling_average", "fixed_estimate"] },
-        "fixed_estimate_tokens": { "type": "integer", "minimum": 0 },
-        "safety_margin": { "type": "number", "minimum": 0, "maximum": 1 },
-        "on_estimate_exceeded": { "enum": ["drop_optional", "warn_arbiter", "block_round"] }
-      }
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "properties": {
+            "strategy": { "enum": ["rolling_average", "fixed_estimate"] },
+            "fixed_estimate_tokens": { "type": "integer", "minimum": 0 },
+            "safety_margin": { "type": "number", "minimum": 0, "maximum": 1 },
+            "on_estimate_exceeded": { "enum": ["drop_optional", "warn_arbiter", "block_round"] }
+          }
+        }
+      ]
     },
     "expertise": {
       "type": "object",
