@@ -297,6 +297,22 @@ export type DelegationTarget =
   | { type: "targeted"; agents: string[] }
   | { type: "tension"; pair: [string, string] };
 
+/**
+ * Interface for delegating work to agents. The engine implements this
+ * and passes it to the WorkflowRunner, allowing the runner to delegate
+ * without managing agent lifecycle directly.
+ */
+export interface DelegationDelegate {
+  /** Send a message to specific agents and collect responses. */
+  delegateToAgents(agentIds: string[], message: string): Promise<AgentResponse[]>;
+
+  /** Run a tension pair: agent1 responds, agent2 challenges, agent1 rebuts. */
+  delegateTensionPair(agent1: string, agent2: string, message: string): Promise<AgentResponse[]>;
+
+  /** Send a message to the orchestrator for synthesis. */
+  delegateToOrchestrator(message: string): Promise<AgentResponse>;
+}
+
 // ── Artifact Types ──────────────────────────────────────────────
 
 export interface ArtifactManifest {

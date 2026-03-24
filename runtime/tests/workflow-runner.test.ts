@@ -7,6 +7,7 @@ import { WorkflowRunner } from "../src/workflow-runner";
 import type { WorkflowConfig } from "../src/workflow-runner";
 import { MockAdapter } from "./mock-adapter";
 import { UnsupportedError } from "../src/types";
+import type { DelegationDelegate, AgentResponse } from "../src/types";
 
 const fixturesDir = join(import.meta.dir, "..", "fixtures");
 
@@ -956,5 +957,238 @@ describe("transcript events", () => {
     expect(artifactEvent.content_path).toBeDefined();
     expect(typeof artifactEvent.content_path).toBe("string");
     expect(artifactEvent.content_path).toContain("design_doc");
+  });
+});
+
+// ── DelegationDelegate Integration ─────────────────────────────────
+
+describe("DelegationDelegate integration", () => {
+  function mockResponse(text: string): AgentResponse {
+    return {
+      text,
+      tokensIn: 100,
+      tokensOut: 200,
+      cost: 0.01,
+      contextTokens: 0,
+      model: "mock-model",
+      status: "success",
+    };
+  }
+
+  function createMockDelegate(): DelegationDelegate & {
+    calls: { method: string; args: unknown[] }[];
+  } {
+    const calls: { method: string; args: unknown[] }[] = [];
+    return {
+      calls,
+      delegateToAgents: async (agentIds: string[], message: string) => {
+        calls.push({ method: "delegateToAgents", args: [agentIds, message] });
+        return agentIds.map((id) => mockResponse(`Response from ${id}`));
+      },
+      delegateTensionPair: async (agent1: string, agent2: string, message: string) => {
+        calls.push({ method: "delegateTensionPair", args: [agent1, agent2, message] });
+        return [
+          mockResponse(`Initial from ${agent1}`),
+          mockResponse(`Challenge from ${agent2}`),
+        ];
+      },
+      delegateToOrchestrator: async (message: string) => {
+        calls.push({ method: "delegateToOrchestrator", args: [message] });
+        return mockResponse("Orchestrator synthesis result");
+      },
+    };
+  }
+
+  it("targeted-delegation calls delegateToAgents when delegate is provided", async () => {
+    const adapter = new MockAdapter();
+    const delegate = createMockDelegate();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "delegate-targeted-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "targeted-delegation",
+        agents: ["architect", "operator"],
+        prompt: "Design the system",
+        input: [],
+        output: "architecture",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter, { delegationDelegate: delegate });
+    const outputs = await runner.execute();
+
+    expect(delegate.calls).toHaveLength(1);
+    expect(delegate.calls[0].method).toBe("delegateToAgents");
+    expect(delegate.calls[0].args[0]).toEqual(["architect", "operator"]);
+
+    // Agent responses become the step output
+    const output = outputs.get("architecture");
+    expect(typeof output).toBe("string");
+    expect(output).toContain("Response from architect");
+    expect(output).toContain("Response from operator");
+  });
+
+  it("tension-pair calls delegateTensionPair when delegate is provided", async () => {
+    const adapter = new MockAdapter();
+    const delegate = createMockDelegate();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "delegate-tension-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "tension-pair",
+        agents: ["architect", "operator"],
+        prompt: "Challenge the design",
+        input: [],
+        output: "reviewed",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter, { delegationDelegate: delegate });
+    const outputs = await runner.execute();
+
+    expect(delegate.calls).toHaveLength(1);
+    expect(delegate.calls[0].method).toBe("delegateTensionPair");
+    expect(delegate.calls[0].args[0]).toBe("architect");
+    expect(delegate.calls[0].args[1]).toBe("operator");
+
+    const output = outputs.get("reviewed");
+    expect(typeof output).toBe("string");
+    expect(output).toContain("Initial from architect");
+    expect(output).toContain("Challenge from operator");
+  });
+
+  it("orchestrator-synthesis calls delegateToOrchestrator when delegate is provided", async () => {
+    const adapter = new MockAdapter();
+    const delegate = createMockDelegate();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "delegate-synth-test",
+      name: "Test",
+      description: "Test",
+      steps: [
+        { id: "step-a", action: "gather", input: [], output: "data-a", review_gate: false },
+        {
+          id: "step-b",
+          action: "orchestrator-synthesis",
+          prompt: "Synthesize everything",
+          input: ["data-a"],
+          output: "final",
+          review_gate: false,
+        },
+      ],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter, { delegationDelegate: delegate });
+    const outputs = await runner.execute();
+
+    expect(delegate.calls).toHaveLength(1);
+    expect(delegate.calls[0].method).toBe("delegateToOrchestrator");
+
+    const output = outputs.get("final");
+    expect(typeof output).toBe("string");
+    expect(output).toBe("Orchestrator synthesis result");
+  });
+
+  it("steps still work without a delegate (backward compatibility)", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "no-delegate-test",
+      name: "Test",
+      description: "Test",
+      steps: [
+        {
+          id: "step-a",
+          action: "targeted-delegation",
+          agents: ["architect"],
+          prompt: "Design",
+          input: [],
+          output: "design",
+          review_gate: false,
+        },
+        {
+          id: "step-b",
+          action: "tension-pair",
+          agents: ["architect", "operator"],
+          prompt: "Challenge",
+          input: [],
+          output: "reviewed",
+          review_gate: false,
+        },
+        {
+          id: "step-c",
+          action: "orchestrator-synthesis",
+          prompt: "Synthesize",
+          input: ["design"],
+          output: "final",
+          review_gate: false,
+        },
+      ],
+      gates: [],
+    };
+    // No delegate provided — should fall back to structured placeholder
+    const runner = new WorkflowRunner(config, adapter);
+    const outputs = await runner.execute();
+
+    expect(runner.getCompletedSteps()).toEqual(["step-a", "step-b", "step-c"]);
+
+    // Fallback outputs should be objects with delegation: "pending"
+    const designOutput = outputs.get("design") as { delegation: string };
+    expect(designOutput.delegation).toBe("pending");
+
+    const reviewedOutput = outputs.get("reviewed") as { delegation: string };
+    expect(reviewedOutput.delegation).toBe("pending");
+
+    // Orchestrator fallback is an object with synthesis_inputs
+    const finalOutput = outputs.get("final") as { synthesis_inputs: Record<string, unknown> };
+    expect(finalOutput.synthesis_inputs).toBeDefined();
+  });
+
+  it("agent responses become the artifact content when delegate is provided", async () => {
+    const adapter = new MockAdapter();
+    const delegate = createMockDelegate();
+    const sessionDir = mkdtempSync(join(tmpdir(), "aos-delegate-artifact-"));
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "delegate-artifact-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "targeted-delegation",
+        agents: ["architect"],
+        prompt: "Design the system",
+        input: [],
+        output: "architecture",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter, {
+      sessionDir,
+      delegationDelegate: delegate,
+    });
+    const outputs = await runner.execute();
+
+    // The output is the joined agent response text
+    const output = outputs.get("architecture") as string;
+    expect(output).toBe("Response from architect");
+
+    // Artifact should have been written via adapter.writeFile
+    const writeCalls = adapter.calls.filter((c) => c.method === "writeFile");
+    expect(writeCalls.length).toBeGreaterThan(0);
+    // The artifact content should contain the agent response
+    const artifactWriteCall = writeCalls.find(
+      (c) => typeof c.args[1] === "string" && (c.args[1] as string).includes("Response from architect"),
+    );
+    expect(artifactWriteCall).toBeDefined();
   });
 });

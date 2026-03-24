@@ -8,7 +8,7 @@
  * that interprets step actions and orchestrates the flow, not the executor.
  */
 
-import type { AOSAdapter, ExecuteCodeOpts, TranscriptEntry, ProfileConfig } from "./types";
+import type { AOSAdapter, ExecuteCodeOpts, TranscriptEntry, ProfileConfig, DelegationDelegate } from "./types";
 import { UnsupportedError } from "./types";
 import { ArtifactManager } from "./artifact-manager";
 import { resolveTemplate } from "./template-resolver";
@@ -61,11 +61,13 @@ export class WorkflowRunner {
   private onTranscriptEvent?: (event: TranscriptEntry) => void;
   private gatesPassed: string[] = [];
   private profileConfig?: ProfileConfig;
+  private delegationDelegate?: DelegationDelegate;
 
   constructor(config: WorkflowConfig, adapter: AOSAdapter, opts?: {
     sessionDir?: string;
     onTranscriptEvent?: (event: TranscriptEntry) => void;
     profileConfig?: ProfileConfig;
+    delegationDelegate?: DelegationDelegate;
   }) {
     this.config = config;
     this.adapter = adapter;
@@ -78,6 +80,9 @@ export class WorkflowRunner {
     }
     if (opts?.profileConfig) {
       this.profileConfig = opts.profileConfig;
+    }
+    if (opts?.delegationDelegate) {
+      this.delegationDelegate = opts.delegationDelegate;
     }
   }
 
@@ -327,8 +332,21 @@ export class WorkflowRunner {
       "info",
     );
 
-    // Real delegation requires engine-level agent spawning (adapter.dispatchParallel
-    // needs AgentHandles). Log what would happen and return structured output.
+    // Build the full prompt: resolved prompt + input artifact content
+    const artifactContext = Object.entries(inputArtifacts)
+      .map(([id, content]) => `--- Input: ${id} ---\n${content}`)
+      .join("\n\n");
+    const fullPrompt = artifactContext
+      ? `${prompt}\n\n${artifactContext}`
+      : prompt;
+
+    // Use delegation delegate if available for real agent execution
+    if (this.delegationDelegate) {
+      const responses = await this.delegationDelegate.delegateToAgents(agents, fullPrompt);
+      return responses.map((r) => r.text).join("\n\n");
+    }
+
+    // Fallback: no delegate available — return structured placeholder
     this.adapter.notify(
       `[${this.config.id}] Would dispatch parallel to agents: ${agents.join(", ")}`,
       "info",
@@ -386,8 +404,21 @@ export class WorkflowRunner {
       "info",
     );
 
-    // Real delegation requires engine-level agent spawning (adapter.sendMessage
-    // needs AgentHandles). Log the intended flow and return structured output.
+    // Build the full prompt: resolved prompt + input artifact content
+    const artifactContext = Object.entries(inputArtifacts)
+      .map(([id, content]) => `--- Input: ${id} ---\n${content}`)
+      .join("\n\n");
+    const fullPrompt = artifactContext
+      ? `${prompt}\n\n${artifactContext}`
+      : prompt;
+
+    // Use delegation delegate if available for real agent execution
+    if (this.delegationDelegate) {
+      const responses = await this.delegationDelegate.delegateTensionPair(agents[0], agents[1], fullPrompt);
+      return responses.map((r) => r.text).join("\n\n");
+    }
+
+    // Fallback: no delegate available — return structured placeholder
     this.adapter.notify(
       `[${this.config.id}] Would send to ${agents[0]}: prompt, then ${agents[1]}: prompt + response, then ${agents[0]}: rebuttal`,
       "info",
@@ -453,6 +484,18 @@ export class WorkflowRunner {
       "info",
     );
 
+    // Build the full prompt: resolved prompt + all input artifacts as context
+    const fullPrompt = synthesisContent
+      ? `${prompt}\n\n${synthesisContent}`
+      : prompt;
+
+    // Use delegation delegate if available for real orchestrator execution
+    if (this.delegationDelegate) {
+      const response = await this.delegationDelegate.delegateToOrchestrator(fullPrompt);
+      return response.text;
+    }
+
+    // Fallback: no delegate available — return structured placeholder
     return {
       stepId: step.id,
       action: step.action,

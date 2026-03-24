@@ -17,6 +17,7 @@ import type {
   AgentHandle,
   AgentResponse,
   ConstraintState,
+  DelegationDelegate,
   TranscriptEntry,
 } from "./types";
 import { loadProfile, loadAgent, loadDomain, loadWorkflow, validateBrief } from "./config-loader";
@@ -146,6 +147,8 @@ export class AOSEngine {
       const runner = new WorkflowRunner(this.workflowConfig, this.adapter, {
         sessionDir: deliberationDir,
         onTranscriptEvent: (e) => this.pushTranscript(e),
+        delegationDelegate: this.createDelegationDelegate(),
+        profileConfig: this.profile,
       });
 
       const results = await runner.execute();
@@ -471,6 +474,52 @@ export class AOSEngine {
     });
 
     return responses;
+  }
+
+  private createDelegationDelegate(): DelegationDelegate {
+    return {
+      delegateToAgents: async (agentIds: string[], message: string) => {
+        return this.delegateMessage(agentIds, message);
+      },
+      delegateTensionPair: async (agent1: string, agent2: string, message: string) => {
+        return this.delegateMessage([agent1, agent2], message);
+        // Note: true tension pair (sequential challenge) would be:
+        // const r1 = await this.delegateMessage([agent1], message);
+        // const r2 = await this.delegateMessage([agent2], `${message}\n\n${r1[0].text}\n\nChallenge this.`);
+        // return [...r1, ...r2];
+      },
+      delegateToOrchestrator: async (message: string) => {
+        // The orchestrator is not in the perspectives list, so we send
+        // directly via the adapter rather than going through delegateMessage
+        // which routes through the DelegationRouter.
+        const orchestratorId = this.profile.assembly.orchestrator;
+        if (!this.handles.has(orchestratorId)) {
+          const config = this.agents.get(orchestratorId);
+          if (!config) {
+            throw new Error(`Unknown orchestrator agent: ${orchestratorId}`);
+          }
+          const handle = await this.adapter.spawnAgent(config, this.sessionId);
+          this.handles.set(orchestratorId, handle);
+          this.transcript.push({
+            type: "agent_spawn",
+            timestamp: new Date().toISOString(),
+            agentId: orchestratorId,
+          });
+        }
+        const handle = this.handles.get(orchestratorId)!;
+        const response = await this.adapter.sendMessage(handle, message);
+        this.transcript.push({
+          type: "response",
+          timestamp: new Date().toISOString(),
+          agentId: orchestratorId,
+          round: this.roundNumber,
+          text: response.text,
+          cost: response.cost,
+          status: response.status,
+        });
+        return response;
+      },
+    };
   }
 
   private generateSessionId(): string {

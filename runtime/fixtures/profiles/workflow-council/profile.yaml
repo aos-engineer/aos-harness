@@ -12,6 +12,14 @@ assembly:
     - agent: catalyst
       required: true
       role_override: "lead analyst"
+    - agent: advocate
+      required: true
+    - agent: strategist
+      required: false
+    - agent: architect
+      required: true
+    - agent: operator
+      required: true
 
 delegation:
   default: broadcast
