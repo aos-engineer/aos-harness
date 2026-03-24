@@ -295,3 +295,46 @@ assembly:
     - agent: compliance-officer
       required: false
 ```
+
+## Agent Capabilities
+
+The `capabilities` field declares what an agent can do beyond producing text responses. This is used by the runtime to determine which agents can be assigned to workflow steps that require specific output types:
+
+```yaml
+capabilities:
+  - text-analysis
+  - diagram-generation
+  - task-decomposition
+  - code-review
+```
+
+When a workflow step requires a specific capability (e.g., generating a Mermaid architecture diagram), the orchestrator can verify that the assigned agent declares that capability. If no capabilities are declared, the agent is assumed to produce text-only output.
+
+Capabilities are informational -- they do not grant the agent access to tools. Tool access is controlled separately via the `tools` field. However, capabilities help execution profiles match agents to workflow steps correctly.
+
+## The `{{role_override}}` Template Variable
+
+In execution profiles, agents can receive a `role_override` that shifts them from advisory mode to production mode. This override is available in `prompt.md` via the `{{role_override}}` template variable:
+
+```markdown
+You are {{agent_name}}, participating in session {{session_id}}.
+
+{{#role_override}}
+**Production Mode:** {{role_override}}
+
+Your output should be concrete artifacts, not advisory opinions. Apply your analytical
+framework to produce the deliverables described above.
+{{/role_override}}
+
+[Rest of the agent's standard prompt...]
+```
+
+When a `role_override` is set in the profile's assembly configuration, the variable is populated with the override string. When no override is set (standard deliberation), the block is omitted.
+
+This means the same agent definition can participate in both advisory deliberation (producing analysis and recommendations) and execution workflows (producing architecture docs, task breakdowns, or risk assessments) without needing separate agent configurations.
+
+| Variable | Description |
+|---|---|
+| `{{role_override}}` | Production role from the profile's `role_override` field, or empty if not set |
+
+See [Creating Profiles](../creating-profiles/README.md) for how `role_override` is configured at the profile level.

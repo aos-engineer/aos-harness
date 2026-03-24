@@ -84,6 +84,32 @@ A **JSONL transcript** is also saved, recording every delegation, response, cons
 bun run cli/src/index.ts replay output/<session>/transcript.jsonl
 ```
 
+## Execution Profiles
+
+Execution profiles go beyond deliberation -- they orchestrate actual production work. Instead of getting a recommendation memo, you get a complete execution package with architecture, task breakdown, and implementation plan.
+
+### Running the CTO Execution Profile
+
+```bash
+aos run cto-execution --brief briefs/my-feature/brief.md
+```
+
+The CTO profile runs an 8-step workflow:
+1. Requirements Analysis (Advocate + Strategist)
+2. Architecture & Design (Architect)
+3. Architecture Review (Architect vs Operator)
+4. Phase Planning (Strategist + Operator)
+5. Task Breakdown (Operator)
+6. Security & Risk Review (Sentinel)
+7. Stress Test (Provocateur)
+8. Final Assembly (CTO Orchestrator)
+
+You'll be asked to approve at 3 review gates: after requirements, architecture, and planning.
+
+### Creating Execution Profiles
+
+See [Creating Profiles](../creating-profiles/README.md) for how to create your own execution profiles with custom workflows.
+
 ## Next Steps
 
 - **[Creating Agents](../creating-agents/README.md)**: Design custom agents with unique cognitive frameworks.

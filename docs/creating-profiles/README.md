@@ -321,3 +321,78 @@ controls:
 ```
 
 This profile uses a smaller agent set focused on code quality, with tighter constraints for faster turnaround. The Architect evaluates system design, the Sentinel checks for risks and security issues, the Operator ensures practical deployability, and the Provocateur challenges assumptions.
+
+## Execution Profiles
+
+Execution profiles extend the standard deliberation model with two additional concepts: **workflows** and **role overrides**. Instead of producing a recommendation memo, they orchestrate a multi-step production process and output a complete execution package.
+
+### The `workflow` Field
+
+The `workflow` field links a profile to a workflow definition that controls step sequencing, agent assignments, and review gates:
+
+```yaml
+workflow: cto-execution-workflow    # References a workflow definition
+```
+
+When a profile includes a `workflow` field, the runtime switches from the standard broadcast/targeted delegation model to a step-driven execution model. The orchestrator follows the workflow steps in order, delegating to specific agents at each step and pausing at review gates for user approval.
+
+Profiles without a `workflow` field use the standard Arbiter-driven deliberation model.
+
+### The `role_override` Field
+
+In standard deliberation, agents operate in advisory mode -- they analyze and recommend. In execution profiles, `role_override` shifts agents into production mode by redefining what their output should be:
+
+```yaml
+assembly:
+  perspectives:
+    - agent: architect
+      required: true
+      role_override: "Produce architecture decision records and system design docs"
+    - agent: operator
+      required: true
+      role_override: "Break phases into concrete engineering tasks with effort estimates"
+```
+
+The `role_override` string is injected into the agent's prompt via the `{{role_override}}` template variable. This means agents reuse their existing cognitive framework (biases, heuristics, evidence standards) but direct their analysis toward producing concrete artifacts instead of advisory opinions.
+
+Without a `role_override`, the agent defaults to its standard advisory behavior.
+
+### The `execution-package` Output Format
+
+Execution profiles use the `execution-package` output format instead of the standard `markdown-memo`:
+
+```yaml
+output:
+  format: execution-package
+  path_template: "output/executions/{{date}}-{{brief_slug}}-{{session_id}}/"
+  sections:
+    - executive_summary
+    - requirements_analysis
+    - architecture_decision_record
+    - phase_plan
+    - task_breakdown
+    - risk_assessment
+    - stress_test_findings
+    - implementation_checklist
+  artifacts:
+    - type: mermaid_diagram
+    - type: task_list
+```
+
+The `execution-package` format differs from `markdown-memo` in several ways:
+
+- Output is saved to a directory (not a single file), with each section as a separate document.
+- Artifacts like Mermaid diagrams and structured task lists are saved alongside the sections.
+- Frontmatter includes execution-specific metadata (date, duration, participants, brief path).
+
+### Example: How the CTO Execution Profile is Configured
+
+The built-in `cto-execution` profile demonstrates all of these concepts working together:
+
+- **Workflow**: Links to `cto-execution-workflow`, an 8-step process from requirements through final assembly.
+- **Role overrides**: Each agent gets a production-oriented role override (Architect produces ADRs, Operator produces task breakdowns, Sentinel reviews for security risks).
+- **Targeted delegation**: Uses `default: targeted` with `opening_rounds: 0` because the CTO orchestrator knows exactly which agent to call at each workflow step.
+- **Output**: Produces an `execution-package` with architecture diagrams, task lists, and a full implementation checklist.
+- **Review gates**: The workflow pauses at 3 points for user approval (after requirements, architecture, and planning).
+
+See the profile definition at `core/profiles/cto-execution/profile.yaml` and its README at `core/profiles/cto-execution/README.md` for the full configuration.
