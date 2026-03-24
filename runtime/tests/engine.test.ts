@@ -78,6 +78,13 @@ describe("AOSEngine", () => {
     const transcript = engine.getTranscript();
     expect(transcript.length).toBe(1);
     expect(transcript[0].type).toBe("session_start");
+    // Verify session_start includes all required fields (spec Section 6.10)
+    expect(transcript[0].session_id).toBeDefined();
+    expect(transcript[0].profile).toBe("test-council");
+    expect(transcript[0].participants).toBeDefined();
+    expect(transcript[0].constraints).toBeDefined();
+    expect(transcript[0].auth_mode).toBeDefined();
+    expect(transcript[0].brief_path).toBeDefined();
   });
 
   it("start() throws on invalid brief", async () => {

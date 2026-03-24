@@ -96,6 +96,13 @@ export function loadProfile(profileDir: string): ProfileConfig {
 
   validateId(config.id, yamlPath);
 
+  // Expertise concurrency warning (spec Section 6.9)
+  if (config.expertise?.mode === "shared") {
+    console.warn(
+      "WARNING: Profile uses shared expertise mode. Concurrent agent writes may conflict during parallel dispatch.",
+    );
+  }
+
   return config;
 }
 

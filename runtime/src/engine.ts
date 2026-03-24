@@ -9,6 +9,7 @@
  */
 
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import type {
   AOSAdapter,
   AgentConfig,
@@ -41,10 +42,11 @@ export class AOSEngine {
   private roundNumber: number = 0;
   private sessionId: string;
   private speaksLastAgent: string | null = null;
+  private domainId: string | null = null;
 
   constructor(adapter: AOSAdapter, profilePath: string, opts: EngineOpts) {
     this.adapter = adapter;
-    this.sessionId = `session-${Date.now()}`;
+    this.sessionId = this.generateSessionId();
 
     // Load profile
     this.profile = loadProfile(profilePath);
@@ -67,6 +69,7 @@ export class AOSEngine {
       const domainDir = join(opts.domainDir, opts.domain);
       const domainConfig = loadDomain(domainDir);
       agentConfigs = applyDomain(agentConfigs, domainConfig);
+      this.domainId = opts.domain;
     }
 
     // Store agents by ID
@@ -94,7 +97,7 @@ export class AOSEngine {
     );
   }
 
-  async start(inputPath: string): Promise<void> {
+  async start(inputPath: string, opts?: { domain?: string }): Promise<void> {
     const validation = validateBrief(inputPath, this.profile.input.required_sections);
     if (!validation.valid) {
       const missing = validation.missing.map((s) => s.heading).join(", ");
@@ -106,13 +109,25 @@ export class AOSEngine {
     this.transcript.push({
       type: "session_start",
       timestamp: new Date(this.startTime).toISOString(),
-      sessionId: this.sessionId,
-      briefPath: inputPath,
+      session_id: this.sessionId,
+      profile: this.profile.id,
+      domain: opts?.domain || this.domainId || null,
+      participants: [...this.agents.keys()],
+      constraints: this.profile.constraints,
+      auth_mode: this.adapter.getAuthMode(),
+      brief_path: inputPath,
     });
   }
 
   async delegateMessage(to: string | string[] | "all", message: string): Promise<AgentResponse[]> {
     this.roundNumber += 1;
+
+    // Resource exhaustion protection (M5 from security audit)
+    const maxParallelAgents = 15;
+    const allPerspectives = this.profile.assembly.perspectives;
+    if (allPerspectives.length > maxParallelAgents) {
+      throw new Error(`Too many parallel agents (${allPerspectives.length}). Maximum is ${maxParallelAgents}.`);
+    }
 
     // Parse target
     let target: DelegationTarget;
@@ -193,20 +208,46 @@ export class AOSEngine {
 
     const responses: AgentResponse[] = [];
 
+    // Read error_handling config from profile (spec Section 6.5)
+    const errorHandling = this.profile.error_handling;
+    const failureAction = errorHandling?.on_agent_failure ?? "skip";
+
     // Dispatch parallel agents
     if (routing.parallel.length > 0) {
       const parallelHandles = routing.parallel.map((id) => this.handles.get(id)!);
       const parallelResponses = await this.adapter.dispatchParallel(parallelHandles, message);
 
       for (let i = 0; i < routing.parallel.length; i++) {
-        responses.push(parallelResponses[i]);
+        const resp = parallelResponses[i];
+
+        // Handle agent failure per error_handling config
+        if (resp.status === "failed") {
+          this.transcript.push({
+            type: "error",
+            timestamp: new Date().toISOString(),
+            agentId: routing.parallel[i],
+            round: this.roundNumber,
+            error: resp.error || "Agent failed",
+          });
+
+          if (failureAction === "abort_round") {
+            throw new Error(`Agent ${routing.parallel[i]} failed: ${resp.error}. Aborting round.`);
+          }
+          if (failureAction === "abort_session") {
+            throw new Error(`Agent ${routing.parallel[i]} failed: ${resp.error}. Aborting session.`);
+          }
+          // "skip": include failed response with status, continue
+        }
+
+        responses.push(resp);
         this.transcript.push({
           type: "response",
           timestamp: new Date().toISOString(),
           agentId: routing.parallel[i],
           round: this.roundNumber,
-          text: parallelResponses[i].text,
-          cost: parallelResponses[i].cost,
+          text: resp.text,
+          cost: resp.cost,
+          status: resp.status,
         });
       }
     }
@@ -215,6 +256,26 @@ export class AOSEngine {
     for (const agentId of routing.sequential) {
       const handle = this.handles.get(agentId)!;
       const response = await this.adapter.sendMessage(handle, message);
+
+      // Handle agent failure per error_handling config
+      if (response.status === "failed") {
+        this.transcript.push({
+          type: "error",
+          timestamp: new Date().toISOString(),
+          agentId,
+          round: this.roundNumber,
+          error: response.error || "Agent failed",
+        });
+
+        if (failureAction === "abort_round") {
+          throw new Error(`Agent ${agentId} failed: ${response.error}. Aborting round.`);
+        }
+        if (failureAction === "abort_session") {
+          throw new Error(`Agent ${agentId} failed: ${response.error}. Aborting session.`);
+        }
+        // "skip": include failed response with status, continue
+      }
+
       responses.push(response);
       this.transcript.push({
         type: "response",
@@ -223,6 +284,7 @@ export class AOSEngine {
         round: this.roundNumber,
         text: response.text,
         cost: response.cost,
+        status: response.status,
       });
     }
 
@@ -307,6 +369,10 @@ export class AOSEngine {
     return responses;
   }
 
+  private generateSessionId(): string {
+    return randomUUID().slice(0, 12);
+  }
+
   getConstraintState(): ConstraintState {
     const state = this.constraintEngine.getState();
 
@@ -322,5 +388,10 @@ export class AOSEngine {
 
   getTranscript(): TranscriptEntry[] {
     return [...this.transcript];
+  }
+
+  /** Push an external transcript entry (e.g., steer events from the adapter). */
+  pushTranscript(entry: TranscriptEntry): void {
+    this.transcript.push(entry);
   }
 }

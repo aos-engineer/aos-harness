@@ -3,6 +3,7 @@
 // runnable as a Pi extension.
 
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, statSync, symlinkSync, rmSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { join, dirname, basename, resolve } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Text, truncateToWidth } from "@mariozechner/pi-tui";
@@ -346,7 +347,7 @@ export default function (pi: ExtensionAPI) {
 
       sessionActive = true;
       sessionStartTime = Date.now();
-      sessionId = `session-${sessionStartTime}`;
+      sessionId = `session-${randomUUID().slice(0, 12)}`;
       arbiterCost = 0;
 
       // Read profile to get participant names
@@ -784,10 +785,20 @@ export default function (pi: ExtensionAPI) {
 
       if (text === "wrap") {
         ctx.ui.notify("Wrapping up deliberation...", "info");
-        pi.sendUserMessage(
-          "The user has requested an early wrap-up. Call end() now with a closing prompt to collect final statements from all agents.",
-          { deliverAs: "steer" },
-        );
+        const steerMsg = "The user has requested an early wrap-up. Call end() now with a closing prompt to collect final statements from all agents.";
+        pi.sendUserMessage(steerMsg, { deliverAs: "steer" });
+
+        // Add steer event to transcript (spec Section 5G / Gap #10)
+        if (engine) {
+          engine.pushTranscript({
+            type: "steer",
+            timestamp: new Date().toISOString(),
+            source: "user_command",
+            command: "wrap",
+            message: steerMsg,
+          });
+        }
+
         return { action: "handled" as const };
       }
 

@@ -3,6 +3,7 @@
 // JSON event stream parsing, and token usage tracking.
 
 import { spawn, type ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import type {
@@ -82,10 +83,11 @@ export class PiAgentRuntime implements AgentRuntimeAdapter {
     return handle;
   }
 
-  async sendMessage(
+  async sendMessageOnce(
     handle: AgentHandle,
     message: string,
     opts?: MessageOpts,
+    timeoutMs: number = 120000,
   ): Promise<AgentResponse> {
     const state = this.handles.get(handle.id);
     if (!state) {
@@ -137,6 +139,12 @@ export class PiAgentRuntime implements AgentRuntimeAdapter {
     args.push(message);
 
     return new Promise<AgentResponse>((resolve) => {
+      // Timeout enforcement (spec Section 6.5)
+      const timeoutController = new AbortController();
+      const timeoutId = setTimeout(() => {
+        timeoutController.abort();
+      }, timeoutMs);
+
       const proc = spawn("pi", args, {
         shell: false,
         stdio: ["ignore", "pipe", "pipe"],
@@ -217,6 +225,8 @@ export class PiAgentRuntime implements AgentRuntimeAdapter {
       });
 
       proc.on("close", (code: number | null) => {
+        clearTimeout(timeoutId);
+
         // Process any remaining buffered data
         if (buffer.trim()) processLine(buffer);
 
@@ -280,6 +290,27 @@ export class PiAgentRuntime implements AgentRuntimeAdapter {
         });
       });
 
+      // Handle timeout abort
+      timeoutController.signal.addEventListener("abort", () => {
+        wasAborted = true;
+        proc.kill("SIGTERM");
+        setTimeout(() => {
+          if (!proc.killed) proc.kill("SIGKILL");
+        }, 5000);
+        clearTimeout(timeoutId);
+        this.activeProcesses.delete(proc);
+        resolve({
+          text: accumulatedText,
+          tokensIn,
+          tokensOut,
+          cost,
+          contextTokens,
+          model,
+          status: "failed",
+          error: `Agent timed out after ${Math.round(timeoutMs / 1000)}s`,
+        });
+      }, { once: true });
+
       // Handle abort signal
       if (opts?.signal) {
         const killProc = () => {
@@ -296,6 +327,49 @@ export class PiAgentRuntime implements AgentRuntimeAdapter {
         }
       }
     });
+  }
+
+  async sendMessage(
+    handle: AgentHandle,
+    message: string,
+    opts?: MessageOpts,
+  ): Promise<AgentResponse> {
+    return this.sendMessageWithRetry(handle, message, opts);
+  }
+
+  async sendMessageWithRetry(
+    handle: AgentHandle,
+    message: string,
+    opts?: MessageOpts,
+    maxRetries: number = 2,
+    backoff: "exponential" | "linear" = "exponential",
+    timeoutMs: number = 120000,
+  ): Promise<AgentResponse> {
+    let lastResponse: AgentResponse | null = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const response = await this.sendMessageOnce(handle, message, opts, timeoutMs);
+      if (response.status === "success") {
+        return response;
+      }
+
+      lastResponse = response;
+
+      // Don't retry if aborted by user
+      if (response.status === "aborted") {
+        return response;
+      }
+
+      // If we have retries remaining, wait with backoff
+      if (attempt < maxRetries) {
+        const delayMs = backoff === "exponential"
+          ? 1000 * Math.pow(2, attempt)   // 1s, 2s, 4s
+          : 1000 * (attempt + 1);          // 1s, 2s, 3s
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+
+    return lastResponse!;
   }
 
   async destroyAgent(_handle: AgentHandle): Promise<void> {
