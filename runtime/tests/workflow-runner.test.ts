@@ -416,6 +416,47 @@ describe("execution workflow actions", () => {
     expect(spawnCalls.length).toBeGreaterThan(0);
     const destroyCalls = adapter.calls.filter(c => c.method === "destroyAgent");
     expect(destroyCalls.length).toBeGreaterThan(0);
+
+    // Without explicit code field, should use sendMessage (not executeCode)
+    const sendCalls = adapter.calls.filter(c => c.method === "sendMessage");
+    expect(sendCalls.length).toBeGreaterThan(0);
+    const execCalls = adapter.calls.filter(c => c.method === "executeCode");
+    expect(execCalls.length).toBe(0);
+  });
+
+  it("execute-with-tools uses executeCode with sandbox defaults when code field is set", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "exec-code-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "execute-with-tools",
+        prompt: "Run the linter",
+        code: "console.log('hello')",
+        input: [],
+        output: "lint-results",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toContain("step-a");
+
+    // Should have called executeCode with the code field and sandbox opts
+    const execCalls = adapter.calls.filter(c => c.method === "executeCode");
+    expect(execCalls.length).toBe(1);
+    expect(execCalls[0].args[1]).toBe("console.log('hello')");
+    const opts = execCalls[0].args[2] as { timeout_ms: number; sandbox: string };
+    expect(opts.timeout_ms).toBe(30000);
+    expect(opts.sandbox).toBe("strict");
+
+    // Should NOT have called sendMessage for the prompt
+    const sendCalls = adapter.calls.filter(c => c.method === "sendMessage");
+    expect(sendCalls.length).toBe(0);
   });
 
   it("creates artifacts when sessionDir is provided", async () => {

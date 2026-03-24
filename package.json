@@ -11,6 +11,7 @@
     "test:integration": "bun run tests/integration/validate-config.ts",
     "validate": "bun run cli/src/index.ts validate",
     "typecheck": "bun x tsc --noEmit --project runtime/tsconfig.json",
+    "lint:yaml-safety": "bash scripts/check-yaml-safety.sh",
     "publish:all": "bun run scripts/publish.ts"
   }
 }

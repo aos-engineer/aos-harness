@@ -8,7 +8,7 @@
  * that interprets step actions and orchestrates the flow, not the executor.
  */
 
-import type { AOSAdapter, TranscriptEntry } from "./types";
+import type { AOSAdapter, ExecuteCodeOpts, TranscriptEntry } from "./types";
 import { UnsupportedError } from "./types";
 import { ArtifactManager } from "./artifact-manager";
 
@@ -21,6 +21,8 @@ export interface WorkflowStep {
   description?: string;
   agents?: string[];
   prompt?: string;
+  /** Explicit code to execute for execute-with-tools steps (separate from prompt). */
+  code?: string;
   structural_advantage?: "speaks-last" | null;
   input?: string[];
   output?: string;
@@ -345,11 +347,24 @@ export class WorkflowRunner {
       );
 
       try {
-        executionResult = await this.adapter.executeCode(handle, prompt);
+        if (step.code) {
+          // Explicit code provided — execute with safe sandbox defaults
+          const opts: ExecuteCodeOpts = {
+            timeout_ms: 30000,
+            sandbox: "strict",
+          };
+          executionResult = await this.adapter.executeCode(handle, step.code, opts);
+        } else {
+          // No explicit code — send the prompt to the agent via sendMessage
+          // and let the agent handle execution through its tools.
+          // Never pass raw prompts directly to executeCode.
+          const response = await this.adapter.sendMessage(handle, prompt);
+          executionResult = response.text;
+        }
       } catch (err) {
         if (err instanceof UnsupportedError) {
           this.adapter.notify(
-            `[${this.config.id}] executeCode not supported, skipping`,
+            `[${this.config.id}] execution not supported by adapter, skipping`,
             "info",
           );
         } else {
