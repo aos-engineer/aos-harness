@@ -23,6 +23,8 @@ import type {
   ThinkingMode,
 } from "../src/types";
 import { UnsupportedError } from "../src/types";
+import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 
 export interface MockCall {
   method: string;
@@ -249,11 +251,13 @@ export class MockAdapter implements AOSAdapter {
 
   async writeFile(path: string, content: string): Promise<void> {
     this.record("writeFile", path, content);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, content, "utf-8");
   }
 
   async readFile(path: string): Promise<string> {
     this.record("readFile", path);
-    return "";
+    return readFileSync(path, "utf-8");
   }
 
   async openInEditor(path: string, editor: string): Promise<void> {
