@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+bun.lock
+
+# AOS session data
+.aos/
+
+# Superpowers brainstorm sessions
+.superpowers/
+
+# OS files
+.DS_Store
+
+# Build output
+dist/
