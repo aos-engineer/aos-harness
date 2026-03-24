@@ -67,3 +67,10 @@ expertise:
 model:
   tier: premium
   thinking: on
+
+capabilities:
+  can_execute_code: false
+  can_produce_files: true
+  can_review_artifacts: true
+  available_skills: []
+  output_types: [text, markdown, structured-data]

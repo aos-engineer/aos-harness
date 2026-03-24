@@ -64,3 +64,10 @@ expertise:
 model:
   tier: standard
   thinking: "off"
+
+capabilities:
+  can_execute_code: false
+  can_produce_files: false
+  can_review_artifacts: true
+  available_skills: []
+  output_types: [text, markdown]
