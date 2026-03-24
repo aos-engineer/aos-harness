@@ -172,6 +172,10 @@ The command launches the Arbiter (orchestrator) who dispatches specialist agents
 ### Constraints
 These are advisory — Claude Code does not enforce them at runtime:
 ${constraintSummary}
+
+### Execution Profile
+The deliberation runs under the **${profile.name}** execution profile.
+${formatExecutionProfileSection(profile)}
 `;
 }
 
@@ -190,6 +194,27 @@ function formatConstraintSummary(profile: ProfileConfig): string {
   }
 
   lines.push(`- Rounds: ${c.rounds.min}-${c.rounds.max} exchanges`);
+
+  return lines.join("\n");
+}
+
+function formatExecutionProfileSection(profile: ProfileConfig): string {
+  const lines: string[] = [];
+
+  lines.push(`- **Profile ID:** ${profile.id}`);
+  lines.push(`- **Assembly:** ${profile.assembly.perspectives.length} perspective agent(s) + 1 orchestrator`);
+
+  if (profile.delegation?.tension_pairs?.length) {
+    lines.push(`- **Tension pairs:** ${profile.delegation.tension_pairs.length} configured (ensures balanced debate)`);
+  }
+
+  const c = profile.constraints;
+  lines.push(`- **Target rounds:** ${c.rounds.min}-${c.rounds.max}`);
+  lines.push(`- **Time window:** ${c.time.min_minutes}-${c.time.max_minutes} minutes`);
+
+  if (c.budget) {
+    lines.push(`- **Budget envelope:** $${c.budget.min}-$${c.budget.max} ${c.budget.currency}`);
+  }
 
   return lines.join("\n");
 }

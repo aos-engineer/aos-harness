@@ -114,6 +114,22 @@ function findAgentDir(agentsRoot: string, agentId: string): string | null {
 
 // ── Main generator ──────────────────────────────────────────────
 
+export function generateClaudeCodeArtifacts(overrides?: {
+  profile?: string;
+  domain?: string;
+  output?: string;
+}): void {
+  // When called programmatically, inject overrides into process.argv
+  if (overrides) {
+    const syntheticArgs: string[] = [];
+    if (overrides.profile) syntheticArgs.push("--profile", overrides.profile);
+    if (overrides.domain) syntheticArgs.push("--domain", overrides.domain);
+    if (overrides.output) syntheticArgs.push("--output", overrides.output);
+    process.argv = ["bun", "generate", ...syntheticArgs];
+  }
+  generate();
+}
+
 function generate(): void {
   const args = parseArgs();
   const root = findProjectRoot();
