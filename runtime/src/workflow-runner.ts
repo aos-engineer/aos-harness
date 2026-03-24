@@ -8,7 +8,7 @@
  * that interprets step actions and orchestrates the flow, not the executor.
  */
 
-import type { AOSAdapter } from "./types";
+import type { AOSAdapter, TranscriptEntry } from "./types";
 import { UnsupportedError } from "./types";
 import { ArtifactManager } from "./artifact-manager";
 
@@ -53,13 +53,27 @@ export class WorkflowRunner {
   private completedSteps: string[] = [];
   private sessionDir?: string;
   private artifactManager?: ArtifactManager;
+  private onTranscriptEvent?: (event: TranscriptEntry) => void;
+  private gatesPassed = 0;
 
-  constructor(config: WorkflowConfig, adapter: AOSAdapter, opts?: { sessionDir?: string }) {
+  constructor(config: WorkflowConfig, adapter: AOSAdapter, opts?: {
+    sessionDir?: string;
+    onTranscriptEvent?: (event: TranscriptEntry) => void;
+  }) {
     this.config = config;
     this.adapter = adapter;
     if (opts?.sessionDir) {
       this.sessionDir = opts.sessionDir;
       this.artifactManager = new ArtifactManager(adapter, opts.sessionDir);
+    }
+    if (opts?.onTranscriptEvent) {
+      this.onTranscriptEvent = opts.onTranscriptEvent;
+    }
+  }
+
+  private emitEvent(event: TranscriptEntry): void {
+    if (this.onTranscriptEvent) {
+      this.onTranscriptEvent(event);
     }
   }
 
@@ -68,9 +82,24 @@ export class WorkflowRunner {
    * Returns a map of step IDs to their outputs.
    */
   async execute(): Promise<Map<string, unknown>> {
+    this.emitEvent({
+      type: "workflow_start",
+      timestamp: new Date().toISOString(),
+      workflow_id: this.config.id,
+      steps: this.config.steps.map((s) => s.id),
+    });
+
     for (const step of this.config.steps) {
       await this.runStep(step);
     }
+
+    this.emitEvent({
+      type: "workflow_end",
+      timestamp: new Date().toISOString(),
+      workflow_id: this.config.id,
+      steps_completed: this.completedSteps.length,
+      gates_passed: this.gatesPassed,
+    });
 
     return this.stepOutputs;
   }
@@ -92,6 +121,16 @@ export class WorkflowRunner {
   // ── Private ────────────────────────────────────────────────────────
 
   private async runStep(step: WorkflowStep): Promise<void> {
+    const stepStart = Date.now();
+
+    this.emitEvent({
+      type: "step_start",
+      timestamp: new Date().toISOString(),
+      step_id: step.id,
+      action: step.action,
+      agents: step.agents ?? [],
+    });
+
     // Gather inputs from previous steps
     const inputs: Record<string, unknown> = {};
     for (const inputId of (step.input ?? [])) {
@@ -125,7 +164,25 @@ export class WorkflowRunner {
         step_id: step.id,
         format: "markdown",
       });
+
+      this.emitEvent({
+        type: "artifact_write",
+        timestamp: new Date().toISOString(),
+        artifact_id: step.output,
+        format: "markdown",
+        revision: 1,
+      });
     }
+
+    const durationSeconds = (Date.now() - stepStart) / 1000;
+
+    this.emitEvent({
+      type: "step_end",
+      timestamp: new Date().toISOString(),
+      step_id: step.id,
+      artifact_id: step.output ?? null,
+      duration_seconds: durationSeconds,
+    });
 
     // Check for gate after this step
     const gate = this.config.gates.find((g) => g.after === step.id);
@@ -327,7 +384,11 @@ export class WorkflowRunner {
     inputs: Record<string, unknown>,
   ): Promise<void> {
     if (gate.type === "user-approval") {
-      await this.executeUserApprovalGate(gate, step, inputs);
+      if (gate.on_rejection === "retry_with_feedback") {
+        await this.executeRetryWithFeedbackGate(gate, step, inputs);
+      } else {
+        await this.executeUserApprovalGate(gate, step, inputs);
+      }
     } else if (gate.type === "automated-review") {
       await this.executeAutomatedReviewGate(gate, step, inputs);
     }
@@ -338,7 +399,22 @@ export class WorkflowRunner {
     step: WorkflowStep,
     inputs: Record<string, unknown>,
   ): Promise<void> {
+    this.emitEvent({
+      type: "gate_prompt",
+      timestamp: new Date().toISOString(),
+      gate_id: `gate-${gate.after}`,
+      after_step: gate.after,
+      prompt: gate.prompt,
+    });
+
     const approved = await this.adapter.promptConfirm("Review Gate", gate.prompt);
+
+    this.emitEvent({
+      type: "gate_result",
+      timestamp: new Date().toISOString(),
+      gate_id: `gate-${gate.after}`,
+      result: approved ? "approved" : "rejected",
+    });
 
     if (!approved) {
       // Collect feedback and re-run the step
@@ -349,6 +425,96 @@ export class WorkflowRunner {
       inputs[`${step.id}_feedback`] = feedback;
       const output = await this.executeStep(step, inputs);
       this.stepOutputs.set(step.id, output);
+    } else {
+      this.gatesPassed++;
+    }
+  }
+
+  private async executeRetryWithFeedbackGate(
+    gate: WorkflowGate,
+    step: WorkflowStep,
+    inputs: Record<string, unknown>,
+  ): Promise<void> {
+    const maxIterations = gate.max_iterations ?? 3;
+    let currentPrompt = step.prompt ?? "";
+
+    for (let iteration = 0; iteration <= maxIterations; iteration++) {
+      this.emitEvent({
+        type: "gate_prompt",
+        timestamp: new Date().toISOString(),
+        gate_id: `gate-${gate.after}`,
+        after_step: gate.after,
+        prompt: gate.prompt,
+      });
+
+      const approved = await this.adapter.promptConfirm("Review Gate", gate.prompt);
+
+      this.emitEvent({
+        type: "gate_result",
+        timestamp: new Date().toISOString(),
+        gate_id: `gate-${gate.after}`,
+        result: approved ? "approved" : "rejected",
+        iteration: iteration + 1,
+      });
+
+      if (approved) {
+        // Update artifact review status to "approved"
+        if (this.artifactManager && step.output) {
+          await this.artifactManager.updateReviewStatus(
+            step.output,
+            "approved",
+            `gate-${gate.after}`,
+          );
+        }
+        this.gatesPassed++;
+        return;
+      }
+
+      // If we've exhausted max iterations, proceed with current output
+      if (iteration >= maxIterations) {
+        this.adapter.notify(
+          `[${this.config.id}] Max retry iterations (${maxIterations}) reached for gate after ${step.id}, proceeding`,
+          "info",
+        );
+        return;
+      }
+
+      // Get feedback from user
+      const feedback = await this.adapter.promptInput("What needs to change?");
+      this.stepOutputs.set(`${step.id}_feedback`, feedback);
+
+      // Augment the step's prompt with the feedback
+      const revisionNumber = iteration + 1;
+      currentPrompt = `${step.prompt ?? ""}\n---\n## User Feedback (Revision ${revisionNumber})\n${feedback}\n---`;
+
+      // Create a modified step with the augmented prompt
+      const augmentedStep: WorkflowStep = { ...step, prompt: currentPrompt };
+
+      // If artifactManager exists, revise the artifact to increment revision
+      if (this.artifactManager && step.output) {
+        // Re-execute the step with augmented prompt
+        inputs[`${step.id}_feedback`] = feedback;
+        const output = await this.executeStep(augmentedStep, inputs);
+        this.stepOutputs.set(step.id, output);
+
+        const content = typeof output === "string"
+          ? output
+          : JSON.stringify(output, null, 2);
+        const manifest = await this.artifactManager.reviseArtifact(step.output, content);
+
+        this.emitEvent({
+          type: "artifact_write",
+          timestamp: new Date().toISOString(),
+          artifact_id: step.output,
+          format: manifest.format,
+          revision: manifest.metadata.revision,
+        });
+      } else {
+        // Re-execute the step with augmented prompt
+        inputs[`${step.id}_feedback`] = feedback;
+        const output = await this.executeStep(augmentedStep, inputs);
+        this.stepOutputs.set(step.id, output);
+      }
     }
   }
 

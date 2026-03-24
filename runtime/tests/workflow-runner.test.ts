@@ -464,6 +464,23 @@ describe("execution workflow actions", () => {
     expect(runner.getCompletedSteps()).toEqual(["step-a"]);
   });
 
+  it("still works with two-argument constructor (no opts)", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "no-opts-test",
+      name: "Test",
+      description: "Test",
+      steps: [
+        { id: "step-a", action: "gather", input: [], output: "data", review_gate: false },
+      ],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toEqual(["step-a"]);
+  });
+
   it("includes synthesis inputs from previous steps", async () => {
     const adapter = new MockAdapter();
     const config: WorkflowConfig = {
@@ -493,5 +510,282 @@ describe("execution workflow actions", () => {
     };
     expect(stepC.synthesis_inputs["step-a"]).toBeDefined();
     expect(stepC.synthesis_inputs["step-b"]).toBeDefined();
+  });
+});
+
+// ── retry_with_feedback Gate ──────────────────────────────────────
+
+describe("retry_with_feedback gate", () => {
+  it("re-runs step with user feedback on rejection", async () => {
+    const adapter = new MockAdapter();
+    let confirmCount = 0;
+    adapter.promptConfirm = async (title: string, message: string) => {
+      adapter.calls.push({ method: "promptConfirm", args: [title, message], timestamp: Date.now() });
+      confirmCount++;
+      return confirmCount > 1; // Reject first, approve second
+    };
+    adapter.promptInput = async (label: string) => {
+      adapter.calls.push({ method: "promptInput", args: [label], timestamp: Date.now() });
+      return "Please add error handling";
+    };
+
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "feedback-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "targeted-delegation",
+        agents: ["architect"],
+        prompt: "Design it",
+        input: [],
+        output: "design",
+        review_gate: true,
+      }],
+      gates: [{
+        after: "step-a",
+        type: "user-approval",
+        prompt: "Approve?",
+        on_rejection: "retry_with_feedback",
+      }],
+    };
+
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+
+    expect(confirmCount).toBe(2);
+  });
+
+  it("stops retrying after max iterations", async () => {
+    const adapter = new MockAdapter();
+    let confirmCount = 0;
+    adapter.promptConfirm = async (title: string, message: string) => {
+      adapter.calls.push({ method: "promptConfirm", args: [title, message], timestamp: Date.now() });
+      confirmCount++;
+      return false; // Always reject
+    };
+    adapter.promptInput = async (label: string) => {
+      adapter.calls.push({ method: "promptInput", args: [label], timestamp: Date.now() });
+      return "feedback";
+    };
+
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "max-retry-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "gather",
+        input: [],
+        output: "data",
+        review_gate: true,
+      }],
+      gates: [{
+        after: "step-a",
+        type: "user-approval",
+        prompt: "Approve?",
+        on_rejection: "retry_with_feedback",
+        max_iterations: 3,
+      }],
+    };
+
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toContain("step-a");
+    // Should have been called 4 times: initial + 3 retries
+    expect(confirmCount).toBe(4);
+  });
+
+  it("augments prompt with feedback text on retry", async () => {
+    const adapter = new MockAdapter();
+    let confirmCount = 0;
+    const executedPrompts: string[] = [];
+
+    adapter.promptConfirm = async (title: string, message: string) => {
+      adapter.calls.push({ method: "promptConfirm", args: [title, message], timestamp: Date.now() });
+      confirmCount++;
+      return confirmCount > 1; // Reject first, approve second
+    };
+    adapter.promptInput = async (label: string) => {
+      adapter.calls.push({ method: "promptInput", args: [label], timestamp: Date.now() });
+      return "Add more detail";
+    };
+
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "augment-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "targeted-delegation",
+        agents: ["architect"],
+        prompt: "Design it",
+        input: [],
+        output: "design",
+        review_gate: true,
+      }],
+      gates: [{
+        after: "step-a",
+        type: "user-approval",
+        prompt: "Approve?",
+        on_rejection: "retry_with_feedback",
+      }],
+    };
+
+    const runner = new WorkflowRunner(config, adapter);
+    const outputs = await runner.execute();
+
+    // The re-executed step output should contain the augmented prompt
+    const stepOutput = outputs.get("step-a") as { prompt: string };
+    expect(stepOutput.prompt).toContain("User Feedback (Revision 1)");
+    expect(stepOutput.prompt).toContain("Add more detail");
+  });
+});
+
+// ── Transcript Events ─────────────────────────────────────────────
+
+describe("transcript events", () => {
+  it("emits workflow_start and workflow_end events", async () => {
+    const events: any[] = [];
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "transcript-test",
+      name: "Test",
+      description: "Test",
+      steps: [{ id: "step-a", action: "gather", input: [], output: "data", review_gate: false }],
+      gates: [],
+    };
+
+    const runner = new WorkflowRunner(config, adapter, {
+      onTranscriptEvent: (e) => events.push(e),
+    });
+    await runner.execute();
+
+    const types = events.map(e => e.type);
+    expect(types).toContain("workflow_start");
+    expect(types).toContain("step_start");
+    expect(types).toContain("step_end");
+    expect(types).toContain("workflow_end");
+  });
+
+  it("includes correct data in workflow_start event", async () => {
+    const events: any[] = [];
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "data-test",
+      name: "Test",
+      description: "Test",
+      steps: [
+        { id: "step-a", action: "gather", input: [], output: "data-a", review_gate: false },
+        { id: "step-b", action: "gather", input: [], output: "data-b", review_gate: false },
+      ],
+      gates: [],
+    };
+
+    const runner = new WorkflowRunner(config, adapter, {
+      onTranscriptEvent: (e) => events.push(e),
+    });
+    await runner.execute();
+
+    const startEvent = events.find(e => e.type === "workflow_start");
+    expect(startEvent.workflow_id).toBe("data-test");
+    expect(startEvent.steps).toEqual(["step-a", "step-b"]);
+
+    const endEvent = events.find(e => e.type === "workflow_end");
+    expect(endEvent.workflow_id).toBe("data-test");
+    expect(endEvent.steps_completed).toBe(2);
+  });
+
+  it("emits gate_prompt and gate_result events", async () => {
+    const events: any[] = [];
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "gate-events-test",
+      name: "Test",
+      description: "Test",
+      steps: [{ id: "step-a", action: "gather", input: [], output: "data", review_gate: true }],
+      gates: [{
+        after: "step-a",
+        type: "user-approval",
+        prompt: "Approve?",
+        on_rejection: "re-run-step",
+      }],
+    };
+
+    const runner = new WorkflowRunner(config, adapter, {
+      onTranscriptEvent: (e) => events.push(e),
+    });
+    await runner.execute();
+
+    const types = events.map(e => e.type);
+    expect(types).toContain("gate_prompt");
+    expect(types).toContain("gate_result");
+
+    const gatePromptEvent = events.find(e => e.type === "gate_prompt");
+    expect(gatePromptEvent.after_step).toBe("step-a");
+    expect(gatePromptEvent.prompt).toBe("Approve?");
+
+    const gateResultEvent = events.find(e => e.type === "gate_result");
+    expect(gateResultEvent.result).toBe("approved");
+  });
+
+  it("emits step_start with action and agents", async () => {
+    const events: any[] = [];
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "step-events-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "targeted-delegation",
+        agents: ["architect", "operator"],
+        prompt: "Design",
+        input: [],
+        output: "design",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+
+    const runner = new WorkflowRunner(config, adapter, {
+      onTranscriptEvent: (e) => events.push(e),
+    });
+    await runner.execute();
+
+    const stepStart = events.find(e => e.type === "step_start");
+    expect(stepStart.step_id).toBe("step-a");
+    expect(stepStart.action).toBe("targeted-delegation");
+    expect(stepStart.agents).toEqual(["architect", "operator"]);
+  });
+
+  it("emits step_end with duration", async () => {
+    const events: any[] = [];
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "duration-test",
+      name: "Test",
+      description: "Test",
+      steps: [{ id: "step-a", action: "gather", input: [], output: "data", review_gate: false }],
+      gates: [],
+    };
+
+    const runner = new WorkflowRunner(config, adapter, {
+      onTranscriptEvent: (e) => events.push(e),
+    });
+    await runner.execute();
+
+    const stepEnd = events.find(e => e.type === "step_end");
+    expect(stepEnd.step_id).toBe("step-a");
+    expect(typeof stepEnd.duration_seconds).toBe("number");
+    expect(stepEnd.duration_seconds).toBeGreaterThanOrEqual(0);
   });
 });
