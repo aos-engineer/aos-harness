@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { join } from "node:path";
+import { existsSync, rmSync } from "node:fs";
 import { AOSEngine } from "../src/engine";
 import { MockAdapter } from "./mock-adapter";
 
@@ -145,5 +146,67 @@ describe("AOSEngine", () => {
 
     const responses = await engine.end("Final closing statements");
     expect(responses.length).toBeGreaterThan(0);
+  });
+
+  describe("workflow integration", () => {
+    it("uses deliberation mode when workflow is null/undefined", () => {
+      const adapter = new MockAdapter();
+      const engine = new AOSEngine(
+        adapter,
+        join(fixturesDir, "profiles", "test-council"),
+        { agentsDir: join(fixturesDir, "agents") },
+      );
+      expect(engine.isWorkflowMode()).toBe(false);
+      expect(engine.getWorkflowResults()).toBeNull();
+    });
+
+    it("detects workflow mode when profile has workflow field", () => {
+      const adapter = new MockAdapter();
+      const engine = new AOSEngine(
+        adapter,
+        join(fixturesDir, "profiles", "workflow-council"),
+        {
+          agentsDir: join(fixturesDir, "agents"),
+          workflowsDir: join(fixturesDir, "workflows"),
+        },
+      );
+      expect(engine.isWorkflowMode()).toBe(true);
+    });
+
+    it("creates artifacts directory when workflow is present", async () => {
+      const adapter = new MockAdapter();
+      const engine = new AOSEngine(
+        adapter,
+        join(fixturesDir, "profiles", "workflow-council"),
+        {
+          agentsDir: join(fixturesDir, "agents"),
+          workflowsDir: join(fixturesDir, "workflows"),
+        },
+      );
+
+      const tmpDir = join(import.meta.dir, "..", ".tmp-test-workflow-" + Date.now());
+      try {
+        await engine.start(
+          join(fixturesDir, "briefs", "test-brief", "brief.md"),
+          { deliberationDir: tmpDir },
+        );
+        expect(existsSync(join(tmpDir, "artifacts"))).toBe(true);
+
+        // Workflow should have produced results
+        const results = engine.getWorkflowResults();
+        expect(results).not.toBeNull();
+
+        // Transcript should contain workflow events
+        const transcript = engine.getTranscript();
+        const workflowStart = transcript.find((e) => e.type === "workflow_start");
+        const workflowEnd = transcript.find((e) => e.type === "workflow_end");
+        expect(workflowStart).toBeDefined();
+        expect(workflowEnd).toBeDefined();
+      } finally {
+        if (existsSync(tmpDir)) {
+          rmSync(tmpDir, { recursive: true, force: true });
+        }
+      }
+    });
   });
 });

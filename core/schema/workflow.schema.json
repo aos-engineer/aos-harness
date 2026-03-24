@@ -14,11 +14,27 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "action", "description", "input", "output", "review_gate"],
+        "required": ["id", "action"],
         "properties": {
           "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "name": { "type": "string" },
           "action": { "type": "string" },
           "description": { "type": "string" },
+          "agents": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Agent IDs to delegate this step to."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "The delegation message sent to the agent(s) for this step. Supports template variables."
+          },
+          "structural_advantage": {
+            "type": ["string", "null"],
+            "enum": ["speaks-last", null],
+            "default": null,
+            "description": "Structural advantage for this step. Overrides the agent's profile-level structural_advantage for this step only."
+          },
           "input": {
             "type": "array",
             "items": { "type": "string" }
@@ -26,7 +42,7 @@
           "output": { "type": "string" },
           "review_gate": { "type": "boolean" }
         },
-        "additionalProperties": false
+        "additionalProperties": true
       }
     },
     "gates": {
@@ -41,11 +57,16 @@
           },
           "prompt": { "type": "string" },
           "max_iterations": { "type": "integer", "minimum": 1 },
-          "on_rejection": { "const": "re-run-step" }
+          "on_rejection": {
+            "type": "string",
+            "enum": ["re-run-step", "retry_with_feedback"],
+            "default": "re-run-step",
+            "description": "What to do when the user rejects at this gate."
+          }
         },
         "additionalProperties": false
       }
     }
   },
-  "additionalProperties": false
+  "additionalProperties": true
 }

@@ -100,6 +100,43 @@
         "tier": { "enum": ["economy", "standard", "premium"] },
         "thinking": { "enum": ["off", "on", "extended"] }
       }
+    },
+    "capabilities": {
+      "type": "object",
+      "description": "Declares what this agent can do beyond responding with text. Used by the engine and orchestrator to validate delegation targets and match agents to workflow steps.",
+      "properties": {
+        "can_execute_code": {
+          "type": "boolean",
+          "default": false,
+          "description": "Can this agent run code via platform tools (executeCode adapter method)?"
+        },
+        "can_produce_files": {
+          "type": "boolean",
+          "default": false,
+          "description": "Can this agent create or modify files via platform tools (createArtifact adapter method)?"
+        },
+        "can_review_artifacts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Can this agent review another agent's output and provide structured feedback?"
+        },
+        "available_skills": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Skill IDs this agent can invoke via the invokeSkill adapter method. Empty array means no skills available."
+        },
+        "output_types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["text", "markdown", "code", "diagram", "structured-data"]
+          },
+          "default": ["text", "markdown"],
+          "description": "What artifact formats this agent can produce."
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

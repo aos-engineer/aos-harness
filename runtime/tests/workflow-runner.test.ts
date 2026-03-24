@@ -1,5 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import { join } from "node:path";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { loadWorkflow } from "../src/config-loader";
 import { WorkflowRunner } from "../src/workflow-runner";
 import type { WorkflowConfig } from "../src/workflow-runner";
@@ -289,5 +291,501 @@ describe("WorkflowRunner", () => {
         (c.args[0] as string).includes("Automated review"),
     );
     expect(reviewNotifies.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ── Execution Workflow Actions ───────────────────────────────────
+
+describe("execution workflow actions", () => {
+  it("handles targeted-delegation action", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "exec-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "targeted-delegation",
+        agents: ["architect"],
+        prompt: "Design the system",
+        input: [],
+        output: "architecture",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toContain("step-a");
+  });
+
+  it("handles tension-pair action with 2 agents", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "tension-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "tension-pair",
+        agents: ["architect", "operator"],
+        prompt: "Challenge the design",
+        input: [],
+        output: "reviewed",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toContain("step-a");
+  });
+
+  it("rejects tension-pair with wrong number of agents", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "tension-fail",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "tension-pair",
+        agents: ["architect"],
+        prompt: "Challenge the design",
+        input: [],
+        output: "reviewed",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    await expect(runner.execute()).rejects.toThrow("exactly 2 agents");
+  });
+
+  it("handles orchestrator-synthesis action (no agents)", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "synth-test",
+      name: "Test",
+      description: "Test",
+      steps: [
+        { id: "step-a", action: "gather", input: [], output: "data-a", review_gate: false },
+        {
+          id: "step-b",
+          action: "orchestrator-synthesis",
+          prompt: "Assemble everything",
+          input: ["data-a"],
+          output: "final",
+          review_gate: false,
+        },
+      ],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toEqual(["step-a", "step-b"]);
+  });
+
+  it("handles execute-with-tools action", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "exec-tools-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "execute-with-tools",
+        prompt: "Run tests",
+        input: [],
+        output: "test-results",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toContain("step-a");
+
+    // Should have spawned and destroyed an agent
+    const spawnCalls = adapter.calls.filter(c => c.method === "spawnAgent");
+    expect(spawnCalls.length).toBeGreaterThan(0);
+    const destroyCalls = adapter.calls.filter(c => c.method === "destroyAgent");
+    expect(destroyCalls.length).toBeGreaterThan(0);
+  });
+
+  it("creates artifacts when sessionDir is provided", async () => {
+    const adapter = new MockAdapter();
+    const sessionDir = mkdtempSync(join(tmpdir(), "aos-wf-test-"));
+
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "artifact-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "targeted-delegation",
+        agents: ["architect"],
+        prompt: "Design",
+        input: [],
+        output: "design_doc",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter, { sessionDir });
+    await runner.execute();
+
+    // Verify artifact was created via adapter.writeFile
+    const writeCalls = adapter.calls.filter(c => c.method === "writeFile");
+    expect(writeCalls.length).toBeGreaterThan(0);
+  });
+
+  it("still works with two-argument constructor", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "compat-test",
+      name: "Test",
+      description: "Test",
+      steps: [
+        { id: "step-a", action: "gather", input: [], output: "data", review_gate: false },
+      ],
+      gates: [],
+    };
+    // Two-argument constructor must still work
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toEqual(["step-a"]);
+  });
+
+  it("still works with two-argument constructor (no opts)", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "no-opts-test",
+      name: "Test",
+      description: "Test",
+      steps: [
+        { id: "step-a", action: "gather", input: [], output: "data", review_gate: false },
+      ],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toEqual(["step-a"]);
+  });
+
+  it("includes synthesis inputs from previous steps", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "synth-inputs-test",
+      name: "Test",
+      description: "Test",
+      steps: [
+        { id: "step-a", action: "gather", input: [], output: "data-a", review_gate: false },
+        { id: "step-b", action: "gather", input: [], output: "data-b", review_gate: false },
+        {
+          id: "step-c",
+          action: "orchestrator-synthesis",
+          prompt: "Synthesize",
+          input: ["step-a", "step-b"],
+          output: "final",
+          review_gate: false,
+        },
+      ],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    const outputs = await runner.execute();
+
+    const stepC = outputs.get("step-c") as {
+      synthesis_inputs: Record<string, unknown>;
+    };
+    expect(stepC.synthesis_inputs["step-a"]).toBeDefined();
+    expect(stepC.synthesis_inputs["step-b"]).toBeDefined();
+  });
+});
+
+// ── retry_with_feedback Gate ──────────────────────────────────────
+
+describe("retry_with_feedback gate", () => {
+  it("re-runs step with user feedback on rejection", async () => {
+    const adapter = new MockAdapter();
+    let confirmCount = 0;
+    adapter.promptConfirm = async (title: string, message: string) => {
+      adapter.calls.push({ method: "promptConfirm", args: [title, message], timestamp: Date.now() });
+      confirmCount++;
+      return confirmCount > 1; // Reject first, approve second
+    };
+    adapter.promptInput = async (label: string) => {
+      adapter.calls.push({ method: "promptInput", args: [label], timestamp: Date.now() });
+      return "Please add error handling";
+    };
+
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "feedback-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "targeted-delegation",
+        agents: ["architect"],
+        prompt: "Design it",
+        input: [],
+        output: "design",
+        review_gate: true,
+      }],
+      gates: [{
+        after: "step-a",
+        type: "user-approval",
+        prompt: "Approve?",
+        on_rejection: "retry_with_feedback",
+      }],
+    };
+
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+
+    expect(confirmCount).toBe(2);
+  });
+
+  it("stops retrying after max iterations", async () => {
+    const adapter = new MockAdapter();
+    let confirmCount = 0;
+    adapter.promptConfirm = async (title: string, message: string) => {
+      adapter.calls.push({ method: "promptConfirm", args: [title, message], timestamp: Date.now() });
+      confirmCount++;
+      return false; // Always reject
+    };
+    adapter.promptInput = async (label: string) => {
+      adapter.calls.push({ method: "promptInput", args: [label], timestamp: Date.now() });
+      return "feedback";
+    };
+
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "max-retry-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "gather",
+        input: [],
+        output: "data",
+        review_gate: true,
+      }],
+      gates: [{
+        after: "step-a",
+        type: "user-approval",
+        prompt: "Approve?",
+        on_rejection: "retry_with_feedback",
+        max_iterations: 3,
+      }],
+    };
+
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toContain("step-a");
+    // Should have been called 4 times: initial + 3 retries
+    expect(confirmCount).toBe(4);
+  });
+
+  it("augments prompt with feedback text on retry", async () => {
+    const adapter = new MockAdapter();
+    let confirmCount = 0;
+    const executedPrompts: string[] = [];
+
+    adapter.promptConfirm = async (title: string, message: string) => {
+      adapter.calls.push({ method: "promptConfirm", args: [title, message], timestamp: Date.now() });
+      confirmCount++;
+      return confirmCount > 1; // Reject first, approve second
+    };
+    adapter.promptInput = async (label: string) => {
+      adapter.calls.push({ method: "promptInput", args: [label], timestamp: Date.now() });
+      return "Add more detail";
+    };
+
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "augment-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "targeted-delegation",
+        agents: ["architect"],
+        prompt: "Design it",
+        input: [],
+        output: "design",
+        review_gate: true,
+      }],
+      gates: [{
+        after: "step-a",
+        type: "user-approval",
+        prompt: "Approve?",
+        on_rejection: "retry_with_feedback",
+      }],
+    };
+
+    const runner = new WorkflowRunner(config, adapter);
+    const outputs = await runner.execute();
+
+    // The re-executed step output should contain the augmented prompt
+    const stepOutput = outputs.get("step-a") as { prompt: string };
+    expect(stepOutput.prompt).toContain("User Feedback (Revision 1)");
+    expect(stepOutput.prompt).toContain("Add more detail");
+  });
+});
+
+// ── Transcript Events ─────────────────────────────────────────────
+
+describe("transcript events", () => {
+  it("emits workflow_start and workflow_end events", async () => {
+    const events: any[] = [];
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "transcript-test",
+      name: "Test",
+      description: "Test",
+      steps: [{ id: "step-a", action: "gather", input: [], output: "data", review_gate: false }],
+      gates: [],
+    };
+
+    const runner = new WorkflowRunner(config, adapter, {
+      onTranscriptEvent: (e) => events.push(e),
+    });
+    await runner.execute();
+
+    const types = events.map(e => e.type);
+    expect(types).toContain("workflow_start");
+    expect(types).toContain("step_start");
+    expect(types).toContain("step_end");
+    expect(types).toContain("workflow_end");
+  });
+
+  it("includes correct data in workflow_start event", async () => {
+    const events: any[] = [];
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "data-test",
+      name: "Test",
+      description: "Test",
+      steps: [
+        { id: "step-a", action: "gather", input: [], output: "data-a", review_gate: false },
+        { id: "step-b", action: "gather", input: [], output: "data-b", review_gate: false },
+      ],
+      gates: [],
+    };
+
+    const runner = new WorkflowRunner(config, adapter, {
+      onTranscriptEvent: (e) => events.push(e),
+    });
+    await runner.execute();
+
+    const startEvent = events.find(e => e.type === "workflow_start");
+    expect(startEvent.workflow_id).toBe("data-test");
+    expect(startEvent.steps).toEqual(["step-a", "step-b"]);
+
+    const endEvent = events.find(e => e.type === "workflow_end");
+    expect(endEvent.workflow_id).toBe("data-test");
+    expect(endEvent.steps_completed).toBe(2);
+  });
+
+  it("emits gate_prompt and gate_result events", async () => {
+    const events: any[] = [];
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "gate-events-test",
+      name: "Test",
+      description: "Test",
+      steps: [{ id: "step-a", action: "gather", input: [], output: "data", review_gate: true }],
+      gates: [{
+        after: "step-a",
+        type: "user-approval",
+        prompt: "Approve?",
+        on_rejection: "re-run-step",
+      }],
+    };
+
+    const runner = new WorkflowRunner(config, adapter, {
+      onTranscriptEvent: (e) => events.push(e),
+    });
+    await runner.execute();
+
+    const types = events.map(e => e.type);
+    expect(types).toContain("gate_prompt");
+    expect(types).toContain("gate_result");
+
+    const gatePromptEvent = events.find(e => e.type === "gate_prompt");
+    expect(gatePromptEvent.after_step).toBe("step-a");
+    expect(gatePromptEvent.prompt).toBe("Approve?");
+
+    const gateResultEvent = events.find(e => e.type === "gate_result");
+    expect(gateResultEvent.result).toBe("approved");
+  });
+
+  it("emits step_start with action and agents", async () => {
+    const events: any[] = [];
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "step-events-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "targeted-delegation",
+        agents: ["architect", "operator"],
+        prompt: "Design",
+        input: [],
+        output: "design",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+
+    const runner = new WorkflowRunner(config, adapter, {
+      onTranscriptEvent: (e) => events.push(e),
+    });
+    await runner.execute();
+
+    const stepStart = events.find(e => e.type === "step_start");
+    expect(stepStart.step_id).toBe("step-a");
+    expect(stepStart.action).toBe("targeted-delegation");
+    expect(stepStart.agents).toEqual(["architect", "operator"]);
+  });
+
+  it("emits step_end with duration", async () => {
+    const events: any[] = [];
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "duration-test",
+      name: "Test",
+      description: "Test",
+      steps: [{ id: "step-a", action: "gather", input: [], output: "data", review_gate: false }],
+      gates: [],
+    };
+
+    const runner = new WorkflowRunner(config, adapter, {
+      onTranscriptEvent: (e) => events.push(e),
+    });
+    await runner.execute();
+
+    const stepEnd = events.find(e => e.type === "step_end");
+    expect(stepEnd.step_id).toBe("step-a");
+    expect(typeof stepEnd.duration_seconds).toBe("number");
+    expect(stepEnd.duration_seconds).toBeGreaterThanOrEqual(0);
   });
 });

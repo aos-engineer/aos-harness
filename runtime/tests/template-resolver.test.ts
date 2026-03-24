@@ -37,6 +37,42 @@ describe("resolveTemplate", () => {
     expect(resolveTemplate(template, { x: "A", y: "B" })).toBe("Line 1: A\nLine 2: B");
   });
 
+  describe("role_override resolution", () => {
+    it("resolves role_override to the provided value", () => {
+      const result = resolveTemplate(
+        "Base persona.\n\n{{role_override}}\n\nMore content.",
+        { role_override: "Produce architecture decision records" }
+      );
+      expect(result).toContain("Produce architecture decision records");
+      expect(result).toContain("Base persona.");
+      expect(result).toContain("More content.");
+    });
+
+    it("strips line when role_override resolves to empty string", () => {
+      const result = resolveTemplate(
+        "Base persona.\n\n{{role_override}}\n\nMore content.",
+        { role_override: "" }
+      );
+      expect(result).toBe("Base persona.\n\nMore content.");
+    });
+
+    it("strips line when role_override is not in variables", () => {
+      const result = resolveTemplate(
+        "Base persona.\n\n{{role_override}}\n\nMore content.",
+        {}
+      );
+      expect(result).toBe("Base persona.\n\nMore content.");
+    });
+
+    it("keeps line when role_override is alongside other content", () => {
+      const result = resolveTemplate(
+        "Override: {{role_override}} here",
+        { role_override: "" }
+      );
+      expect(result).toBe("Override:  here");
+    });
+  });
+
   it("resolves all spec-defined variables", () => {
     const vars = {
       date: "2026-03-23",

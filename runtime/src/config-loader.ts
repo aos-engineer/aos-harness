@@ -103,6 +103,16 @@ export function loadProfile(profileDir: string): ProfileConfig {
     );
   }
 
+  // Parse optional workflow field
+  config.workflow = config.workflow ?? null;
+
+  // Ensure role_override is preserved on perspective entries
+  if (config.assembly?.perspectives) {
+    for (const p of config.assembly.perspectives) {
+      p.role_override = p.role_override ?? null;
+    }
+  }
+
   return config;
 }
 
@@ -172,7 +182,11 @@ export function loadWorkflow(workflowDir: string): WorkflowConfig {
     );
   }
 
-  const required = ["id", "name", "description", "steps", "gates"] as const;
+  // description and gates are optional; provide defaults
+  config.description = config.description || "";
+  config.gates = config.gates || [];
+
+  const required = ["id", "name", "steps"] as const;
   for (const field of required) {
     if (!(field in config)) {
       throw new ConfigError(`Missing required field: ${field}`, yamlPath);
@@ -181,6 +195,38 @@ export function loadWorkflow(workflowDir: string): WorkflowConfig {
 
   if (!Array.isArray(config.steps) || config.steps.length === 0) {
     throw new ConfigError("Workflow must have at least one step", yamlPath);
+  }
+
+  // Apply defaults for optional step fields
+  for (const step of config.steps) {
+    step.input = step.input || [];
+    step.review_gate = step.review_gate ?? false;
+  }
+
+  // Validate tension-pair steps have exactly 2 agents
+  for (const step of config.steps) {
+    if (step.action === "tension-pair") {
+      if (!step.agents || step.agents.length !== 2) {
+        throw new ConfigError(
+          `Step "${step.id}" with action "tension-pair" must have exactly 2 agents`,
+          yamlPath,
+        );
+      }
+    }
+  }
+
+  // Validate artifact ID (output) uniqueness
+  const outputIds = new Set<string>();
+  for (const step of config.steps) {
+    if (step.output) {
+      if (outputIds.has(step.output)) {
+        throw new ConfigError(
+          `Duplicate artifact output ID "${step.output}" found in step "${step.id}"`,
+          yamlPath,
+        );
+      }
+      outputIds.add(step.output);
+    }
   }
 
   // Validate step references in gates
@@ -192,22 +238,35 @@ export function loadWorkflow(workflowDir: string): WorkflowConfig {
         yamlPath,
       );
     }
-  }
-
-  // Validate step input references
-  for (const step of config.steps) {
-    step.input = step.input || [];
-    for (const inputId of step.input) {
-      if (!stepIds.has(inputId)) {
-        throw new ConfigError(
-          `Step "${step.id}" references unknown input step "${inputId}"`,
-          yamlPath,
-        );
-      }
+    // Validate gate references a step with review_gate: true
+    const targetStep = config.steps.find((s) => s.id === gate.after);
+    if (targetStep && !targetStep.review_gate) {
+      throw new ConfigError(
+        `Gate after "${gate.after}" references a step without review_gate: true`,
+        yamlPath,
+      );
     }
   }
 
-  config.gates = config.gates || [];
+  // Validate step input references using dual resolution:
+  // 1. Check output IDs first
+  // 2. Fall back to step IDs (backward compatibility)
+  for (const step of config.steps) {
+    for (const inputRef of step.input!) {
+      if (outputIds.has(inputRef)) {
+        // Resolved as an artifact output ID
+        continue;
+      }
+      if (stepIds.has(inputRef)) {
+        // Backward-compatible: resolved as a step ID
+        continue;
+      }
+      throw new ConfigError(
+        `Step "${step.id}" references unknown input "${inputRef}"`,
+        yamlPath,
+      );
+    }
+  }
 
   return config;
 }
