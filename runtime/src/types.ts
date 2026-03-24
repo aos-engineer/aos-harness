@@ -139,7 +139,7 @@ export interface ProfileConfig {
   };
   constraints: ProfileConstraints;
   error_handling: ErrorHandling;
-  budget_estimation: BudgetEstimation;
+  budget_estimation?: BudgetEstimation | null;
   input: {
     format: "brief" | "question" | "document" | "freeform";
     required_sections: InputSection[];

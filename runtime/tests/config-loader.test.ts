@@ -211,6 +211,84 @@ gates:
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it("rejects forward references (step B references step C output but C comes after B)", () => {
+    const tmpDir = join(fixturesDir, "workflows", "_tmp-forward-ref");
+    mkdirSync(tmpDir, { recursive: true });
+    try {
+      writeFileSync(
+        join(tmpDir, "workflow.yaml"),
+        `schema: aos/workflow/v1
+id: forward-ref
+name: Forward Reference
+steps:
+  - id: step-a
+    action: gather
+    input: []
+    output: data_a
+    review_gate: false
+  - id: step-b
+    action: process
+    input: [data_c]
+    output: data_b
+    review_gate: false
+  - id: step-c
+    action: process
+    input: [data_a]
+    output: data_c
+    review_gate: false
+gates: []
+`,
+      );
+      expect(() => loadWorkflow(tmpDir)).toThrow('forward reference to "data_c"');
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("validateId rejection", () => {
+  it("rejects agent IDs with uppercase characters", () => {
+    const tmpDir = join(fixturesDir, "agents", "_tmp-bad-id");
+    mkdirSync(tmpDir, { recursive: true });
+    try {
+      writeFileSync(
+        join(tmpDir, "agent.yaml"),
+        `schema: aos/agent/v1
+id: BadAgent
+name: Bad Agent
+role: Test role
+model:
+  tier: standard
+  thinking: "off"
+cognition:
+  objective_function: test
+  time_horizon:
+    primary: short
+    secondary: medium
+    peripheral: long
+  core_bias: none
+  risk_tolerance: moderate
+  default_stance: neutral
+persona:
+  temperament: []
+  thinking_patterns: []
+  heuristics: []
+  evidence_standard:
+    convinced_by: []
+    not_convinced_by: []
+  red_lines: []
+output:
+  format: memo
+  required_sections: []
+`,
+      );
+      writeFileSync(join(tmpDir, "prompt.md"), "System prompt here");
+      expect(() => loadAgent(tmpDir)).toThrow("Invalid ID");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("loadProfile — workflow field", () => {

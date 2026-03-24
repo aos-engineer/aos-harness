@@ -8,9 +8,10 @@
  * that interprets step actions and orchestrates the flow, not the executor.
  */
 
-import type { AOSAdapter, ExecuteCodeOpts, TranscriptEntry } from "./types";
+import type { AOSAdapter, ExecuteCodeOpts, TranscriptEntry, ProfileConfig } from "./types";
 import { UnsupportedError } from "./types";
 import { ArtifactManager } from "./artifact-manager";
+import { resolveTemplate } from "./template-resolver";
 
 // ── Workflow Config Types ──────────────────────────────────────────
 
@@ -59,10 +60,12 @@ export class WorkflowRunner {
   private artifactManager?: ArtifactManager;
   private onTranscriptEvent?: (event: TranscriptEntry) => void;
   private gatesPassed: string[] = [];
+  private profileConfig?: ProfileConfig;
 
   constructor(config: WorkflowConfig, adapter: AOSAdapter, opts?: {
     sessionDir?: string;
     onTranscriptEvent?: (event: TranscriptEntry) => void;
+    profileConfig?: ProfileConfig;
   }) {
     this.config = config;
     this.adapter = adapter;
@@ -73,12 +76,65 @@ export class WorkflowRunner {
     if (opts?.onTranscriptEvent) {
       this.onTranscriptEvent = opts.onTranscriptEvent;
     }
+    if (opts?.profileConfig) {
+      this.profileConfig = opts.profileConfig;
+    }
   }
 
   private emitEvent(event: TranscriptEntry): void {
     if (this.onTranscriptEvent) {
       this.onTranscriptEvent(event);
     }
+  }
+
+  /**
+   * Build a template variables map for the given step, pulling from
+   * workflow config, profile config, and step metadata.
+   */
+  private buildTemplateVars(step: WorkflowStep): Record<string, string> {
+    const vars: Record<string, string> = {
+      step_id: step.id,
+      step_name: step.name ?? step.id,
+      workflow_id: this.config.id,
+      workflow_name: this.config.name,
+    };
+
+    // Add agent names if available
+    if (step.agents && step.agents.length > 0) {
+      vars["agents"] = step.agents.join(", ");
+      vars["agent"] = step.agents[0];
+    }
+
+    // Resolve role_override from profile context if available
+    if (this.profileConfig && step.agents) {
+      for (const agentId of step.agents) {
+        const member = this.profileConfig.assembly?.perspectives?.find(
+          (p) => p.agent === agentId,
+        );
+        if (member?.role_override) {
+          vars["role_override"] = member.role_override;
+          break; // Use the first agent's role_override
+        }
+      }
+    }
+
+    // Profile-level variables
+    if (this.profileConfig) {
+      vars["profile_id"] = this.profileConfig.id;
+      vars["profile_name"] = this.profileConfig.name;
+    }
+
+    return vars;
+  }
+
+  /**
+   * Resolve template variables in a step's prompt.
+   */
+  private resolveStepPrompt(step: WorkflowStep): string {
+    const prompt = step.prompt ?? "";
+    if (!prompt) return prompt;
+    const vars = this.buildTemplateVars(step);
+    return resolveTemplate(prompt, vars);
   }
 
   /**
@@ -245,7 +301,7 @@ export class WorkflowRunner {
     inputs: Record<string, unknown>,
   ): Promise<unknown> {
     const agents = step.agents ?? [];
-    const prompt = step.prompt ?? "";
+    const prompt = this.resolveStepPrompt(step);
 
     // Load actual input artifact content via artifactManager
     const inputArtifacts: Record<string, string> = {};
@@ -305,7 +361,7 @@ export class WorkflowRunner {
       );
     }
 
-    const prompt = step.prompt ?? "";
+    const prompt = this.resolveStepPrompt(step);
 
     // Load actual input artifact content via artifactManager
     const inputArtifacts: Record<string, string> = {};
@@ -357,7 +413,7 @@ export class WorkflowRunner {
     step: WorkflowStep,
     inputs: Record<string, unknown>,
   ): Promise<unknown> {
-    const prompt = step.prompt ?? "";
+    const prompt = this.resolveStepPrompt(step);
 
     // Collect all input artifacts — load actual content when possible
     const collectedInputs: Record<string, unknown> = {};
@@ -411,7 +467,7 @@ export class WorkflowRunner {
     step: WorkflowStep,
     inputs: Record<string, unknown>,
   ): Promise<unknown> {
-    const prompt = step.prompt ?? "";
+    const prompt = this.resolveStepPrompt(step);
 
     this.adapter.notify(
       `[${this.config.id}] Execute with tools: ${prompt}`,
@@ -647,10 +703,11 @@ export class WorkflowRunner {
 
   private async executeAutomatedReviewGate(
     gate: WorkflowGate,
-    _step: WorkflowStep,
+    step: WorkflowStep,
     _inputs: Record<string, unknown>,
   ): Promise<void> {
     const maxIterations = gate.max_iterations ?? 3;
+    const gateId = `gate-${gate.after}`;
 
     for (let i = 0; i < maxIterations; i++) {
       this.adapter.notify(
@@ -658,10 +715,122 @@ export class WorkflowRunner {
         "info",
       );
 
-      // In a real implementation, the adapter dispatches a reviewer agent
-      // and checks whether the review passes. For now, the framework
-      // notifies and breaks — real review logic is adapter-specific.
-      break;
+      this.emitEvent({
+        type: "gate_prompt",
+        timestamp: new Date().toISOString(),
+        gate_id: gateId,
+        after_step: gate.after,
+        prompt: gate.prompt,
+        iteration: i + 1,
+      });
+
+      // Attempt to submit for automated review via adapter.submitForReview()
+      if (this.artifactManager && step.output && this.sessionDir) {
+        try {
+          const loaded = await this.adapter.loadArtifact(step.output, this.sessionDir);
+          // Create a temporary reviewer handle
+          const reviewerHandle = await this.adapter.spawnAgent(
+            {
+              schema: "aos/agent/v1",
+              id: `${step.id}-reviewer`,
+              name: `Reviewer for ${step.id}`,
+              role: "reviewer",
+              cognition: {
+                objective_function: "review",
+                time_horizon: { primary: "immediate", secondary: "", peripheral: "" },
+                core_bias: "none",
+                risk_tolerance: "low",
+                default_stance: "critical",
+              },
+              persona: {
+                temperament: [],
+                thinking_patterns: [],
+                heuristics: [],
+                evidence_standard: { convinced_by: [], not_convinced_by: [] },
+                red_lines: [],
+              },
+              tensions: [],
+              report: { structure: "flat" },
+              tools: null,
+              skills: [],
+              expertise: [],
+              model: { tier: "standard", thinking: "off" },
+            },
+            this.config.id,
+          );
+
+          try {
+            const reviewResult = await this.adapter.submitForReview(loaded, reviewerHandle, gate.prompt);
+
+            this.emitEvent({
+              type: "gate_result",
+              timestamp: new Date().toISOString(),
+              gate_id: gateId,
+              result: reviewResult.status,
+              iteration: i + 1,
+              reviewer: reviewResult.reviewer,
+            });
+
+            await this.adapter.destroyAgent(reviewerHandle);
+
+            if (reviewResult.status === "approved") {
+              if (this.artifactManager) {
+                await this.artifactManager.updateReviewStatus(step.output, "approved", gateId);
+              }
+              this.gatesPassed.push(gateId);
+              return;
+            }
+
+            // If rejected/needs-revision and we have iterations left, continue the loop
+            // (the step would need re-execution in a full implementation)
+            this.adapter.notify(
+              `[${this.config.id}] Automated review rejected: ${reviewResult.feedback ?? "no feedback"}`,
+              "warning",
+            );
+          } catch (err) {
+            await this.adapter.destroyAgent(reviewerHandle);
+            throw err;
+          }
+        } catch (err) {
+          if (err instanceof UnsupportedError) {
+            this.adapter.notify(
+              `[${this.config.id}] submitForReview not supported by adapter, passing gate as no-op`,
+              "warning",
+            );
+            this.emitEvent({
+              type: "gate_result",
+              timestamp: new Date().toISOString(),
+              gate_id: gateId,
+              result: "approved",
+              reason: "adapter_unsupported",
+            });
+            this.gatesPassed.push(gateId);
+            return;
+          }
+          throw err;
+        }
+      } else {
+        // No artifact manager or output — cannot perform review, pass as no-op
+        this.adapter.notify(
+          `[${this.config.id}] No artifact available for automated review, passing gate as no-op`,
+          "warning",
+        );
+        this.emitEvent({
+          type: "gate_result",
+          timestamp: new Date().toISOString(),
+          gate_id: gateId,
+          result: "approved",
+          reason: "no_artifact",
+        });
+        this.gatesPassed.push(gateId);
+        return;
+      }
     }
+
+    // Exhausted max iterations without approval
+    this.adapter.notify(
+      `[${this.config.id}] Max automated review iterations (${maxIterations}) reached for gate after ${step.id}, proceeding`,
+      "warning",
+    );
   }
 }

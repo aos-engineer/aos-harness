@@ -249,22 +249,36 @@ export function loadWorkflow(workflowDir: string): WorkflowConfig {
   }
 
   // Validate step input references using dual resolution:
-  // 1. Check output IDs first
-  // 2. Fall back to step IDs (backward compatibility)
+  // 1. Check output IDs first (only from preceding steps — no forward references)
+  // 2. Fall back to step IDs of preceding steps (backward compatibility)
+  const precedingOutputIds = new Set<string>();
+  const precedingStepIds = new Set<string>();
   for (const step of config.steps) {
     for (const inputRef of step.input!) {
-      if (outputIds.has(inputRef)) {
-        // Resolved as an artifact output ID
+      if (precedingOutputIds.has(inputRef)) {
+        // Resolved as an artifact output ID from a preceding step
         continue;
       }
-      if (stepIds.has(inputRef)) {
-        // Backward-compatible: resolved as a step ID
+      if (precedingStepIds.has(inputRef)) {
+        // Backward-compatible: resolved as a preceding step ID
         continue;
+      }
+      // Check if the reference exists at all (for a better error message)
+      if (outputIds.has(inputRef) || stepIds.has(inputRef)) {
+        throw new ConfigError(
+          `Step "${step.id}" has forward reference to "${inputRef}" which is defined in a later step`,
+          yamlPath,
+        );
       }
       throw new ConfigError(
         `Step "${step.id}" references unknown input "${inputRef}"`,
         yamlPath,
       );
+    }
+    // After validating this step's inputs, add its outputs/id to the preceding sets
+    precedingStepIds.add(step.id);
+    if (step.output) {
+      precedingOutputIds.add(step.output);
     }
   }
 

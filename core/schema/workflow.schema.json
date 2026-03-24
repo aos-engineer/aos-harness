@@ -3,7 +3,7 @@
   "$id": "aos/workflow/v1",
   "title": "AOS Workflow Definition",
   "type": "object",
-  "required": ["schema", "id", "name", "description", "steps", "gates"],
+  "required": ["schema", "id", "name", "steps"],
   "properties": {
     "schema": { "const": "aos/workflow/v1" },
     "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
