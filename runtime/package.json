@@ -17,7 +17,8 @@
     "./domain-merger": "./src/domain-merger.ts",
     "./template-resolver": "./src/template-resolver.ts",
     "./workflow-runner": "./src/workflow-runner.ts",
-    "./artifact-manager": "./src/artifact-manager.ts"
+    "./artifact-manager": "./src/artifact-manager.ts",
+    "./output-renderer": "./src/output-renderer.ts"
   },
   "files": ["src/", "package.json", "tsconfig.json"],
   "dependencies": {

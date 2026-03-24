@@ -26,6 +26,8 @@ import type { DelegationTarget } from "./delegation-router";
 import { applyDomain } from "./domain-merger";
 import { WorkflowRunner } from "./workflow-runner";
 import type { WorkflowConfig } from "./workflow-runner";
+import { renderExecutionPackage } from "./output-renderer";
+import type { ArtifactManifest } from "./types";
 
 export interface EngineOpts {
   agentsDir: string;
@@ -148,6 +150,63 @@ export class AOSEngine {
 
       const results = await runner.execute();
       this.workflowResults = results;
+
+      // Render execution package if profile output format requests it
+      if (this.profile.output.format === "execution-package") {
+        const elapsedMinutes = (Date.now() - this.startTime) / 60000;
+
+        // Collect artifacts from the workflow runner's results
+        const artifacts = new Map<string, { manifest: ArtifactManifest; content: string }>();
+        for (const [stepId, output] of results) {
+          const content = typeof output === "string" ? output : JSON.stringify(output, null, 2);
+          artifacts.set(stepId, {
+            manifest: {
+              schema: "aos/artifact/v1",
+              id: stepId,
+              produced_by: [],
+              step_id: stepId,
+              format: "markdown",
+              content_path: "",
+              metadata: {
+                produced_at: new Date().toISOString(),
+                review_status: "pending",
+                review_gate: null,
+                word_count: content.split(/\s+/).filter(Boolean).length,
+                revision: 1,
+              },
+            },
+            content,
+          });
+        }
+
+        const completedSteps = [...results.keys()];
+        const gatesPassed = this.transcript
+          .filter((e) => e.type === "gate_result" && e.result === "approved")
+          .map((e) => e.gate_id as string);
+
+        const rendered = renderExecutionPackage({
+          profile: this.profile.id,
+          workflow: this.workflowConfig!.id,
+          sessionId: this.sessionId,
+          domain: this.domainId,
+          participants: [...this.agents.keys()],
+          briefPath: inputPath,
+          transcriptPath: join(deliberationDir, "transcript.yaml"),
+          durationMinutes: Math.round(elapsedMinutes * 100) / 100,
+          stepsCompleted: completedSteps,
+          gatesPassed,
+          artifacts,
+          sections: this.profile.output.sections,
+        });
+
+        const outputPath = this.profile.output.path_template
+          .replace("{{session_id}}", this.sessionId)
+          .replace("{{date}}", new Date().toISOString().slice(0, 10))
+          .replace("{{brief_slug}}", inputPath.split("/").pop()?.replace(/\.\w+$/, "") ?? "brief");
+
+        await this.adapter.writeFile(outputPath, rendered);
+        this.adapter.notify(`Execution package written to ${outputPath}`, "info");
+      }
     }
   }
 
