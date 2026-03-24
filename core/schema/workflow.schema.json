@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "aos/workflow/v1",
+  "title": "AOS Workflow Definition",
+  "type": "object",
+  "required": ["schema", "id", "name", "description", "steps", "gates"],
+  "properties": {
+    "schema": { "const": "aos/workflow/v1" },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "action", "description", "input", "output", "review_gate"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "action": { "type": "string" },
+          "description": { "type": "string" },
+          "input": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "output": { "type": "string" },
+          "review_gate": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["after", "type", "prompt", "on_rejection"],
+        "properties": {
+          "after": { "type": "string" },
+          "type": {
+            "enum": ["user-approval", "automated-review"]
+          },
+          "prompt": { "type": "string" },
+          "max_iterations": { "type": "integer", "minimum": 1 },
+          "on_rejection": { "const": "re-run-step" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

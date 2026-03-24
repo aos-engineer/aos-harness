@@ -8,6 +8,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
 import type { AgentConfig, ProfileConfig, DomainConfig, InputSection } from "./types";
+import type { WorkflowConfig } from "./workflow-runner";
 
 export class ConfigError extends Error {
   constructor(message: string, public path: string) {
@@ -121,6 +122,73 @@ export interface BriefValidation {
   valid: boolean;
   content: string;
   missing: InputSection[];
+}
+
+export function loadWorkflow(workflowDir: string): WorkflowConfig {
+  // Support both a directory containing workflow.yaml and a direct yaml file path
+  let yamlPath: string;
+  if (workflowDir.endsWith(".yaml") || workflowDir.endsWith(".yml")) {
+    yamlPath = workflowDir;
+  } else {
+    yamlPath = join(workflowDir, "workflow.yaml");
+  }
+
+  if (!existsSync(yamlPath)) {
+    throw new ConfigError("workflow.yaml not found", workflowDir);
+  }
+
+  const raw = readFileSync(yamlPath, "utf-8");
+  const config = yaml.load(raw) as WorkflowConfig;
+
+  if (!config || typeof config !== "object") {
+    throw new ConfigError("workflow.yaml is empty or invalid", yamlPath);
+  }
+
+  if (config.schema !== "aos/workflow/v1") {
+    throw new ConfigError(
+      `Unknown schema "${config.schema}", expected "aos/workflow/v1"`,
+      yamlPath,
+    );
+  }
+
+  const required = ["id", "name", "description", "steps", "gates"] as const;
+  for (const field of required) {
+    if (!(field in config)) {
+      throw new ConfigError(`Missing required field: ${field}`, yamlPath);
+    }
+  }
+
+  if (!Array.isArray(config.steps) || config.steps.length === 0) {
+    throw new ConfigError("Workflow must have at least one step", yamlPath);
+  }
+
+  // Validate step references in gates
+  const stepIds = new Set(config.steps.map((s) => s.id));
+  for (const gate of config.gates) {
+    if (!stepIds.has(gate.after)) {
+      throw new ConfigError(
+        `Gate references unknown step "${gate.after}"`,
+        yamlPath,
+      );
+    }
+  }
+
+  // Validate step input references
+  for (const step of config.steps) {
+    step.input = step.input || [];
+    for (const inputId of step.input) {
+      if (!stepIds.has(inputId)) {
+        throw new ConfigError(
+          `Step "${step.id}" references unknown input step "${inputId}"`,
+          yamlPath,
+        );
+      }
+    }
+  }
+
+  config.gates = config.gates || [];
+
+  return config;
 }
 
 export function validateBrief(
