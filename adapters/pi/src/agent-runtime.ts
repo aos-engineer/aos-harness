@@ -46,6 +46,19 @@ export class PiAgentRuntime implements AgentRuntimeAdapter {
   private activeProcesses = new Set<ChildProcess>();
   private orchestratorPrompt: string | undefined;
 
+  private buildSubprocessEnv(): Record<string, string> {
+    const env: Record<string, string> = {};
+    const allowlist = [
+      "PATH", "HOME", "USER", "SHELL", "TERM", "LANG",
+      "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY",
+      "AOS_MODEL_ECONOMY", "AOS_MODEL_STANDARD", "AOS_MODEL_PREMIUM",
+    ];
+    for (const key of allowlist) {
+      if (process.env[key]) env[key] = process.env[key]!;
+    }
+    return env;
+  }
+
   async spawnAgent(config: AgentConfig, sessionId: string): Promise<AgentHandle> {
     const sessionDir = join(".aos", "sessions", sessionId);
     mkdirSync(sessionDir, { recursive: true });
@@ -127,7 +140,7 @@ export class PiAgentRuntime implements AgentRuntimeAdapter {
       const proc = spawn("pi", args, {
         shell: false,
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env },
+        env: this.buildSubprocessEnv(),
       });
 
       this.activeProcesses.add(proc);

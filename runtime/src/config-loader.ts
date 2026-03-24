@@ -17,6 +17,12 @@ export class ConfigError extends Error {
   }
 }
 
+function validateId(id: string, path: string): void {
+  if (!/^[a-z][a-z0-9-]*$/.test(id)) {
+    throw new ConfigError(`Invalid ID "${id}" — must be lowercase alphanumeric with hyphens`, path);
+  }
+}
+
 export function loadAgent(agentDir: string): AgentConfig {
   const yamlPath = join(agentDir, "agent.yaml");
   const promptPath = join(agentDir, "prompt.md");
@@ -26,7 +32,7 @@ export function loadAgent(agentDir: string): AgentConfig {
   }
 
   const raw = readFileSync(yamlPath, "utf-8");
-  const config = yaml.load(raw) as AgentConfig;
+  const config = yaml.load(raw, { schema: yaml.JSON_SCHEMA }) as AgentConfig;
 
   if (!config || typeof config !== "object") {
     throw new ConfigError("agent.yaml is empty or invalid", yamlPath);
@@ -45,6 +51,8 @@ export function loadAgent(agentDir: string): AgentConfig {
       throw new ConfigError(`Missing required field: ${field}`, yamlPath);
     }
   }
+
+  validateId(config.id, yamlPath);
 
   if (existsSync(promptPath)) {
     config.systemPrompt = readFileSync(promptPath, "utf-8");
@@ -66,7 +74,7 @@ export function loadProfile(profileDir: string): ProfileConfig {
   }
 
   const raw = readFileSync(yamlPath, "utf-8");
-  const config = yaml.load(raw) as ProfileConfig;
+  const config = yaml.load(raw, { schema: yaml.JSON_SCHEMA }) as ProfileConfig;
 
   if (!config || typeof config !== "object") {
     throw new ConfigError("profile.yaml is empty or invalid", yamlPath);
@@ -86,6 +94,8 @@ export function loadProfile(profileDir: string): ProfileConfig {
     }
   }
 
+  validateId(config.id, yamlPath);
+
   return config;
 }
 
@@ -97,7 +107,7 @@ export function loadDomain(domainDir: string): DomainConfig {
   }
 
   const raw = readFileSync(yamlPath, "utf-8");
-  const config = yaml.load(raw) as DomainConfig;
+  const config = yaml.load(raw, { schema: yaml.JSON_SCHEMA }) as DomainConfig;
 
   if (!config || typeof config !== "object") {
     throw new ConfigError("domain.yaml is empty or invalid", yamlPath);
@@ -108,6 +118,10 @@ export function loadDomain(domainDir: string): DomainConfig {
       `Unknown schema "${config.schema}", expected "aos/domain/v1"`,
       yamlPath,
     );
+  }
+
+  if (config.id) {
+    validateId(config.id, yamlPath);
   }
 
   config.overlays = config.overlays || {};
@@ -138,7 +152,7 @@ export function loadWorkflow(workflowDir: string): WorkflowConfig {
   }
 
   const raw = readFileSync(yamlPath, "utf-8");
-  const config = yaml.load(raw) as WorkflowConfig;
+  const config = yaml.load(raw, { schema: yaml.JSON_SCHEMA }) as WorkflowConfig;
 
   if (!config || typeof config !== "object") {
     throw new ConfigError("workflow.yaml is empty or invalid", yamlPath);

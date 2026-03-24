@@ -3,16 +3,32 @@
 
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import type { WorkflowAdapter, AgentHandle, AgentResponse } from "@aos-framework/runtime/types";
 
 // ── PiWorkflow ───────────────────────────────────────────────────
 
 export class PiWorkflow implements WorkflowAdapter {
   private agentRuntime: any; // PiAgentRuntime reference for sendMessage
+  private projectRoot: string;
 
-  constructor(agentRuntime: any) {
+  constructor(agentRuntime: any, projectRoot: string = process.cwd()) {
     this.agentRuntime = agentRuntime;
+    this.projectRoot = resolve(projectRoot);
+  }
+
+  private validatePath(filePath: string): string {
+    const resolved = resolve(filePath);
+    if (!resolved.startsWith(this.projectRoot)) {
+      throw new Error(`Path "${filePath}" is outside the project directory`);
+    }
+    return resolved;
+  }
+
+  private validateStateKey(key: string): void {
+    if (!/^[a-zA-Z0-9_-]+$/.test(key)) {
+      throw new Error(`Invalid state key: "${key}" — must be alphanumeric with hyphens/underscores`);
+    }
   }
 
   // ── dispatchParallel ────────────────────────────────────────────
@@ -103,20 +119,22 @@ export class PiWorkflow implements WorkflowAdapter {
   // ── writeFile ───────────────────────────────────────────────────
 
   async writeFile(path: string, content: string): Promise<void> {
-    const dir = dirname(path);
+    const safe = this.validatePath(path);
+    const dir = dirname(safe);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
-    writeFileSync(path, content, "utf-8");
+    writeFileSync(safe, content, "utf-8");
   }
 
   // ── readFile ────────────────────────────────────────────────────
 
   async readFile(path: string): Promise<string> {
-    if (!existsSync(path)) {
+    const safe = this.validatePath(path);
+    if (!existsSync(safe)) {
       throw new Error(`File not found: ${path}`);
     }
-    return readFileSync(path, "utf-8");
+    return readFileSync(safe, "utf-8");
   }
 
   // ── openInEditor ────────────────────────────────────────────────
@@ -129,11 +147,12 @@ export class PiWorkflow implements WorkflowAdapter {
   // Writes value to .aos/state/<key>.json as JSON.
 
   async persistState(key: string, value: unknown): Promise<void> {
+    this.validateStateKey(key);
     const stateDir = join(".aos", "state");
     if (!existsSync(stateDir)) {
       mkdirSync(stateDir, { recursive: true });
     }
-    const filePath = join(stateDir, `${key}.json`);
+    const filePath = this.validatePath(join(stateDir, `${key}.json`));
     writeFileSync(filePath, JSON.stringify(value, null, 2), "utf-8");
   }
 
@@ -141,7 +160,8 @@ export class PiWorkflow implements WorkflowAdapter {
   // Reads from .aos/state/<key>.json; returns null if the file is missing.
 
   async loadState(key: string): Promise<unknown> {
-    const filePath = join(".aos", "state", `${key}.json`);
+    this.validateStateKey(key);
+    const filePath = this.validatePath(join(".aos", "state", `${key}.json`));
     if (!existsSync(filePath)) {
       return null;
     }

@@ -138,7 +138,7 @@ ${c.bold("AOS Deliberation Session")}
   if (existsSync(aosConfigPath)) {
     const yaml = await import("js-yaml");
     const configText = await Bun.file(aosConfigPath).text();
-    const config = yaml.load(configText) as Record<string, unknown>;
+    const config = yaml.load(configText, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown>;
     adapter = (config.adapter as string) || "pi";
   }
 
