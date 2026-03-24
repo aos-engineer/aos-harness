@@ -6,25 +6,25 @@ version: 1.0.0
 
 lexicon:
   metrics:
-    ARR: Annual Recurring Revenue — annualised value of subscription contracts
-    MRR: Monthly Recurring Revenue — monthly subscription revenue
-    NRR: Net Revenue Retention — revenue retained and expanded from existing customers (expansion minus churn and contraction), expressed as a percentage
-    CAC: Customer Acquisition Cost — fully loaded cost to acquire one new customer
-    LTV: Lifetime Value — projected total revenue from a customer over their lifetime
-    churn_rate: Percentage of customers or revenue lost in a given period
-    expansion_revenue: Additional revenue from existing customers via upsell, cross-sell, or seat growth
-    payback_period: Months of gross margin required to recover CAC
+    - "ARR — Annual Recurring Revenue: annualised value of subscription contracts"
+    - "MRR — Monthly Recurring Revenue: monthly subscription revenue"
+    - "NRR — Net Revenue Retention: revenue retained and expanded from existing customers (expansion minus churn and contraction), expressed as a percentage"
+    - "CAC — Customer Acquisition Cost: fully loaded cost to acquire one new customer"
+    - "LTV — Lifetime Value: projected total revenue from a customer over their lifetime"
+    - "churn_rate — Percentage of customers or revenue lost in a given period"
+    - "expansion_revenue — Additional revenue from existing customers via upsell, cross-sell, or seat growth"
+    - "payback_period — Months of gross margin required to recover CAC"
   frameworks:
-    PLG: Product-Led Growth — product drives acquisition, activation, and expansion without a traditional sales motion
-    sales_led: Enterprise sales motion drives acquisition; product supports but does not lead
-    hybrid_motion: Combination of PLG for SMB/mid-market and sales-led for enterprise
-    land_and_expand: Start with a narrow beachhead, expand seats or usage over time
+    - "PLG — Product-Led Growth: product drives acquisition, activation, and expansion without a traditional sales motion"
+    - "sales_led — Enterprise sales motion drives acquisition; product supports but does not lead"
+    - "hybrid_motion — Combination of PLG for SMB/mid-market and sales-led for enterprise"
+    - "land_and_expand — Start with a narrow beachhead, expand seats or usage over time"
   stages:
-    pre_seed: Pre-product-market fit; primarily team and hypothesis
-    seed: Early traction; proving PMF with a cohort
-    series_a: Scaling a repeatable go-to-market; $1M–$10M ARR typical range
-    growth: Scaling revenue efficiently; building category leadership
-    scale: Optimising unit economics at scale; preparing for public markets or M&A
+    - "pre_seed — Pre-product-market fit; primarily team and hypothesis"
+    - "seed — Early traction; proving PMF with a cohort"
+    - "series_a — Scaling a repeatable go-to-market; $1M–$10M ARR typical range"
+    - "growth — Scaling revenue efficiently; building category leadership"
+    - "scale — Optimising unit economics at scale; preparing for public markets or M&A"
 
 overlays:
   catalyst:
