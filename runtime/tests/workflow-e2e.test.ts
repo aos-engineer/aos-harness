@@ -76,7 +76,7 @@ describe("CTO Execution Workflow E2E", () => {
 
     const runner = new WorkflowRunner(workflow, adapter, {
       sessionDir,
-      onTranscriptEvent: (e) => transcript.push(e),
+      onTranscriptEvent: (e: TranscriptEntry) => transcript.push(e),
       profileConfig: profile,
       // delegationDelegate will be used once WorkflowRunner supports it:
       // delegationDelegate: delegate,
@@ -180,7 +180,7 @@ describe("CTO Execution Workflow E2E", () => {
 
     const runner = new WorkflowRunner(workflow, adapter, {
       sessionDir,
-      onTranscriptEvent: (e) => transcript.push(e),
+      onTranscriptEvent: (e: TranscriptEntry) => transcript.push(e),
       profileConfig: profile,
     });
 

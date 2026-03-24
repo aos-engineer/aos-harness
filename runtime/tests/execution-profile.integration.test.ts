@@ -68,7 +68,7 @@ describe("CTO Execution Profile Integration", () => {
     for (const p of required) {
       expect(p.role_override).toBeDefined();
       expect(typeof p.role_override).toBe("string");
-      expect(p.role_override.length).toBeGreaterThan(0);
+      expect(p.role_override!.length).toBeGreaterThan(0);
     }
   });
 

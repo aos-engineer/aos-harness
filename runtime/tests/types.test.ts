@@ -109,7 +109,7 @@ describe("AgentCapabilities", () => {
       expertise: [],
       model: { tier: "standard" as const, thinking: "on" as const },
     } satisfies AgentConfig;
-    expect(config.capabilities).toBeUndefined();
+    expect((config as any).capabilities).toBeUndefined();
   });
 });
 

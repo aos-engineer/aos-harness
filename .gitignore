@@ -13,3 +13,10 @@ bun.lock
 
 # Build output
 dist/
+
+# Logs
+*.log
+
+# Environment / secrets
+.env
+.env.*
