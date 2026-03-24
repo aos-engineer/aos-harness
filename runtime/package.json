@@ -8,6 +8,17 @@
     "test:watch": "bun test --watch",
     "typecheck": "bun x tsc --noEmit"
   },
+  "exports": {
+    ".": "./src/engine.ts",
+    "./config-loader": "./src/config-loader.ts",
+    "./types": "./src/types.ts",
+    "./constraint-engine": "./src/constraint-engine.ts",
+    "./delegation-router": "./src/delegation-router.ts",
+    "./domain-merger": "./src/domain-merger.ts",
+    "./template-resolver": "./src/template-resolver.ts",
+    "./workflow-runner": "./src/workflow-runner.ts"
+  },
+  "files": ["src/", "package.json", "tsconfig.json"],
   "dependencies": {
     "js-yaml": "^4.1.0"
   },

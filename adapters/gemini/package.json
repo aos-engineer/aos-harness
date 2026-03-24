@@ -1,9 +1,11 @@
 {
-  "name": "@aos-framework/pi-adapter",
+  "name": "@aos-framework/gemini-adapter",
   "version": "0.1.0",
   "type": "module",
-  "pi": {
-    "extensions": ["./src/index.ts"]
+  "main": "src/generate.ts",
+  "scripts": {
+    "generate": "bun run src/generate.ts",
+    "typecheck": "bun x tsc --noEmit"
   },
   "exports": { ".": "./src/index.ts" },
   "files": ["src/"],
@@ -15,10 +17,5 @@
     "@types/js-yaml": "^4.0.9",
     "@types/bun": "latest",
     "typescript": "^5.8.0"
-  },
-  "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-tui": "*",
-    "@sinclair/typebox": "*"
   }
 }

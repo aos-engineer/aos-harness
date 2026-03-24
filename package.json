@@ -1,0 +1,16 @@
+{
+  "name": "aos-framework",
+  "private": true,
+  "workspaces": [
+    "runtime",
+    "cli",
+    "adapters/*"
+  ],
+  "scripts": {
+    "test": "bun test --cwd runtime",
+    "test:integration": "bun run tests/integration/validate-config.ts",
+    "validate": "bun run cli/src/index.ts validate",
+    "typecheck": "bun x tsc --noEmit --project runtime/tsconfig.json",
+    "publish:all": "bun run scripts/publish.ts"
+  }
+}

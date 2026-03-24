@@ -10,7 +10,9 @@
     "dev": "bun run src/index.ts",
     "test": "bun run src/index.ts validate"
   },
+  "files": ["src/"],
   "dependencies": {
+    "@aos-framework/runtime": "workspace:*",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
