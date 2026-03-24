@@ -1,0 +1,142 @@
+import { describe, it, expect } from "bun:test";
+import { join } from "node:path";
+import { AOSEngine } from "../src/engine";
+import { MockAdapter } from "./mock-adapter";
+
+const fixturesDir = join(import.meta.dir, "..", "fixtures");
+
+describe("AOSEngine", () => {
+  it("constructs with adapter and profile", () => {
+    const adapter = new MockAdapter();
+    const engine = new AOSEngine(
+      adapter,
+      join(fixturesDir, "profiles", "test-council"),
+      { agentsDir: join(fixturesDir, "agents") },
+    );
+    expect(engine).toBeDefined();
+  });
+
+  it("getConstraintState returns initial state", () => {
+    const adapter = new MockAdapter();
+    const engine = new AOSEngine(
+      adapter,
+      join(fixturesDir, "profiles", "test-council"),
+      { agentsDir: join(fixturesDir, "agents") },
+    );
+    const state = engine.getConstraintState();
+    expect(state.rounds_completed).toBe(0);
+    expect(state.metered).toBe(true);
+  });
+
+  it("getConstraintState reflects unmetered auth", () => {
+    const adapter = new MockAdapter();
+    adapter.authMode = { type: "subscription", metered: false, subscription_tier: "max" };
+    const engine = new AOSEngine(
+      adapter,
+      join(fixturesDir, "profiles", "test-council"),
+      { agentsDir: join(fixturesDir, "agents") },
+    );
+    const state = engine.getConstraintState();
+    expect(state.metered).toBe(false);
+  });
+
+  it("delegateMessage calls adapter and returns responses", async () => {
+    const adapter = new MockAdapter();
+    adapter.agentResponses.set("catalyst", "Ship it now.");
+    const engine = new AOSEngine(
+      adapter,
+      join(fixturesDir, "profiles", "test-council"),
+      { agentsDir: join(fixturesDir, "agents") },
+    );
+    const responses = await engine.delegateMessage("all", "What should we do?");
+    expect(responses.length).toBeGreaterThan(0);
+    // catalyst is the only perspective, find its response
+    expect(responses.some((r) => r.text === "Ship it now.")).toBe(true);
+  });
+
+  it("delegateMessage updates constraint state", async () => {
+    const adapter = new MockAdapter();
+    const engine = new AOSEngine(
+      adapter,
+      join(fixturesDir, "profiles", "test-council"),
+      { agentsDir: join(fixturesDir, "agents") },
+    );
+    await engine.delegateMessage("all", "First round");
+    const state = engine.getConstraintState();
+    expect(state.rounds_completed).toBe(1);
+    expect(state.budget_spent).toBeGreaterThan(0);
+  });
+
+  it("start() validates brief and initializes session", async () => {
+    const adapter = new MockAdapter();
+    const engine = new AOSEngine(
+      adapter,
+      join(fixturesDir, "profiles", "test-council"),
+      { agentsDir: join(fixturesDir, "agents") },
+    );
+    await engine.start(join(fixturesDir, "briefs", "test-brief", "brief.md"));
+    const transcript = engine.getTranscript();
+    expect(transcript.length).toBe(1);
+    expect(transcript[0].type).toBe("session_start");
+  });
+
+  it("start() throws on invalid brief", async () => {
+    const adapter = new MockAdapter();
+    const engine = new AOSEngine(
+      adapter,
+      join(fixturesDir, "profiles", "test-council"),
+      { agentsDir: join(fixturesDir, "agents") },
+    );
+    expect(engine.start("/nonexistent/brief.md")).rejects.toThrow();
+  });
+
+  it("end() throws when minimums not met", async () => {
+    const adapter = new MockAdapter();
+    const engine = new AOSEngine(
+      adapter,
+      join(fixturesDir, "profiles", "test-council"),
+      { agentsDir: join(fixturesDir, "agents") },
+    );
+    expect(engine.end("Wrap up")).rejects.toThrow("Cannot end");
+  });
+
+  it("end() succeeds after minimums met", async () => {
+    // Use a high mock cost so budget minimum (0.50) is met quickly.
+    // With 1 perspective (catalyst), each round costs responseCost per agent.
+    // We need total cost >= 0.50, and rounds >= 1 (min_rounds).
+    // Set responseCost = 0.60 so one round meets budget min.
+    const adapter = new MockAdapter();
+    adapter.responseCost = 0.60;
+    adapter.agentResponses.set("catalyst", "My final position.");
+
+    const engine = new AOSEngine(
+      adapter,
+      join(fixturesDir, "profiles", "test-council"),
+      { agentsDir: join(fixturesDir, "agents") },
+    );
+
+    // Start session to set startTime
+    await engine.start(join(fixturesDir, "briefs", "test-brief", "brief.md"));
+
+    // Run one round to meet min_rounds (1) and min_budget (0.50)
+    await engine.delegateMessage("all", "Discuss the topic");
+
+    // min_minutes is 1, but we can't wait 1 minute in a test.
+    // However, once we hit max_rounds (4) it becomes can_end=true via hit_maximum.
+    // We already have 1 round done. Need 3 more to hit max_rounds=4.
+    await engine.delegateMessage("all", "Continue discussion");
+    await engine.delegateMessage("all", "Any final thoughts?");
+    // At this point rounds_completed = 3. After end() calls delegateMessage internally,
+    // that will be round 4 = max_rounds, triggering hit_maximum.
+    // But we need can_end BEFORE end() calls delegateMessage.
+    // So we need 4 rounds before calling end().
+    await engine.delegateMessage("all", "Last round before end");
+
+    // Now rounds_completed = 4 = max_rounds, so hit_maximum = true => can_end = true
+    const state = engine.getConstraintState();
+    expect(state.can_end).toBe(true);
+
+    const responses = await engine.end("Final closing statements");
+    expect(responses.length).toBeGreaterThan(0);
+  });
+});
