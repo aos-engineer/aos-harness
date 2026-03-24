@@ -1,0 +1,20 @@
+{
+  "name": "@aos-framework/cli",
+  "version": "0.1.0",
+  "description": "CLI tooling for the AOS Framework — install, run, and manage agentic orchestration profiles",
+  "type": "module",
+  "bin": {
+    "aos": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "test": "bun run src/index.ts validate"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "typescript": "^5.4.0"
+  }
+}
