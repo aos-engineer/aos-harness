@@ -1,0 +1,83 @@
+---
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+
+const docsNav = [
+  { title: 'Getting Started', href: '/docs/getting-started' },
+  { title: 'Creating Agents', href: '/docs/creating-agents' },
+  { title: 'Creating Profiles', href: '/docs/creating-profiles' },
+  { title: 'Creating Domains', href: '/docs/creating-domains' },
+];
+
+const currentPath = Astro.url.pathname;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description ?? title} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title} | AOS Docs</title>
+  </head>
+  <body class="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
+    <nav class="border-b border-[var(--color-border)] px-6 py-4">
+      <div class="mx-auto max-w-6xl flex items-center justify-between">
+        <a href="/" class="text-xl font-bold text-white">
+          AOS<span class="text-[var(--color-accent)]">.engineer</span>
+        </a>
+        <div class="flex gap-6 text-sm">
+          <a href="/agents" class="text-[var(--color-text-muted)] hover:text-white transition-colors">Agents</a>
+          <a href="/profiles" class="text-[var(--color-text-muted)] hover:text-white transition-colors">Profiles</a>
+          <a href="/domains" class="text-[var(--color-text-muted)] hover:text-white transition-colors">Domains</a>
+          <a href="/docs/getting-started" class="text-white transition-colors">Docs</a>
+          <a href="https://github.com/aos-framework/aos-framework" class="text-[var(--color-text-muted)] hover:text-white transition-colors" target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </div>
+    </nav>
+
+    <div class="mx-auto max-w-6xl flex">
+      <!-- Sidebar -->
+      <aside class="w-56 shrink-0 border-r border-[var(--color-border)] py-8 pr-6 hidden md:block">
+        <h3 class="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-4">Documentation</h3>
+        <nav class="space-y-1">
+          {docsNav.map(item => (
+            <a
+              href={item.href}
+              class={`block px-3 py-2 rounded text-sm transition-colors ${
+                currentPath === item.href || currentPath === item.href + '/'
+                  ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+                  : 'text-[var(--color-text-muted)] hover:text-white hover:bg-[var(--color-surface)]'
+              }`}
+            >
+              {item.title}
+            </a>
+          ))}
+        </nav>
+      </aside>
+
+      <!-- Content -->
+      <main class="flex-1 py-8 px-8 min-w-0">
+        <article class="prose prose-invert max-w-none
+          prose-headings:text-white prose-headings:font-bold
+          prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl
+          prose-p:text-[var(--color-text-muted)] prose-p:leading-relaxed
+          prose-li:text-[var(--color-text-muted)]
+          prose-code:text-[var(--color-accent)]
+          prose-strong:text-white
+          prose-a:text-[var(--color-accent)] prose-a:no-underline hover:prose-a:text-[var(--color-accent-hover)]
+        ">
+          <slot />
+        </article>
+      </main>
+    </div>
+  </body>
+</html>
+
+<style is:global>
+  @import '../styles/global.css';
+</style>

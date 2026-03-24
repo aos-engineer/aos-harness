@@ -1,0 +1,57 @@
+---
+import Base from '../../layouts/Base.astro';
+import { loadAllAgents } from '../../lib/content';
+
+const agents = loadAllAgents();
+const categories = ['orchestrator', 'perspective', 'operational'] as const;
+const categoryLabels = { orchestrator: 'Orchestrators', perspective: 'Perspectives', operational: 'Operational' };
+const categoryColors = { orchestrator: 'var(--color-orchestrator)', perspective: 'var(--color-perspective)', operational: 'var(--color-operational)' };
+---
+
+<Base title="Agent Gallery" description="12 cognitive agents, each with unique biases, heuristics, and red lines">
+  <div class="px-6 py-12">
+    <div class="mx-auto max-w-6xl">
+      <h1 class="text-4xl font-bold text-white mb-2">Agent Gallery</h1>
+      <p class="text-[var(--color-text-muted)] mb-12">
+        {agents.length} agents with distinct cognitive frameworks. Each brings a unique bias, set of heuristics, and evidence standard to every deliberation.
+      </p>
+
+      {categories.map(category => {
+        const categoryAgents = agents.filter(a => a.category === category);
+        if (categoryAgents.length === 0) return null;
+
+        return (
+          <div class="mb-12">
+            <div class="flex items-center gap-3 mb-6">
+              <span class="w-3 h-3 rounded-full" style={`background: ${categoryColors[category]}`}></span>
+              <h2 class="text-2xl font-bold text-white">{categoryLabels[category]}</h2>
+              <span class="text-sm text-[var(--color-text-muted)]">({categoryAgents.length})</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {categoryAgents.map(agent => (
+                <a href={`/agents/${agent.id}`} class="block bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-5 hover:border-[var(--color-accent)] transition-colors group">
+                  <div class="flex justify-between items-start mb-3">
+                    <h3 class="text-lg font-semibold text-white group-hover:text-[var(--color-accent)] transition-colors">{agent.name}</h3>
+                    <span class="text-xs px-2 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-muted)]">{agent.cognition.risk_tolerance} risk</span>
+                  </div>
+                  <p class="text-sm text-[var(--color-text-muted)] mb-3">{agent.cognition.objective_function}</p>
+                  <div class="flex flex-wrap gap-2 mb-3">
+                    <span class="text-xs px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)]">
+                      {agent.cognition.core_bias}
+                    </span>
+                    <span class="text-xs px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)]">
+                      {agent.cognition.time_horizon.primary}
+                    </span>
+                  </div>
+                  <div class="text-xs text-[var(--color-text-muted)]">
+                    {agent.persona.heuristics.length} heuristics &middot; {agent.tensions.length} tension pairs &middot; {agent.persona.red_lines.length} red lines
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+</Base>

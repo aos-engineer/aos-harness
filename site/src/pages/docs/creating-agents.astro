@@ -1,0 +1,101 @@
+---
+import Docs from '../../layouts/Docs.astro';
+---
+
+<Docs title="Creating Agents">
+  <h1>Creating Agents</h1>
+
+  <p>
+    Agents are the core building block of the AOS Framework. Each agent has a distinct cognitive
+    framework that defines how it thinks, what it values, and where it draws hard lines.
+  </p>
+
+  <h2>Scaffold a New Agent</h2>
+  <pre><code>aos create agent my-analyst</code></pre>
+  <p>This creates <code>core/agents/custom/my-analyst/</code> with starter files.</p>
+
+  <h2>Agent Structure</h2>
+  <pre><code>core/agents/custom/my-analyst/
+  agent.yaml     # Cognitive framework + config
+  prompt.md      # System prompt with template variables</code></pre>
+
+  <h2>agent.yaml Schema</h2>
+  <p>Every agent YAML file follows the <code>aos/agent/v1</code> schema:</p>
+
+  <pre><code>schema: aos/agent/v1
+id: my-analyst
+name: My Analyst
+role: "One-sentence description of what this agent does."
+
+cognition:
+  objective_function: "What this agent optimizes for"
+  time_horizon:
+    primary: "30-90 days"
+    secondary: "this quarter"
+    peripheral: "next year"
+  core_bias: data-driven-analysis
+  risk_tolerance: moderate
+  default_stance: "Show me the data."
+
+persona:
+  temperament:
+    - "Trait 1"
+    - "Trait 2"
+  thinking_patterns:
+    - "Question this agent asks itself"
+  heuristics:
+    - name: Rule Name
+      rule: "When X, do Y because Z."
+  evidence_standard:
+    convinced_by:
+      - "What persuades this agent"
+    not_convinced_by:
+      - "What this agent rejects"
+  red_lines:
+    - "Non-negotiable boundary"
+
+tensions:
+  - agent: catalyst
+    dynamic: "How this agent's bias conflicts with Catalyst's speed focus"
+
+model:
+  tier: standard
+  thinking: "off"</code></pre>
+
+  <h2>The Cognitive Framework</h2>
+
+  <h3>Objective Function</h3>
+  <p>What the agent optimizes for in every response. This is the single most important field &mdash; it drives all decision-making.</p>
+
+  <h3>Core Bias</h3>
+  <p>The intentional bias that colors this agent's analysis. Biases create productive tension when paired against opposing agents.</p>
+
+  <h3>Heuristics</h3>
+  <p>Named decision rules the agent applies. Each has a name and a concrete rule. Good heuristics are specific and actionable.</p>
+
+  <h3>Red Lines</h3>
+  <p>Non-negotiable boundaries the agent never crosses. These create hard constraints on the agent's recommendations.</p>
+
+  <h2>prompt.md Template</h2>
+  <p>The system prompt supports these template variables:</p>
+  <ul>
+    <li><code>{"{{agent_name}}"}</code> &mdash; Agent's display name</li>
+    <li><code>{"{{agent_id}}"}</code> &mdash; Agent's ID</li>
+    <li><code>{"{{session_id}}"}</code> &mdash; Current session ID</li>
+    <li><code>{"{{participants}}"}</code> &mdash; Comma-separated agent names</li>
+    <li><code>{"{{constraints}}"}</code> &mdash; Constraint summary</li>
+    <li><code>{"{{brief}}"}</code> &mdash; The user's brief content</li>
+    <li><code>{"{{expertise_block}}"}</code> &mdash; Expertise file configuration</li>
+  </ul>
+
+  <h2>Tension Pairs</h2>
+  <p>
+    Define how your agent's bias conflicts with other agents. Tensions create the productive
+    disagreement that makes deliberation valuable. The Arbiter can invoke tension pairs to
+    deepen the debate.
+  </p>
+
+  <h2>Validation</h2>
+  <pre><code>aos validate</code></pre>
+  <p>Run validation after creating or modifying an agent to ensure schema compliance.</p>
+</Docs>

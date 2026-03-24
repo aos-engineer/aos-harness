@@ -1,0 +1,64 @@
+---
+import Base from '../../layouts/Base.astro';
+import { loadAllDomains } from '../../lib/content';
+
+const domains = loadAllDomains();
+---
+
+<Base title="Domain Gallery" description="Domain-specific overlays for specialized analysis">
+  <div class="px-6 py-12">
+    <div class="mx-auto max-w-6xl">
+      <h1 class="text-4xl font-bold text-white mb-2">Domain Gallery</h1>
+      <p class="text-[var(--color-text-muted)] mb-12">
+        {domains.length} domain packs. Each adds industry-specific vocabulary, agent overlays, and guardrails to any profile.
+        Domains are optional enhancers &mdash; profiles work perfectly without them.
+      </p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {domains.map(domain => (
+          <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-6">
+            <h2 class="text-xl font-bold text-white mb-2">{domain.name}</h2>
+            <p class="text-sm text-[var(--color-text-muted)] mb-4">{domain.description || 'Domain-specific overlay pack'}</p>
+
+            <div class="flex gap-4 text-xs text-[var(--color-text-muted)] mb-4">
+              <span>{domain.overlayCount} agent overlays</span>
+              <span>{domain.lexicon.metrics.length} metrics</span>
+            </div>
+
+            <!-- Lexicon preview -->
+            {domain.lexicon.metrics.length > 0 && (
+              <div class="mb-3">
+                <h3 class="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Key Metrics</h3>
+                <div class="flex flex-wrap gap-1">
+                  {domain.lexicon.metrics.slice(0, 6).map(metric => (
+                    <span class="text-xs px-2 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-muted)]">
+                      {metric}
+                    </span>
+                  ))}
+                  {domain.lexicon.metrics.length > 6 && (
+                    <span class="text-xs px-2 py-0.5 text-[var(--color-text-muted)]">
+                      +{domain.lexicon.metrics.length - 6} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {domain.lexicon.frameworks.length > 0 && (
+              <div>
+                <h3 class="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Frameworks</h3>
+                <div class="flex flex-wrap gap-1">
+                  {domain.lexicon.frameworks.slice(0, 4).map(fw => (
+                    <span class="text-xs px-2 py-0.5 rounded bg-[var(--color-accent)]/10 text-[var(--color-accent)]">
+                      {fw}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</Base>

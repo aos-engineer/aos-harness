@@ -1,0 +1,140 @@
+---
+import Base from '../../layouts/Base.astro';
+import { loadAllProfiles, loadAllAgents } from '../../lib/content';
+
+export function getStaticPaths() {
+  const profiles = loadAllProfiles();
+  return profiles.map(profile => ({
+    params: { id: profile.id },
+    props: { profile },
+  }));
+}
+
+const { profile } = Astro.props;
+const agents = loadAllAgents();
+const agentMap = new Map(agents.map(a => [a.id, a]));
+---
+
+<Base title={profile.name} description={profile.description}>
+  <div class="px-6 py-12">
+    <div class="mx-auto max-w-4xl">
+      <div class="text-sm text-[var(--color-text-muted)] mb-6">
+        <a href="/profiles" class="hover:text-white">Profiles</a> &rarr; {profile.name}
+      </div>
+
+      <h1 class="text-4xl font-bold text-white mb-2">{profile.name}</h1>
+      <p class="text-lg text-[var(--color-text-muted)] mb-8">{profile.description}</p>
+
+      <!-- Assembly -->
+      <section class="mb-10">
+        <h2 class="text-2xl font-bold text-white mb-4">Assembly</h2>
+        <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden">
+          <!-- Orchestrator -->
+          <div class="p-4 border-b border-[var(--color-border)] bg-[var(--color-orchestrator)]/5">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-[var(--color-orchestrator)]"></span>
+              <span class="font-semibold text-white">
+                <a href={`/agents/${profile.assembly.orchestrator}`} class="hover:text-[var(--color-accent)]">
+                  {agentMap.get(profile.assembly.orchestrator)?.name ?? profile.assembly.orchestrator}
+                </a>
+              </span>
+              <span class="text-xs text-[var(--color-orchestrator)]">Orchestrator</span>
+            </div>
+          </div>
+
+          <!-- Perspectives -->
+          {profile.assembly.perspectives.map(p => {
+            const agent = agentMap.get(p.agent);
+            return (
+              <div class="p-4 border-b border-[var(--color-border)] last:border-b-0 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-[var(--color-perspective)]"></span>
+                  <a href={`/agents/${p.agent}`} class="font-medium text-white hover:text-[var(--color-accent)]">
+                    {agent?.name ?? p.agent}
+                  </a>
+                  {p.structural_advantage && (
+                    <span class="text-xs px-2 py-0.5 rounded bg-[var(--color-warning)]/10 text-[var(--color-warning)]">
+                      {p.structural_advantage}
+                    </span>
+                  )}
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="text-xs text-[var(--color-text-muted)]">
+                    {agent?.cognition.core_bias}
+                  </span>
+                  <span class={`text-xs px-2 py-0.5 rounded ${p.required ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]' : 'bg-[var(--color-bg)] text-[var(--color-text-muted)]'}`}>
+                    {p.required ? 'required' : 'optional'}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <!-- Constraints -->
+      <section class="mb-10">
+        <h2 class="text-2xl font-bold text-white mb-4">Constraints</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4">
+            <h3 class="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Time</h3>
+            <p class="text-2xl font-bold text-white">{profile.constraints.time.min_minutes}-{profile.constraints.time.max_minutes}</p>
+            <p class="text-sm text-[var(--color-text-muted)]">minutes</p>
+          </div>
+          {profile.constraints.budget && (
+            <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4">
+              <h3 class="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Budget</h3>
+              <p class="text-2xl font-bold text-white">${profile.constraints.budget.min}-${profile.constraints.budget.max}</p>
+              <p class="text-sm text-[var(--color-text-muted)]">{profile.constraints.budget.currency}</p>
+            </div>
+          )}
+          <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4">
+            <h3 class="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Rounds</h3>
+            <p class="text-2xl font-bold text-white">{profile.constraints.rounds.min}-{profile.constraints.rounds.max}</p>
+            <p class="text-sm text-[var(--color-text-muted)]">exchanges</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tension Pairs -->
+      {profile.delegation.tension_pairs.length > 0 && (
+        <section class="mb-10">
+          <h2 class="text-2xl font-bold text-white mb-4">Tension Pairs</h2>
+          <div class="space-y-3">
+            {profile.delegation.tension_pairs.map(([a, b]) => {
+              const agentA = agentMap.get(a);
+              const agentB = agentMap.get(b);
+              return (
+                <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4 flex items-center gap-4">
+                  <a href={`/agents/${a}`} class="font-medium text-white hover:text-[var(--color-accent)]">{agentA?.name ?? a}</a>
+                  <span class="text-[var(--color-accent)]">&harr;</span>
+                  <a href={`/agents/${b}`} class="font-medium text-white hover:text-[var(--color-accent)]">{agentB?.name ?? b}</a>
+                  <span class="text-xs text-[var(--color-text-muted)] ml-auto">
+                    {agentA?.cognition.core_bias} vs {agentB?.cognition.core_bias}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <!-- Delegation Rules -->
+      <section class="mb-10">
+        <h2 class="text-2xl font-bold text-white mb-4">Delegation Rules</h2>
+        <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4">
+          <dl class="grid grid-cols-2 gap-4">
+            <div>
+              <dt class="text-xs text-[var(--color-text-muted)] uppercase tracking-wider">Bias Limit</dt>
+              <dd class="text-white">{profile.delegation.bias_limit}x max ratio</dd>
+            </div>
+            <div>
+              <dt class="text-xs text-[var(--color-text-muted)] uppercase tracking-wider">Opening Rounds</dt>
+              <dd class="text-white">{profile.delegation.opening_rounds} (forced broadcast)</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+    </div>
+  </div>
+</Base>

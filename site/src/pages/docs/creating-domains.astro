@@ -1,0 +1,67 @@
+---
+import Docs from '../../layouts/Docs.astro';
+---
+
+<Docs title="Creating Domains">
+  <h1>Creating Domains</h1>
+
+  <p>
+    Domains are optional overlays that add industry-specific vocabulary, agent enhancements,
+    and guardrails to any profile. They enhance &mdash; never replace &mdash; the base agent config.
+  </p>
+
+  <h2>Scaffold a Domain</h2>
+  <pre><code>aos create domain my-industry</code></pre>
+
+  <h2>Domain Structure</h2>
+  <pre><code>core/domains/my-industry/
+  domain.yaml     # Lexicon, overlays, guardrails</code></pre>
+
+  <h2>domain.yaml Schema</h2>
+  <pre><code>schema: aos/domain/v1
+id: my-industry
+name: My Industry
+description: "Domain overlay for my industry."
+
+lexicon:
+  metrics:
+    - "key_metric_1"
+    - "key_metric_2"
+  frameworks:
+    - "industry_framework_1"
+  stages:
+    - "stage_1"
+    - "stage_2"
+
+overlays:
+  catalyst:
+    lens_additions:
+      - label: Industry Revenue Metric
+        instruction: "For every opportunity, quantify in terms of key_metric_1."
+    evidence_standard: "Revenue claims must include industry-standard benchmarks."
+
+  sentinel:
+    lens_additions:
+      - label: Compliance Check
+        instruction: "Every proposal must address regulatory_requirement."
+    evidence_standard: "Risk claims must reference specific regulations."
+
+guardrails:
+  - "Regulatory compliance status must be stated explicitly."
+  - "Industry-standard metrics must be used in all quantitative claims."</code></pre>
+
+  <h2>How Domains Work</h2>
+
+  <h3>Lexicon</h3>
+  <p>Industry-specific vocabulary. Metrics, frameworks, and stages that agents should reference when analyzing problems in this domain.</p>
+
+  <h3>Overlays</h3>
+  <p>Per-agent enhancements. Each overlay adds lens additions (new analytical perspectives) and evidence standards specific to the domain. Overlays are merged into agents at runtime &mdash; they append, never replace.</p>
+
+  <h3>Guardrails</h3>
+  <p>Domain-wide rules that all agents must follow. These are injected into agent prompts as additional constraints.</p>
+
+  <h2>Using Domains</h2>
+  <pre><code>aos run strategic-council --domain my-industry --brief brief.md</code></pre>
+  <p>The domain overlay is applied to all agents before the deliberation starts.</p>
+</Docs>

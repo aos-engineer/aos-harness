@@ -1,0 +1,61 @@
+---
+import Base from '../../layouts/Base.astro';
+import { loadAllProfiles, loadAllAgents } from '../../lib/content';
+
+const profiles = loadAllProfiles();
+const agents = loadAllAgents();
+const agentMap = new Map(agents.map(a => [a.id, a]));
+---
+
+<Base title="Profile Gallery" description="Pre-configured orchestration profiles for strategic deliberation">
+  <div class="px-6 py-12">
+    <div class="mx-auto max-w-6xl">
+      <h1 class="text-4xl font-bold text-white mb-2">Profile Gallery</h1>
+      <p class="text-[var(--color-text-muted)] mb-12">
+        {profiles.length} orchestration profiles. Each assembles a team of agents with specific tension pairs and constraint bounds.
+      </p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {profiles.map(profile => {
+          const agentCount = profile.assembly.perspectives.length + 1;
+          const requiredCount = profile.assembly.perspectives.filter(p => p.required).length;
+          const tensionCount = profile.delegation.tension_pairs.length;
+
+          return (
+            <a href={`/profiles/${profile.id}`} class="block bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-6 hover:border-[var(--color-accent)] transition-colors group">
+              <h2 class="text-xl font-bold text-white group-hover:text-[var(--color-accent)] transition-colors mb-2">{profile.name}</h2>
+              <p class="text-sm text-[var(--color-text-muted)] mb-4 line-clamp-2">{profile.description}</p>
+
+              <div class="flex flex-wrap gap-4 text-xs text-[var(--color-text-muted)] mb-4">
+                <span>{agentCount} agents ({requiredCount} required)</span>
+                <span>{tensionCount} tension pairs</span>
+                <span>{profile.constraints.rounds.min}-{profile.constraints.rounds.max} rounds</span>
+              </div>
+
+              <!-- Agent avatars -->
+              <div class="flex gap-1 flex-wrap">
+                {profile.assembly.perspectives.slice(0, 8).map(p => {
+                  const agent = agentMap.get(p.agent);
+                  return (
+                    <span class={`text-xs px-2 py-0.5 rounded ${p.required ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]' : 'bg-[var(--color-bg)] text-[var(--color-text-muted)]'}`}>
+                      {agent?.name ?? p.agent}
+                    </span>
+                  );
+                })}
+              </div>
+
+              <!-- Constraints -->
+              <div class="mt-4 pt-4 border-t border-[var(--color-border)] flex gap-6 text-xs text-[var(--color-text-muted)]">
+                <span>{profile.constraints.time.min_minutes}-{profile.constraints.time.max_minutes} min</span>
+                {profile.constraints.budget && (
+                  <span>${profile.constraints.budget.min}-${profile.constraints.budget.max}</span>
+                )}
+                <span>Bias limit: {profile.delegation.bias_limit}x</span>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  </div>
+</Base>

@@ -1,0 +1,80 @@
+---
+import Docs from '../../layouts/Docs.astro';
+---
+
+<Docs title="Getting Started">
+  <h1>Getting Started with AOS Framework</h1>
+
+  <p>
+    The AOS Framework (Agent Orchestration System) is a config-driven runtime for orchestrating
+    multi-agent deliberation sessions. You define agents with distinct cognitive profiles,
+    assemble them into advisory councils via profiles, and the framework manages structured
+    debate with constraint enforcement, bias protection, and transcript recording.
+  </p>
+
+  <h2>Prerequisites</h2>
+  <ul>
+    <li><strong>Bun</strong> (v1.0+) &mdash; JavaScript runtime. Install from <a href="https://bun.sh">bun.sh</a></li>
+    <li><strong>Pi CLI</strong> &mdash; AI coding agent that serves as the primary adapter runtime</li>
+    <li><strong>Anthropic API Key</strong> &mdash; Set <code>ANTHROPIC_API_KEY</code> in your environment, or use a Pi subscription</li>
+  </ul>
+
+  <h2>Installation</h2>
+
+  <h3>Option A: Quick Install (recommended)</h3>
+  <pre><code>bunx @aos-framework/cli init --adapter pi</code></pre>
+
+  <h3>Option B: Clone the Repository</h3>
+  <pre><code>git clone https://github.com/aos-framework/aos-framework
+cd aos-framework
+bun install</code></pre>
+
+  <h2>Verify Installation</h2>
+  <pre><code>aos validate</code></pre>
+  <p>You should see all agents, profiles, and domains pass validation.</p>
+
+  <h2>Your First Deliberation</h2>
+
+  <h3>1. Review the sample brief</h3>
+  <p>
+    Check <code>core/briefs/sample-product-decision/brief.md</code>. It contains a product strategy
+    question with sections for Situation, Stakes, Constraints, and Key Question.
+  </p>
+
+  <h3>2. Dry run (no API calls)</h3>
+  <pre><code>aos run strategic-council \
+  --brief core/briefs/sample-product-decision/brief.md \
+  --dry-run</code></pre>
+
+  <h3>3. Run a real deliberation</h3>
+  <pre><code>aos run strategic-council \
+  --brief core/briefs/sample-product-decision/brief.md \
+  --domain saas</code></pre>
+
+  <p>
+    The Arbiter orchestrates 11 specialist agents, each analyzing your problem through their
+    unique cognitive lens. The session runs within the constraint bounds defined in the profile
+    (2-10 minutes, $1-$10, 2-8 rounds).
+  </p>
+
+  <h2>Understanding the Output</h2>
+  <p>The primary output is a <strong>structured memo</strong> with:</p>
+  <ul>
+    <li><strong>Ranked Recommendations</strong> &mdash; Top options with confidence levels</li>
+    <li><strong>Agent Stances</strong> &mdash; Each agent's position and reasoning</li>
+    <li><strong>Dissenting Views</strong> &mdash; Formally documented disagreements</li>
+    <li><strong>Trade-offs and Risks</strong> &mdash; Key concerns and mitigation strategies</li>
+    <li><strong>Next Actions</strong> &mdash; Concrete next steps</li>
+  </ul>
+
+  <p>A <strong>JSONL transcript</strong> is also saved. Replay it:</p>
+  <pre><code>aos replay output/&lt;session&gt;/transcript.jsonl</code></pre>
+
+  <h2>Next Steps</h2>
+  <ul>
+    <li><a href="/docs/creating-agents">Creating Agents</a> &mdash; Design custom cognitive agents</li>
+    <li><a href="/docs/creating-profiles">Creating Profiles</a> &mdash; Assemble agents into councils</li>
+    <li><a href="/docs/creating-domains">Creating Domains</a> &mdash; Add domain-specific overlays</li>
+    <li><a href="/agents">Agent Gallery</a> &mdash; Explore all 12 built-in agents</li>
+  </ul>
+</Docs>

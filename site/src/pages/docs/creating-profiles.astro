@@ -1,0 +1,85 @@
+---
+import Docs from '../../layouts/Docs.astro';
+---
+
+<Docs title="Creating Profiles">
+  <h1>Creating Profiles</h1>
+
+  <p>
+    Profiles assemble agents into deliberation councils with specific constraints,
+    tension pairs, and delegation rules.
+  </p>
+
+  <h2>Scaffold a Profile</h2>
+  <pre><code>aos create profile my-review</code></pre>
+
+  <h2>Profile Structure</h2>
+  <pre><code>core/profiles/my-review/
+  profile.yaml     # Assembly, constraints, delegation config</code></pre>
+
+  <h2>profile.yaml Schema</h2>
+  <pre><code>schema: aos/profile/v1
+id: my-review
+name: My Review
+description: "What this profile is for."
+
+assembly:
+  orchestrator: arbiter
+  perspectives:
+    - agent: catalyst
+      required: true
+    - agent: sentinel
+      required: true
+    - agent: provocateur
+      required: true
+      structural_advantage: speaks-last
+
+delegation:
+  default: broadcast
+  opening_rounds: 1
+  tension_pairs:
+    - [catalyst, sentinel]
+  bias_limit: 5
+
+constraints:
+  time:
+    min_minutes: 2
+    max_minutes: 10
+  budget:
+    min: 1.00
+    max: 10.00
+    currency: USD
+  rounds:
+    min: 2
+    max: 8
+
+input:
+  format: brief
+  required_sections:
+    - heading: "## Situation"
+      guidance: "State the facts."
+    - heading: "## Key Question"
+      guidance: "The question to answer."
+
+output:
+  format: memo
+  sections:
+    - ranked_recommendations
+    - agent_stances
+    - dissent_and_tensions
+    - next_actions</code></pre>
+
+  <h2>Key Concepts</h2>
+
+  <h3>Assembly</h3>
+  <p>The orchestrator (always the Arbiter) plus perspective agents. Mark agents as required or optional. The Provocateur typically gets <code>structural_advantage: speaks-last</code>.</p>
+
+  <h3>Constraints</h3>
+  <p>Three dimensions with min/max ranges: time (minutes), budget (USD, for metered accounts), and rounds (deliberation exchanges). Maximums are hard ceilings. Minimums ensure sufficient depth.</p>
+
+  <h3>Tension Pairs</h3>
+  <p>Pairs of agents with opposing biases. The Arbiter can invoke these for focused debate. Define the pairs that create the most productive conflict for your use case.</p>
+
+  <h3>Bias Limit</h3>
+  <p>Maximum ratio of most-addressed to least-addressed agent. Prevents the Arbiter from over-relying on favorite agents. A limit of 5 means no agent can be called more than 5x as often as the least-called agent.</p>
+</Docs>
