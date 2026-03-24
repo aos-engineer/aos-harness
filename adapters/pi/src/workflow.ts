@@ -218,7 +218,124 @@ export class PiWorkflow implements WorkflowAdapter {
   // ── executeCode ───────────────────────────────────────────────
 
   async executeCode(handle: AgentHandle, code: string, opts?: ExecuteCodeOpts): Promise<ExecutionResult> {
-    throw new UnsupportedError("executeCode", "Pi adapter does not yet support code execution. Use agent tools instead.");
+    const language = opts?.language ?? "bash";
+    const timeout = opts?.timeout_ms ?? 30000;
+    const cwd = opts?.cwd ?? process.cwd();
+    const sandbox = opts?.sandbox ?? "strict";
+
+    // Determine the command based on language
+    let cmd: string;
+    let args: string[];
+
+    switch (language) {
+      case "bash":
+      case "sh":
+        cmd = "/bin/bash";
+        args = ["-c", code];
+        break;
+      case "typescript":
+      case "ts":
+        cmd = "bun";
+        args = ["eval", code];
+        break;
+      case "python":
+      case "py":
+        cmd = "python3";
+        args = ["-c", code];
+        break;
+      case "node":
+      case "javascript":
+      case "js":
+        cmd = "node";
+        args = ["-e", code];
+        break;
+      default:
+        throw new Error(`Unsupported language: ${language}. Supported: bash, typescript, python, javascript`);
+    }
+
+    return new Promise<ExecutionResult>((resolve) => {
+      const startTime = Date.now();
+      let stdout = "";
+      let stderr = "";
+      let killed = false;
+
+      const child = spawn(cmd, args, {
+        cwd: this.validatePath(cwd),
+        env: {
+          ...this.buildSafeEnv(sandbox),
+          ...(opts?.env ?? {}),
+        },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+
+      // Timeout enforcement
+      const timer = setTimeout(() => {
+        killed = true;
+        child.kill("SIGKILL");
+      }, timeout);
+
+      child.stdout.on("data", (data: Buffer) => {
+        stdout += data.toString();
+        // Truncate at 1MB to prevent memory exhaustion
+        if (stdout.length > 1_048_576) {
+          stdout = stdout.slice(0, 1_048_576) + "\n[TRUNCATED]";
+          killed = true;
+          child.kill("SIGKILL");
+        }
+      });
+
+      child.stderr.on("data", (data: Buffer) => {
+        stderr += data.toString();
+        if (stderr.length > 1_048_576) {
+          stderr = stderr.slice(0, 1_048_576) + "\n[TRUNCATED]";
+        }
+      });
+
+      child.on("close", (exitCode: number | null) => {
+        clearTimeout(timer);
+        resolve({
+          success: exitCode === 0 && !killed,
+          exit_code: exitCode ?? (killed ? 137 : 1),
+          stdout,
+          stderr: killed && !stderr.includes("TRUNCATED") ? stderr + "\n[KILLED: timeout or output limit]" : stderr,
+          duration_ms: Date.now() - startTime,
+        });
+      });
+
+      child.on("error", (err: Error) => {
+        clearTimeout(timer);
+        resolve({
+          success: false,
+          exit_code: 1,
+          stdout,
+          stderr: err.message,
+          duration_ms: Date.now() - startTime,
+        });
+      });
+    });
+  }
+
+  /**
+   * Build a safe environment for code execution.
+   * Strict mode: minimal env, no network-related vars.
+   * Relaxed mode: inherits more from parent process.
+   */
+  private buildSafeEnv(sandbox: "strict" | "relaxed"): Record<string, string> {
+    const base: Record<string, string> = {
+      PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
+      HOME: process.env.HOME ?? "/tmp",
+      LANG: process.env.LANG ?? "en_US.UTF-8",
+      TERM: "dumb",
+    };
+
+    if (sandbox === "relaxed") {
+      // Include more env vars for tools that need them
+      for (const key of ["NODE_PATH", "BUN_INSTALL", "PYTHONPATH", "SHELL"]) {
+        if (process.env[key]) base[key] = process.env[key]!;
+      }
+    }
+
+    return base;
   }
 
   // ── invokeSkill ───────────────────────────────────────────────
