@@ -23,25 +23,29 @@ ${c.bold("USAGE")}
 
 ${c.bold("COMMANDS")}
   ${c.cyan("init")}                          Initialize AOS in the current project
-  ${c.cyan("run")} [profile]                  Run a deliberation session
+  ${c.cyan("run")} [profile]                  Run a deliberation or execution session
   ${c.cyan("create")} agent <name>            Scaffold a new custom agent
   ${c.cyan("create")} profile <name>          Scaffold a new profile
   ${c.cyan("create")} domain <name>           Scaffold a new domain
+  ${c.cyan("create")} skill <name>            Scaffold a new skill definition
   ${c.cyan("replay")} <transcript.jsonl>       Replay a deliberation transcript
-  ${c.cyan("validate")}                       Validate all agents, profiles, and domains
-  ${c.cyan("list")}                           List all available agents, profiles, and domains
+  ${c.cyan("validate")}                       Validate all agents, profiles, domains, and skills
+  ${c.cyan("list")}                           List all agents, profiles, domains, and skills
 
 ${c.bold("OPTIONS")}
   --verbose                       Stream engine decisions to stderr (for run)
   --dry-run                       Validate config without launching (for run)
+  --workflow-dir <path>           Directory containing workflow files (for run)
   --help                          Show help for any command
 
 ${c.bold("EXAMPLES")}
   aos init --adapter pi
   aos run strategic-council --domain saas --brief core/briefs/sample-product-decision/brief.md
+  aos run cto-execution --brief briefs/my-feature.md
   aos run strategic-council --dry-run --brief core/briefs/sample-product-decision/brief.md
   aos replay .aos/sessions/session-abc/transcript.jsonl
   aos create agent my-analyst
+  aos create skill code-audit
   aos validate
   aos list
 `);

@@ -8,22 +8,24 @@ import { c, type ParsedArgs } from "../colors";
 import { getFrameworkRoot, toKebabCase } from "../utils";
 
 const HELP = `
-${c.bold("aos create")} — Scaffold new agents, profiles, and domains
+${c.bold("aos create")} — Scaffold new agents, profiles, domains, and skills
 
 ${c.bold("USAGE")}
   aos create agent <name>       Create a new custom agent
   aos create profile <name>     Create a new profile
   aos create domain <name>      Create a new domain pack
+  aos create skill <name>       Create a new skill definition
 
 ${c.bold("DESCRIPTION")}
   Generates well-structured scaffolds that pass "aos validate" out of the box.
   Custom agents are created under core/agents/custom/.
-  Profiles and domains are created under their respective core/ directories.
+  Profiles, domains, and skills are created under their respective core/ directories.
 
 ${c.bold("EXAMPLES")}
   aos create agent risk-analyst
   aos create profile security-review
   aos create domain healthcare
+  aos create skill dependency-analysis
 `;
 
 // ── Agent scaffold ──────────────────────────────────────────────
@@ -321,6 +323,43 @@ This domain pack:
 `;
 }
 
+// ── Skill scaffold ───────────────────────────────────────────
+
+function skillYaml(id: string, name: string): string {
+  return `schema: aos/skill/v1
+id: ${id}
+name: ${name}
+description: "TODO: Describe what this skill does in one sentence."
+version: 1.0.0
+
+input:
+  required:
+    - id: todo_input
+      type: artifact
+      description: "TODO: Describe the required input"
+  optional:
+    - id: todo_context
+      type: text
+      description: "TODO: Describe optional context"
+
+output:
+  artifacts:
+    - id: todo_output
+      format: markdown
+      description: "TODO: Describe the output artifact"
+  structured_result: false
+
+compatible_agents: []
+
+platform_bindings: {}
+
+platform_requirements:
+  requires_code_execution: false
+  requires_file_access: false
+  requires_network: false
+`;
+}
+
 // ── Command handler ─────────────────────────────────────────────
 
 export async function createCommand(args: ParsedArgs): Promise<void> {
@@ -422,8 +461,31 @@ ${c.bold("Next Steps")}
       break;
     }
 
+    case "skill": {
+      const dir = join(root, "core", "skills", id);
+      if (existsSync(dir)) {
+        console.error(c.red(`Skill "${id}" already exists at: ${dir}`));
+        process.exit(1);
+      }
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "skill.yaml"), skillYaml(id, displayName), "utf-8");
+
+      console.log(`
+${c.green(`Skill "${id}" created successfully!`)}
+
+${c.bold("Files")}
+  ${c.cyan(join(dir, "skill.yaml"))}
+
+${c.bold("Next Steps")}
+  1. Edit ${c.cyan("skill.yaml")} — define the input/output schema and compatible agents
+  2. Add the skill ID to an agent's "skills" array to make it available
+  3. Run ${c.cyan("aos validate")} to check everything is well-formed
+`);
+      break;
+    }
+
     default:
-      console.error(c.red(`Unknown type: "${type}". Use "agent", "profile", or "domain".`));
+      console.error(c.red(`Unknown type: "${type}". Use "agent", "profile", "domain", or "skill".`));
       process.exit(1);
   }
 }

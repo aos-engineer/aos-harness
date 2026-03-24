@@ -8,13 +8,13 @@ import { c, type ParsedArgs } from "../colors";
 import { getFrameworkRoot, discoverDirs } from "../utils";
 
 const HELP = `
-${c.bold("aos list")} — List all available agents, profiles, and domains
+${c.bold("aos list")} — List all available agents, profiles, domains, and skills
 
 ${c.bold("USAGE")}
   aos list
 
 ${c.bold("DESCRIPTION")}
-  Discovers and displays all agents, profiles, domains, and briefs
+  Discovers and displays all agents, profiles, domains, skills, and briefs
   in the core/ directory with brief descriptions.
 `;
 
@@ -27,7 +27,7 @@ export async function listCommand(args: ParsedArgs): Promise<void> {
   const root = getFrameworkRoot();
   const coreDir = join(root, "core");
 
-  const { loadAgent, loadProfile, loadDomain } = await import("../../../runtime/src/config-loader");
+  const { loadAgent, loadProfile, loadDomain, loadSkill } = await import("../../../runtime/src/config-loader");
 
   // ── Agents ────────────────────────────────────────────────────
 
@@ -83,10 +83,11 @@ export async function listCommand(args: ParsedArgs): Promise<void> {
       try {
         const profile = loadProfile(dir);
         const agentCount = (profile.assembly.perspectives?.length || 0) + 1; // +1 for orchestrator
+        const profileType = profile.workflow ? c.magenta("[execution]") : c.cyan("[deliberation]");
         const desc = profile.description
-          ? (profile.description.length > 80 ? profile.description.slice(0, 77) + "..." : profile.description)
+          ? (profile.description.length > 70 ? profile.description.slice(0, 67) + "..." : profile.description)
           : "(no description)";
-        console.log(`  ${c.bold(profile.id.padEnd(24))} ${c.dim(`[${agentCount} agents]`)} ${desc}`);
+        console.log(`  ${c.bold(profile.id.padEnd(24))} ${profileType} ${c.dim(`[${agentCount} agents]`)} ${desc}`);
       } catch {
         console.log(c.yellow(`  ? ${basename(dir)} (failed to load)`));
       }
@@ -110,6 +111,31 @@ export async function listCommand(args: ParsedArgs): Promise<void> {
           ? (domain.description.length > 80 ? domain.description.slice(0, 77) + "..." : domain.description)
           : "(no description)";
         console.log(`  ${c.bold(domain.id.padEnd(24))} ${c.dim(`[${overlayCount} overlays]`)} ${desc}`);
+      } catch {
+        console.log(c.yellow(`  ? ${basename(dir)} (failed to load)`));
+      }
+    }
+  }
+
+  // ── Skills ────────────────────────────────────────────────────
+
+  console.log(`\n${c.bold("Skills")}`);
+
+  const skillDirs = discoverDirs(join(coreDir, "skills"), "skill.yaml");
+
+  if (skillDirs.length === 0) {
+    console.log(c.dim("  No skills found."));
+  } else {
+    for (const dir of skillDirs) {
+      try {
+        const skill = loadSkill(dir);
+        const compatAgents = skill.compatible_agents?.length
+          ? c.dim(`[${skill.compatible_agents.join(", ")}]`)
+          : c.dim("[all agents]");
+        const desc = skill.description
+          ? (skill.description.length > 60 ? skill.description.slice(0, 57) + "..." : skill.description)
+          : "(no description)";
+        console.log(`  ${c.bold(skill.id.padEnd(24))} ${compatAgents} ${desc}`);
       } catch {
         console.log(c.yellow(`  ? ${basename(dir)} (failed to load)`));
       }

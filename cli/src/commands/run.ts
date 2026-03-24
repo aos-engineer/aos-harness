@@ -1,33 +1,40 @@
 /**
- * aos run — Launch a deliberation session.
+ * aos run — Launch a deliberation or execution session.
  */
 
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { c, type ParsedArgs } from "../colors";
 import { getFrameworkRoot, discoverDirs, promptSelect } from "../utils";
 
 const HELP = `
-${c.bold("aos run")} — Run a deliberation session
+${c.bold("aos run")} — Run a deliberation or execution session
 
 ${c.bold("USAGE")}
   aos run [profile] [--domain <domain>] [--brief <path>] [--verbose] [--dry-run]
+                    [--workflow-dir <path>]
 
 ${c.bold("OPTIONS")}
-  --domain <name>     Domain pack to apply (e.g. saas)
-  --brief <path>      Path to the brief file
-  --verbose           Stream engine decisions to stderr
-  --dry-run           Validate config and print simulation summary without launching
+  --domain <name>       Domain pack to apply (e.g. saas)
+  --brief <path>        Path to the brief file
+  --verbose             Stream engine decisions to stderr
+  --dry-run             Validate config and print simulation summary without launching
+  --workflow-dir <path> Directory containing workflow YAML files (default: core/workflows/)
 
 ${c.bold("DESCRIPTION")}
-  Launches a deliberation session using the specified profile. If no profile
-  is given, lists available profiles and prompts for selection. If no brief
-  is given, lists available briefs and prompts for selection.
+  Launches a deliberation or execution session using the specified profile.
+  If the profile has a "workflow" field, it runs as an execution profile
+  using the linked workflow definition. Otherwise, it runs as a standard
+  deliberation session.
+
+  If no profile is given, lists available profiles and prompts for selection.
+  If no brief is given, lists available briefs and prompts for selection.
 
   The session is launched via the configured adapter (default: Pi CLI).
 
 ${c.bold("EXAMPLES")}
   aos run strategic-council
+  aos run cto-execution --brief briefs/my-feature.md
   aos run strategic-council --domain saas --brief briefs/my-brief.md
   aos run strategic-council --dry-run --brief core/briefs/sample-product-decision/brief.md
   aos run  # interactive profile selection
@@ -113,10 +120,48 @@ export async function runCommand(args: ParsedArgs): Promise<void> {
     }
   }
 
+  // ── Resolve workflow directory ───────────────────────────────
+  const workflowsDir = (args.flags["workflow-dir"] as string)
+    ? resolve(process.cwd(), args.flags["workflow-dir"] as string)
+    : join(coreDir, "workflows");
+
   // ── Validate brief against profile ───────────────────────────
-  const { loadProfile, validateBrief } = await import("../../../runtime/src/config-loader");
+  const { loadProfile, loadWorkflow, validateBrief } = await import("../../../runtime/src/config-loader");
   const profile = loadProfile(profileDir);
   const validation = validateBrief(briefPath, profile.input.required_sections);
+
+  // ── Detect execution profile (has workflow field) ──────────
+  const isExecutionProfile = !!profile.workflow;
+  let workflowConfig: Awaited<ReturnType<typeof loadWorkflow>> | null = null;
+
+  if (isExecutionProfile) {
+    // Resolve workflow file from workflowsDir
+    const workflowId = profile.workflow!;
+    const workflowFile = join(workflowsDir, `${workflowId.replace(/-workflow$/, "")}.workflow.yaml`);
+    const workflowFileAlt = join(workflowsDir, `${workflowId}.workflow.yaml`);
+
+    if (existsSync(workflowFile)) {
+      workflowConfig = loadWorkflow(workflowFile);
+    } else if (existsSync(workflowFileAlt)) {
+      workflowConfig = loadWorkflow(workflowFileAlt);
+    } else {
+      // Try loading by the raw ID name
+      const candidates = existsSync(workflowsDir)
+        ? readdirSync(workflowsDir).filter((f) => f.endsWith(".workflow.yaml"))
+        : [];
+      const match = candidates.find((f) => {
+        const loaded = loadWorkflow(join(workflowsDir, f));
+        return loaded.id === workflowId;
+      });
+      if (match) {
+        workflowConfig = loadWorkflow(join(workflowsDir, match));
+      } else {
+        console.error(c.red(`Workflow "${workflowId}" not found in ${workflowsDir}`));
+        console.error(c.yellow(`Available workflow files: ${candidates.join(", ") || "none"}`));
+        process.exit(1);
+      }
+    }
+  }
 
   if (!validation.valid) {
     console.error(c.red("Brief validation failed. Missing required sections:"));
@@ -144,12 +189,34 @@ export async function runCommand(args: ParsedArgs): Promise<void> {
     const budgetMin = constraints.budget ? `$${constraints.budget.min.toFixed(2)}` : "N/A (unmetered)";
     const budgetMax = constraints.budget ? `$${constraints.budget.max.toFixed(2)}` : "N/A (unmetered)";
 
+    let workflowSection = "";
+    if (isExecutionProfile && workflowConfig) {
+      const stepSummary = workflowConfig.steps
+        .map((s: { id: string; name: string; action: string; review_gate?: boolean }) =>
+          `    ${s.id.padEnd(20)} ${s.name.padEnd(30)} ${s.action}${s.review_gate ? " [gate]" : ""}`
+        )
+        .join("\n");
+      const gateCount = workflowConfig.gates?.length || 0;
+      workflowSection = `
+${c.bold("Workflow")} ${c.magenta("(execution profile)")}
+  ID:             ${c.cyan(workflowConfig.id)}
+  Name:           ${workflowConfig.name}
+  Steps:          ${workflowConfig.steps.length}
+  Gates:          ${gateCount}
+  Workflows dir:  ${workflowsDir}
+
+${c.bold("  Step Details")}
+${stepSummary}
+`;
+    }
+
     console.log(`
 ${c.bold("DRY RUN — Simulation Summary")}
 
 ${c.bold("Profile")}
   Name:           ${c.cyan(profile.name)}
   ID:             ${profile.id}
+  Type:           ${isExecutionProfile ? c.magenta("execution") : c.cyan("deliberation")}
   Description:    ${profile.description || "none"}
 
 ${c.bold("Assembly")}
@@ -167,7 +234,7 @@ ${c.bold("Delegation")}
   Tension pairs:  ${profile.delegation.tension_pairs.length}
   Bias limit:     ${profile.delegation.bias_limit}
   Opening rounds: ${profile.delegation.opening_rounds}
-
+${workflowSection}
 ${c.bold("Brief")}
   Path:           ${briefPath}
   Sections found: ${briefSections.length > 0 ? briefSections.map((s: string) => s.replace(/^##\s+/, "")).join(", ") : "none"}
@@ -184,12 +251,20 @@ ${c.green("All configuration validated successfully. Ready to launch.")}
     process.exit(0);
   }
 
+  // ── Set up deliberation directory for artifact storage ──────
+  const sessionId = `${new Date().toISOString().slice(0, 10)}-${profileName}-${Date.now().toString(36)}`;
+  const deliberationDir = join(root, ".aos", "sessions", sessionId);
+  mkdirSync(deliberationDir, { recursive: true });
+
   // ── Launch adapter ───────────────────────────────────────────
+  const sessionType = isExecutionProfile ? "Execution" : "Deliberation";
   console.log(`
-${c.bold("AOS Deliberation Session")}
-  Profile: ${c.cyan(profileName!)}
-  Domain:  ${c.cyan(domainName || "none")}
-  Brief:   ${c.cyan(briefPath)}
+${c.bold(`AOS ${sessionType} Session`)}
+  Profile:  ${c.cyan(profileName!)}
+  Type:     ${isExecutionProfile ? c.magenta("execution") : c.cyan("deliberation")}${isExecutionProfile && workflowConfig ? `\n  Workflow: ${c.magenta(workflowConfig.id)} (${workflowConfig.steps.length} steps)` : ""}
+  Domain:   ${c.cyan(domainName || "none")}
+  Brief:    ${c.cyan(briefPath)}
+  Output:   ${c.cyan(deliberationDir)}
 `);
 
   // Check for .aos/config.yaml to determine adapter
@@ -222,12 +297,18 @@ ${c.bold("AOS Deliberation Session")}
       AOS_PROFILE: profileName!,
       AOS_BRIEF: briefPath,
       AOS_FRAMEWORK_ROOT: root,
+      AOS_SESSION_ID: sessionId,
+      AOS_DELIBERATION_DIR: deliberationDir,
     };
     if (domainName) {
       env.AOS_DOMAIN = domainName;
     }
     if (args.flags.verbose) {
       env.AOS_VERBOSE = "1";
+    }
+    if (isExecutionProfile && workflowConfig) {
+      env.AOS_WORKFLOW_ID = workflowConfig.id;
+      env.AOS_WORKFLOWS_DIR = workflowsDir;
     }
 
     const proc = Bun.spawn(["pi", "-e", adapterEntry], {
@@ -239,10 +320,18 @@ ${c.bold("AOS Deliberation Session")}
     });
 
     const exitCode = await proc.exited;
+    if (exitCode === 0) {
+      console.log(`\n${c.green("Session complete.")} Output: ${c.cyan(deliberationDir)}`);
+    }
     process.exit(exitCode);
   } else {
     console.log(c.yellow(`Adapter "${adapter}" is not yet fully supported in the CLI.`));
     console.log(c.dim(`The framework launched with profile="${profileName}", domain="${domainName || "none"}", brief="${briefPath}".`));
+    if (isExecutionProfile && workflowConfig) {
+      console.log(c.dim(`Workflow: ${workflowConfig.id} (${workflowConfig.steps.length} steps)`));
+      console.log(c.dim(`Workflows dir: ${workflowsDir}`));
+    }
+    console.log(c.dim(`Deliberation dir: ${deliberationDir}`));
     console.log(c.dim(`Implement the ${adapter} adapter at adapters/${adapter}/ to enable full execution.`));
   }
 }

@@ -15,7 +15,7 @@ ${c.bold("USAGE")}
   aos validate
 
 ${c.bold("DESCRIPTION")}
-  Loads and validates all agents, profiles, domains, and briefs in core/.
+  Loads and validates all agents, profiles, domains, skills, and briefs in core/.
   Reports any schema violations, missing fields, or reference errors.
   Uses the runtime config-loader and integration validation logic.
 
@@ -23,9 +23,12 @@ ${c.bold("CHECKS")}
   - All agents load and have required fields (id, name, cognition, persona, etc.)
   - All agents have prompt.md with template variables
   - Profiles load and reference valid agents
+  - Execution profiles reference valid workflows
   - Tension pairs reference valid agents
   - Domains load and overlays reference valid agents
   - Domain merging produces valid output
+  - Skills load and have required fields (id, name, input, output, etc.)
+  - Skills reference valid compatible agents
   - Briefs pass section requirements
   - Template resolution works for all agents
   - Constraint engine initializes from profiles
@@ -48,7 +51,7 @@ export async function validateCommand(args: ParsedArgs): Promise<void> {
   const coreDir = join(root, "core");
 
   // Import runtime modules
-  const { loadAgent, loadProfile, loadDomain, validateBrief } = await import("../../../runtime/src/config-loader");
+  const { loadAgent, loadProfile, loadDomain, loadWorkflow, loadSkill, validateBrief } = await import("../../../runtime/src/config-loader");
   const { applyDomain } = await import("../../../runtime/src/domain-merger");
   const { resolveTemplate } = await import("../../../runtime/src/template-resolver");
   const { ConstraintEngine } = await import("../../../runtime/src/constraint-engine");
@@ -132,7 +135,85 @@ export async function validateCommand(args: ParsedArgs): Promise<void> {
     }
   }
 
-  // ── 3. Load all domains ───────────────────────────────────────
+  // Cross-reference: execution profiles must reference valid workflows
+  const workflowsDir = join(coreDir, "workflows");
+
+  for (const profile of profiles) {
+    if (!profile.workflow) continue;
+    check(`Profile "${profile.id}" workflow "${profile.workflow}"`, () => {
+      const workflowId = profile.workflow!;
+      // Try several naming conventions
+      const candidates = [
+        join(workflowsDir, `${workflowId.replace(/-workflow$/, "")}.workflow.yaml`),
+        join(workflowsDir, `${workflowId}.workflow.yaml`),
+        join(workflowsDir, `${workflowId}.yaml`),
+      ];
+
+      let found = false;
+      for (const candidate of candidates) {
+        if (existsSync(candidate)) {
+          const wf = loadWorkflow(candidate);
+          // Validate that workflow steps reference agents in the profile assembly
+          const profileAgentIds = new Set([
+            profile.assembly.orchestrator,
+            ...profile.assembly.perspectives.map((p: { agent: string }) => p.agent),
+          ]);
+          for (const step of wf.steps) {
+            if (step.agents) {
+              for (const agent of step.agents) {
+                if (!profileAgentIds.has(agent)) {
+                  throw new Error(
+                    `Workflow step "${step.id}" references agent "${agent}" not in profile assembly`,
+                  );
+                }
+              }
+            }
+          }
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        throw new Error(`Workflow file not found for "${workflowId}" in ${workflowsDir}`);
+      }
+    });
+  }
+
+  // ── 3. Load all skills ─────────────────────────────────────────
+
+  console.log(`${c.bold("Validating skills...")}`);
+
+  const skillDirs = discoverDirs(join(coreDir, "skills"), "skill.yaml");
+  const skills: any[] = [];
+
+  for (const dir of skillDirs) {
+    const name = basename(dir);
+    check(`Skill: ${name}`, () => {
+      const skill = loadSkill(dir);
+      if (!skill.id) throw new Error("Missing id");
+      if (!skill.name) throw new Error("Missing name");
+      if (!skill.description) throw new Error("Missing description");
+      if (!skill.input) throw new Error("Missing input");
+      if (!skill.output) throw new Error("Missing output");
+      skills.push(skill);
+    });
+  }
+
+  // Cross-reference: skill compatible_agents must reference valid agent IDs
+  for (const skill of skills) {
+    if (skill.compatible_agents?.length) {
+      check(`Skill "${skill.id}" references valid agents`, () => {
+        for (const agent of skill.compatible_agents) {
+          if (!agentIds.has(agent)) {
+            throw new Error(`Compatible agent "${agent}" not found in agents`);
+          }
+        }
+      });
+    }
+  }
+
+  // ── 4. Load all domains ───────────────────────────────────────
 
   console.log(`${c.bold("Validating domains...")}`);
 
@@ -164,7 +245,7 @@ export async function validateCommand(args: ParsedArgs): Promise<void> {
     });
   }
 
-  // ── 4. Validate briefs ────────────────────────────────────────
+  // ── 5. Validate briefs ────────────────────────────────────────
 
   console.log(`${c.bold("Validating briefs...")}`);
 
@@ -188,7 +269,7 @@ export async function validateCommand(args: ParsedArgs): Promise<void> {
     }
   }
 
-  // ── 5. Template resolution ────────────────────────────────────
+  // ── 6. Template resolution ────────────────────────────────────
 
   console.log(`${c.bold("Validating template resolution...")}`);
 
@@ -213,7 +294,7 @@ export async function validateCommand(args: ParsedArgs): Promise<void> {
     });
   }
 
-  // ── 6. Constraint engine ──────────────────────────────────────
+  // ── 7. Constraint engine ──────────────────────────────────────
 
   console.log(`${c.bold("Validating constraint engine...")}`);
 
@@ -226,7 +307,7 @@ export async function validateCommand(args: ParsedArgs): Promise<void> {
     });
   }
 
-  // ── 7. Delegation router ──────────────────────────────────────
+  // ── 8. Delegation router ──────────────────────────────────────
 
   console.log(`${c.bold("Validating delegation router...")}`);
 
