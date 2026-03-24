@@ -81,8 +81,8 @@ export class ConstraintEngine {
 
   updateBias(biasRatio: number, mostAddressed: string[], leastAddressed: string[], blocked: boolean): void {
     this.state.bias_ratio = biasRatio;
-    this.state.most_addressed = mostAddressed;
-    this.state.least_addressed = leastAddressed;
+    this.state.most_addressed = [...mostAddressed];
+    this.state.least_addressed = [...leastAddressed];
     this.state.bias_blocked = blocked;
   }
 

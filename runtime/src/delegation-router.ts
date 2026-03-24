@@ -1,4 +1,6 @@
-import type { AssemblyMember } from "./types";
+import type { AssemblyMember, DelegationTarget } from "./types";
+
+export type { DelegationTarget };
 
 export interface RoutingResult {
   parallel: string[];
@@ -13,11 +15,6 @@ export interface BiasState {
   least_addressed: string[];
   blocked: boolean;
 }
-
-export type DelegationTarget =
-  | { type: "broadcast" }
-  | { type: "targeted"; agents: string[] }
-  | { type: "tension"; pair: [string, string] };
 
 export class DelegationRouter {
   private members: AssemblyMember[];
