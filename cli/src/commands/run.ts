@@ -11,11 +11,13 @@ const HELP = `
 ${c.bold("aos run")} — Run a deliberation session
 
 ${c.bold("USAGE")}
-  aos run [profile] [--domain <domain>] [--brief <path>]
+  aos run [profile] [--domain <domain>] [--brief <path>] [--verbose] [--dry-run]
 
 ${c.bold("OPTIONS")}
   --domain <name>     Domain pack to apply (e.g. saas)
   --brief <path>      Path to the brief file
+  --verbose           Stream engine decisions to stderr
+  --dry-run           Validate config and print simulation summary without launching
 
 ${c.bold("DESCRIPTION")}
   Launches a deliberation session using the specified profile. If no profile
@@ -27,6 +29,7 @@ ${c.bold("DESCRIPTION")}
 ${c.bold("EXAMPLES")}
   aos run strategic-council
   aos run strategic-council --domain saas --brief briefs/my-brief.md
+  aos run strategic-council --dry-run --brief core/briefs/sample-product-decision/brief.md
   aos run  # interactive profile selection
 `;
 
@@ -124,6 +127,63 @@ export async function runCommand(args: ParsedArgs): Promise<void> {
     process.exit(1);
   }
 
+  // ── Dry-run mode ─────────────────────────────────────────────
+  if (args.flags["dry-run"]) {
+    const { readFileSync } = await import("node:fs");
+    const briefContent = readFileSync(briefPath, "utf-8");
+    const briefSections = briefContent.match(/^##\s+.+/gm) || [];
+
+    const agentIds = [
+      profile.assembly.orchestrator,
+      ...profile.assembly.perspectives.map((p: { agent: string }) => p.agent),
+    ];
+    const requiredCount = profile.assembly.perspectives.filter((p: { required: boolean }) => p.required).length;
+    const optionalCount = profile.assembly.perspectives.length - requiredCount;
+
+    const constraints = profile.constraints;
+    const budgetMin = constraints.budget ? `$${constraints.budget.min.toFixed(2)}` : "N/A (unmetered)";
+    const budgetMax = constraints.budget ? `$${constraints.budget.max.toFixed(2)}` : "N/A (unmetered)";
+
+    console.log(`
+${c.bold("DRY RUN — Simulation Summary")}
+
+${c.bold("Profile")}
+  Name:           ${c.cyan(profile.name)}
+  ID:             ${profile.id}
+  Description:    ${profile.description || "none"}
+
+${c.bold("Assembly")}
+  Orchestrator:   ${c.cyan(profile.assembly.orchestrator)}
+  Agents:         ${agentIds.length} total (1 orchestrator + ${requiredCount} required + ${optionalCount} optional)
+  Agent IDs:      ${agentIds.join(", ")}
+
+${c.bold("Constraints")}
+  Time:           ${constraints.time.min_minutes}–${constraints.time.max_minutes} minutes
+  Budget:         ${budgetMin}–${budgetMax}
+  Rounds:         ${constraints.rounds.min}–${constraints.rounds.max}
+
+${c.bold("Delegation")}
+  Default:        ${profile.delegation.default}
+  Tension pairs:  ${profile.delegation.tension_pairs.length}
+  Bias limit:     ${profile.delegation.bias_limit}
+  Opening rounds: ${profile.delegation.opening_rounds}
+
+${c.bold("Brief")}
+  Path:           ${briefPath}
+  Sections found: ${briefSections.length > 0 ? briefSections.map((s: string) => s.replace(/^##\s+/, "")).join(", ") : "none"}
+
+${c.bold("Domain")}
+  Domain:         ${domainName || "none"}
+
+${c.bold("Estimated Cost Range")}
+  Minimum:        ${budgetMin}
+  Maximum:        ${budgetMax}
+
+${c.green("All configuration validated successfully. Ready to launch.")}
+`);
+    process.exit(0);
+  }
+
   // ── Launch adapter ───────────────────────────────────────────
   console.log(`
 ${c.bold("AOS Deliberation Session")}
@@ -165,6 +225,9 @@ ${c.bold("AOS Deliberation Session")}
     };
     if (domainName) {
       env.AOS_DOMAIN = domainName;
+    }
+    if (args.flags.verbose) {
+      env.AOS_VERBOSE = "1";
     }
 
     const proc = Bun.spawn(["pi", "-e", adapterEntry], {

@@ -9,6 +9,7 @@ import { runCommand } from "./commands/run";
 import { createCommand } from "./commands/create";
 import { validateCommand } from "./commands/validate";
 import { listCommand } from "./commands/list";
+import { replayCommand } from "./commands/replay";
 import { c, parseArgs } from "./colors";
 
 // ── Help ────────────────────────────────────────────────────────
@@ -26,15 +27,20 @@ ${c.bold("COMMANDS")}
   ${c.cyan("create")} agent <name>            Scaffold a new custom agent
   ${c.cyan("create")} profile <name>          Scaffold a new profile
   ${c.cyan("create")} domain <name>           Scaffold a new domain
+  ${c.cyan("replay")} <transcript.jsonl>       Replay a deliberation transcript
   ${c.cyan("validate")}                       Validate all agents, profiles, and domains
   ${c.cyan("list")}                           List all available agents, profiles, and domains
 
 ${c.bold("OPTIONS")}
+  --verbose                       Stream engine decisions to stderr (for run)
+  --dry-run                       Validate config without launching (for run)
   --help                          Show help for any command
 
 ${c.bold("EXAMPLES")}
   aos init --adapter pi
   aos run strategic-council --domain saas --brief core/briefs/sample-product-decision/brief.md
+  aos run strategic-council --dry-run --brief core/briefs/sample-product-decision/brief.md
+  aos replay .aos/sessions/session-abc/transcript.jsonl
   aos create agent my-analyst
   aos validate
   aos list
@@ -60,6 +66,9 @@ async function main(): Promise<void> {
       break;
     case "create":
       await createCommand(parsed);
+      break;
+    case "replay":
+      await replayCommand(parsed);
       break;
     case "validate":
       await validateCommand(parsed);
