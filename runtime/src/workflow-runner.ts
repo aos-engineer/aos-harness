@@ -16,13 +16,13 @@ export interface WorkflowStep {
   id: string;
   name?: string;
   action: string;
-  description: string;
+  description?: string;
   agents?: string[];
   prompt?: string;
   structural_advantage?: "speaks-last" | null;
-  input: string[];
-  output: string;
-  review_gate: boolean;
+  input?: string[];
+  output?: string;
+  review_gate?: boolean;
 }
 
 export interface WorkflowGate {
@@ -30,7 +30,7 @@ export interface WorkflowGate {
   type: "user-approval" | "automated-review";
   prompt: string;
   max_iterations?: number;
-  on_rejection: "re-run-step" | "retry_with_feedback";
+  on_rejection?: "re-run-step" | "retry_with_feedback";
 }
 
 export interface WorkflowConfig {
@@ -86,7 +86,7 @@ export class WorkflowRunner {
   private async runStep(step: WorkflowStep): Promise<void> {
     // Gather inputs from previous steps
     const inputs: Record<string, unknown> = {};
-    for (const inputId of step.input) {
+    for (const inputId of (step.input ?? [])) {
       inputs[inputId] = this.stepOutputs.get(inputId);
     }
 
@@ -107,7 +107,7 @@ export class WorkflowRunner {
     inputs: Record<string, unknown>,
   ): Promise<unknown> {
     this.adapter.notify(
-      `[${this.config.id}] Step: ${step.description}`,
+      `[${this.config.id}] Step: ${step.description ?? step.id}`,
       "info",
     );
     return { stepId: step.id, action: step.action, inputs };
