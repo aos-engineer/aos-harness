@@ -212,7 +212,44 @@ export class PiWorkflow implements WorkflowAdapter {
   // ── submitForReview ───────────────────────────────────────────
 
   async submitForReview(artifact: LoadedArtifact, reviewer: AgentHandle, reviewPrompt?: string): Promise<ReviewResult> {
-    throw new UnsupportedError("submitForReview", "Pi adapter does not yet support automated review submission.");
+    const prompt = reviewPrompt || `Review the following artifact and provide your assessment:
+
+## Artifact: ${artifact.manifest.id}
+- Produced by: ${artifact.manifest.produced_by.join(", ")}
+- Format: ${artifact.manifest.format}
+
+Respond with:
+1. Status: APPROVED, REJECTED, or NEEDS-REVISION
+2. If not approved, list issues with severity (critical/major/minor/suggestion)
+3. Specific feedback for improvement`;
+
+    const fullPrompt = `${prompt}\n\n---\n\n${artifact.content}`;
+
+    try {
+      const response = await this.agentRuntime.sendMessage(reviewer, fullPrompt);
+      const text = response.text ?? response.message ?? "";
+
+      // Parse the response for status
+      const upperText = text.toUpperCase();
+      let status: "approved" | "rejected" | "needs-revision" = "needs-revision";
+      if (upperText.includes("APPROVED") && !upperText.includes("NOT APPROVED")) {
+        status = "approved";
+      } else if (upperText.includes("REJECTED")) {
+        status = "rejected";
+      }
+
+      return {
+        status,
+        feedback: text,
+        reviewer: reviewer.agentId,
+      };
+    } catch (err: any) {
+      return {
+        status: "needs-revision",
+        feedback: `Review failed: ${err.message}`,
+        reviewer: reviewer.agentId,
+      };
+    }
   }
 
   // ── executeCode ───────────────────────────────────────────────
@@ -341,6 +378,53 @@ export class PiWorkflow implements WorkflowAdapter {
   // ── invokeSkill ───────────────────────────────────────────────
 
   async invokeSkill(handle: AgentHandle, skillId: string, input: SkillInput): Promise<SkillResult> {
-    throw new UnsupportedError("invokeSkill", "Pi adapter does not yet support skill invocation.");
+    // Load the skill manifest from core/skills/{skillId}/skill.yaml
+    const skillDir = join(this.projectRoot, "core", "skills", skillId);
+    const skillYamlPath = join(skillDir, "skill.yaml");
+
+    if (!existsSync(skillYamlPath)) {
+      throw new UnsupportedError("invokeSkill", `Skill "${skillId}" not found at ${skillYamlPath}`);
+    }
+
+    const skillYamlRaw = readFileSync(skillYamlPath, "utf-8");
+    const skillConfig = yaml.load(skillYamlRaw, { schema: yaml.JSON_SCHEMA }) as any;
+
+    // Build the skill prompt from the skill's prompt.md if it exists, otherwise use the description
+    let skillPrompt = skillConfig.description;
+    const promptPath = join(skillDir, "prompt.md");
+    if (existsSync(promptPath)) {
+      skillPrompt = readFileSync(promptPath, "utf-8");
+    }
+
+    // Build context from input
+    const contextParts: string[] = [];
+    if (input.args) contextParts.push(`Arguments: ${input.args}`);
+    if (input.context) {
+      for (const [key, value] of Object.entries(input.context)) {
+        contextParts.push(`${key}: ${value}`);
+      }
+    }
+
+    const fullPrompt = [
+      skillPrompt,
+      "",
+      "## Input Context",
+      contextParts.join("\n"),
+    ].join("\n");
+
+    // Execute by sending to the agent
+    try {
+      const response = await this.agentRuntime.sendMessage(handle, fullPrompt);
+      return {
+        success: true,
+        output: response.text ?? response.message ?? JSON.stringify(response),
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        output: "",
+        error: err.message ?? String(err),
+      };
+    }
   }
 }
