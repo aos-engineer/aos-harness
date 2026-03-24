@@ -4,7 +4,20 @@
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
-import type { WorkflowAdapter, AgentHandle, AgentResponse } from "@aos-framework/runtime/types";
+import * as yaml from "js-yaml";
+import type {
+  WorkflowAdapter,
+  AgentHandle,
+  AgentResponse,
+  ArtifactManifest,
+  LoadedArtifact,
+  ExecuteCodeOpts,
+  ExecutionResult,
+  SkillInput,
+  SkillResult,
+  ReviewResult,
+} from "@aos-framework/runtime/types";
+import { UnsupportedError } from "@aos-framework/runtime/types";
 
 // ── PiWorkflow ───────────────────────────────────────────────────
 
@@ -174,5 +187,43 @@ export class PiWorkflow implements WorkflowAdapter {
     }
     const raw = readFileSync(filePath, "utf-8");
     return JSON.parse(raw);
+  }
+
+  // ── createArtifact ─────────────────────────────────────────────
+  // Writes artifact content and a sidecar manifest YAML file.
+
+  async createArtifact(artifact: ArtifactManifest, content: string): Promise<void> {
+    await this.writeFile(artifact.content_path, content);
+    const manifestPath = artifact.content_path.replace(/\.[^.]+$/, '.artifact.yaml');
+    await this.writeFile(manifestPath, yaml.dump(artifact));
+  }
+
+  // ── loadArtifact ──────────────────────────────────────────────
+  // Reads an artifact manifest and its content from a session directory.
+
+  async loadArtifact(artifactId: string, sessionDir: string): Promise<LoadedArtifact> {
+    const manifestPath = join(sessionDir, 'artifacts', `${artifactId}.artifact.yaml`);
+    const manifestYaml = await this.readFile(manifestPath);
+    const manifest = yaml.load(manifestYaml, { schema: yaml.JSON_SCHEMA }) as ArtifactManifest;
+    const content = await this.readFile(manifest.content_path);
+    return { manifest, content };
+  }
+
+  // ── submitForReview ───────────────────────────────────────────
+
+  async submitForReview(artifact: LoadedArtifact, reviewer: AgentHandle, reviewPrompt?: string): Promise<ReviewResult> {
+    throw new UnsupportedError("submitForReview", "Pi adapter does not yet support automated review submission.");
+  }
+
+  // ── executeCode ───────────────────────────────────────────────
+
+  async executeCode(handle: AgentHandle, code: string, opts?: ExecuteCodeOpts): Promise<ExecutionResult> {
+    throw new UnsupportedError("executeCode", "Pi adapter does not yet support code execution. Use agent tools instead.");
+  }
+
+  // ── invokeSkill ───────────────────────────────────────────────
+
+  async invokeSkill(handle: AgentHandle, skillId: string, input: SkillInput): Promise<SkillResult> {
+    throw new UnsupportedError("invokeSkill", "Pi adapter does not yet support skill invocation.");
   }
 }
