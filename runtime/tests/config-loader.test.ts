@@ -1,7 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import { join } from "node:path";
 import { writeFileSync, mkdirSync, rmSync } from "node:fs";
-import { loadAgent, loadProfile, loadDomain, loadWorkflow, validateBrief } from "../src/config-loader";
+import { loadAgent, loadProfile, loadDomain, loadWorkflow, loadSkill, validateBrief } from "../src/config-loader";
 
 const fixturesDir = join(import.meta.dir, "..", "fixtures");
 
@@ -233,6 +233,94 @@ describe("loadProfile — workflow field", () => {
   it("defaults role_override to null when not specified", () => {
     const profile = loadProfile(join(fixturesDir, "profiles", "test-council"));
     expect(profile.assembly.perspectives[0].role_override).toBeNull();
+  });
+});
+
+describe("loadSkill", () => {
+  it("loads the test-skill fixture", () => {
+    const skill = loadSkill(join(fixturesDir, "skills", "test-skill"));
+    expect(skill.schema).toBe("aos/skill/v1");
+    expect(skill.id).toBe("test-skill");
+    expect(skill.name).toBe("Test Skill");
+    expect(skill.version).toBe("0.1.0");
+    expect(skill.input.required).toHaveLength(1);
+    expect(skill.input.required![0].id).toBe("source");
+    expect(skill.input.required![0].type).toBe("text");
+    expect(skill.output.structured_result).toBe(false);
+    expect(skill.compatible_agents).toEqual(["operator"]);
+  });
+
+  it("loads the code-review skill from core/skills", () => {
+    const coreSkillsDir = join(fixturesDir, "..", "..", "core", "skills");
+    const skill = loadSkill(join(coreSkillsDir, "code-review"));
+    expect(skill.id).toBe("code-review");
+    expect(skill.name).toBe("Code Review");
+    expect(skill.version).toBe("1.0.0");
+    expect(skill.input.required).toHaveLength(1);
+    expect(skill.input.optional).toHaveLength(2);
+    expect(skill.output.structured_result).toBe(true);
+    expect(skill.compatible_agents).toEqual(["sentinel", "architect", "operator"]);
+    expect(skill.platform_bindings!["claude-code"]).toBe("superpowers:requesting-code-review");
+    expect(skill.platform_requirements!.requires_file_access).toBe(true);
+  });
+
+  it("loads the security-scan skill from core/skills", () => {
+    const coreSkillsDir = join(fixturesDir, "..", "..", "core", "skills");
+    const skill = loadSkill(join(coreSkillsDir, "security-scan"));
+    expect(skill.id).toBe("security-scan");
+    expect(skill.name).toBe("Security Scan");
+    expect(skill.compatible_agents).toEqual(["sentinel", "steward"]);
+    expect(skill.platform_bindings!["claude-code"]).toBe("scan");
+  });
+
+  it("throws on missing skill.yaml", () => {
+    expect(() => loadSkill("/nonexistent/path")).toThrow("skill.yaml not found");
+  });
+
+  it("validates schema version", () => {
+    const tmpDir = join(fixturesDir, "skills", "_tmp-bad-schema");
+    mkdirSync(tmpDir, { recursive: true });
+    try {
+      writeFileSync(
+        join(tmpDir, "skill.yaml"),
+        `schema: aos/skill/v99
+id: bad-skill
+name: Bad Skill
+description: "A skill with wrong schema"
+version: 1.0.0
+input:
+  required: []
+output:
+  artifacts: []
+`,
+      );
+      expect(() => loadSkill(tmpDir)).toThrow('expected "aos/skill/v1"');
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("validates skill ID format", () => {
+    const tmpDir = join(fixturesDir, "skills", "_tmp-bad-id");
+    mkdirSync(tmpDir, { recursive: true });
+    try {
+      writeFileSync(
+        join(tmpDir, "skill.yaml"),
+        `schema: aos/skill/v1
+id: BadSkill
+name: Bad Skill
+description: "A skill with invalid ID"
+version: 1.0.0
+input:
+  required: []
+output:
+  artifacts: []
+`,
+      );
+      expect(() => loadSkill(tmpDir)).toThrow("Invalid ID");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });
 

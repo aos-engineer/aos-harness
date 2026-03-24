@@ -194,6 +194,47 @@ export interface DomainConfig {
   guardrails: string[];
 }
 
+// ── Skill Config ────────────────────────────────────────────────
+
+export interface SkillInputField {
+  id: string;
+  type: "artifact" | "text" | "structured-data" | "file-path";
+  description: string;
+}
+
+export interface SkillOutputArtifact {
+  id: string;
+  format: "markdown" | "code" | "structured-data" | "diagram";
+  description: string;
+}
+
+export interface SkillPlatformRequirements {
+  requires_code_execution?: boolean;
+  requires_file_access?: boolean;
+  requires_network?: boolean;
+  requires_tools?: string[];
+  min_context_tokens?: number;
+}
+
+export interface SkillConfig {
+  schema: string;
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  input: {
+    required?: SkillInputField[];
+    optional?: SkillInputField[];
+  };
+  output: {
+    artifacts?: SkillOutputArtifact[];
+    structured_result?: boolean;
+  };
+  compatible_agents?: string[];
+  platform_bindings?: Record<string, string | null>;
+  platform_requirements?: SkillPlatformRequirements;
+}
+
 // ── Constraint State ────────────────────────────────────────────
 
 export interface ConstraintState {

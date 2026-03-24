@@ -7,7 +7,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
-import type { AgentConfig, ProfileConfig, DomainConfig, InputSection } from "./types";
+import type { AgentConfig, ProfileConfig, DomainConfig, InputSection, SkillConfig } from "./types";
 import type { WorkflowConfig } from "./workflow-runner";
 
 export class ConfigError extends Error {
@@ -267,6 +267,48 @@ export function loadWorkflow(workflowDir: string): WorkflowConfig {
       );
     }
   }
+
+  return config;
+}
+
+export function loadSkill(skillDir: string): SkillConfig {
+  const yamlPath = join(skillDir, "skill.yaml");
+
+  if (!existsSync(yamlPath)) {
+    throw new ConfigError("skill.yaml not found", skillDir);
+  }
+
+  const raw = readFileSync(yamlPath, "utf-8");
+  const config = yaml.load(raw, { schema: yaml.JSON_SCHEMA }) as SkillConfig;
+
+  if (!config || typeof config !== "object") {
+    throw new ConfigError("skill.yaml is empty or invalid", yamlPath);
+  }
+
+  if (config.schema !== "aos/skill/v1") {
+    throw new ConfigError(
+      `Unknown schema "${config.schema}", expected "aos/skill/v1"`,
+      yamlPath,
+    );
+  }
+
+  const required = ["id", "name", "description", "version", "input", "output"] as const;
+  for (const field of required) {
+    if (!(field in config)) {
+      throw new ConfigError(`Missing required field: ${field}`, yamlPath);
+    }
+  }
+
+  validateId(config.id, yamlPath);
+
+  // Apply defaults
+  config.input.required = config.input.required || [];
+  config.input.optional = config.input.optional || [];
+  config.output.artifacts = config.output.artifacts || [];
+  config.output.structured_result = config.output.structured_result ?? false;
+  config.compatible_agents = config.compatible_agents || [];
+  config.platform_bindings = config.platform_bindings || {};
+  config.platform_requirements = config.platform_requirements || {};
 
   return config;
 }
