@@ -139,8 +139,15 @@ export class PiWorkflow implements WorkflowAdapter {
 
   // ── openInEditor ────────────────────────────────────────────────
 
+  private static ALLOWED_EDITORS = new Set(["code", "vim", "nvim", "nano", "emacs", "subl", "mate", "open"]);
+
   async openInEditor(path: string, editor: string): Promise<void> {
-    spawn(editor, [path], { detached: true, stdio: "ignore" }).unref();
+    const safePath = this.validatePath(path);
+    const editorName = editor.split("/").pop() ?? editor;
+    if (!PiWorkflow.ALLOWED_EDITORS.has(editorName)) {
+      throw new Error(`Editor "${editor}" is not in the allowed list: ${[...PiWorkflow.ALLOWED_EDITORS].join(", ")}`);
+    }
+    spawn(editor, [safePath], { detached: true, stdio: "ignore" }).unref();
   }
 
   // ── persistState ────────────────────────────────────────────────

@@ -32,6 +32,8 @@ const FORMAT_EXTENSIONS: Record<ArtifactManifest["format"], string> = {
   diagram: "mmd",
 };
 
+const VALID_ARTIFACT_ID = /^[a-z][a-z0-9_-]*$/;
+
 export class ArtifactManager {
   private manifests: Map<string, ArtifactManifest> = new Map();
   private readonly artifactsDir: string;
@@ -44,12 +46,21 @@ export class ArtifactManager {
     mkdirSync(this.artifactsDir, { recursive: true });
   }
 
+  private validateId(id: string): void {
+    if (!VALID_ARTIFACT_ID.test(id)) {
+      throw new Error(
+        `Invalid artifact ID "${id}". IDs must match ${VALID_ARTIFACT_ID} (lowercase alphanumeric, hyphens, underscores).`,
+      );
+    }
+  }
+
   /** Create a new artifact with content and manifest. */
   async createArtifact(
     id: string,
     content: string,
     opts: CreateArtifactOpts,
   ): Promise<ArtifactManifest> {
+    this.validateId(id);
     const ext = FORMAT_EXTENSIONS[opts.format];
     const contentPath = join(this.artifactsDir, `${id}.${ext}`);
 
@@ -84,11 +95,12 @@ export class ArtifactManager {
 
   /** Load an artifact (manifest + content) by id. */
   async loadArtifact(id: string): Promise<LoadedArtifact> {
+    this.validateId(id);
     let manifest = this.manifests.get(id);
 
     if (!manifest) {
       const raw = await this.adapter.readFile(this.manifestPath(id));
-      manifest = yaml.load(raw) as ArtifactManifest;
+      manifest = yaml.load(raw, { schema: yaml.JSON_SCHEMA }) as ArtifactManifest;
       this.manifests.set(id, manifest);
     }
 
@@ -153,10 +165,11 @@ export class ArtifactManager {
 
   /** Get the manifest for an artifact (from cache or disk). */
   async getManifest(id: string): Promise<ArtifactManifest> {
+    this.validateId(id);
     let manifest = this.manifests.get(id);
     if (!manifest) {
       const raw = await this.adapter.readFile(this.manifestPath(id));
-      manifest = yaml.load(raw) as ArtifactManifest;
+      manifest = yaml.load(raw, { schema: yaml.JSON_SCHEMA }) as ArtifactManifest;
       this.manifests.set(id, manifest);
     }
     return manifest;

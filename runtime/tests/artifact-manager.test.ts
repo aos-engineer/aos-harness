@@ -89,6 +89,52 @@ describe("ArtifactManager", () => {
     expect(writeCalls.length).toBe(2); // content file + manifest file
   });
 
+  // Security tests
+  it("rejects artifact IDs with path traversal characters", async () => {
+    await expect(
+      manager.createArtifact("../../etc/malicious", "content", {
+        produced_by: ["agent"],
+        step_id: "step",
+        format: "markdown",
+      }),
+    ).rejects.toThrow("Invalid artifact ID");
+  });
+
+  it("rejects artifact IDs with slashes", async () => {
+    await expect(
+      manager.createArtifact("path/to/file", "content", {
+        produced_by: ["agent"],
+        step_id: "step",
+        format: "markdown",
+      }),
+    ).rejects.toThrow("Invalid artifact ID");
+  });
+
+  it("rejects artifact IDs starting with uppercase", async () => {
+    await expect(
+      manager.createArtifact("UpperCase", "content", {
+        produced_by: ["agent"],
+        step_id: "step",
+        format: "markdown",
+      }),
+    ).rejects.toThrow("Invalid artifact ID");
+  });
+
+  it("accepts valid artifact IDs with underscores and hyphens", async () => {
+    await manager.createArtifact("requirements_analysis", "content", {
+      produced_by: ["agent"],
+      step_id: "step",
+      format: "markdown",
+    });
+    await manager.createArtifact("task-breakdown", "content", {
+      produced_by: ["agent"],
+      step_id: "step",
+      format: "markdown",
+    });
+    // Should not throw
+    expect(true).toBe(true);
+  });
+
   it("uses adapter.readFile for loads", async () => {
     await manager.createArtifact("test", "content", {
       produced_by: ["agent"],
