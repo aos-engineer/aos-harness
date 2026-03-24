@@ -61,6 +61,14 @@ export interface ExpertiseEntry {
   use_when: string;
 }
 
+export interface AgentCapabilities {
+  can_execute_code: boolean;
+  can_produce_files: boolean;
+  can_review_artifacts: boolean;
+  available_skills: string[];
+  output_types: ("text" | "markdown" | "code" | "diagram" | "structured-data")[];
+}
+
 export interface AgentConfig {
   schema: string;
   id: string;
@@ -75,6 +83,7 @@ export interface AgentConfig {
   expertise: ExpertiseEntry[];
   model: { tier: ModelTier; thinking: ThinkingMode };
   systemPrompt?: string;
+  capabilities?: AgentCapabilities;
 }
 
 // ── Profile Config ──────────────────────────────────────────────
@@ -83,6 +92,7 @@ export interface AssemblyMember {
   agent: string;
   required: boolean;
   structural_advantage?: "speaks-last";
+  role_override?: string | null;
 }
 
 export interface ProfileConstraints {
@@ -152,6 +162,7 @@ export interface ProfileConfig {
     wrap: boolean;
     interject: boolean;
   };
+  workflow?: string | null;
 }
 
 // ── Domain Config ───────────────────────────────────────────────
@@ -245,6 +256,85 @@ export type DelegationTarget =
   | { type: "targeted"; agents: string[] }
   | { type: "tension"; pair: [string, string] };
 
+// ── Artifact Types ──────────────────────────────────────────────
+
+export interface ArtifactManifest {
+  schema: "aos/artifact/v1";
+  id: string;
+  produced_by: string[];
+  step_id: string;
+  format: "markdown" | "code" | "structured-data" | "diagram";
+  content_path: string;
+  metadata: {
+    produced_at: string;
+    review_status: "pending" | "approved" | "rejected" | "revised";
+    review_gate: string | null;
+    word_count: number;
+    revision: number;
+    [key: string]: unknown;
+  };
+}
+
+export interface LoadedArtifact {
+  manifest: ArtifactManifest;
+  content: string;
+}
+
+// ── Execution Adapter Types ─────────────────────────────────────
+
+export interface ExecuteCodeOpts {
+  language?: string;
+  timeout_ms?: number;
+  cwd?: string;
+  env?: Record<string, string>;
+  sandbox?: "strict" | "relaxed";
+}
+
+export interface ExecutionResult {
+  success: boolean;
+  exit_code: number;
+  stdout: string;
+  stderr: string;
+  duration_ms: number;
+  files_created?: string[];
+  files_modified?: string[];
+}
+
+export interface SkillInput {
+  args?: string;
+  context?: Record<string, string>;
+  artifacts?: string[];
+}
+
+export interface SkillResult {
+  success: boolean;
+  output: string;
+  artifacts_produced?: string[];
+  files_created?: string[];
+  files_modified?: string[];
+  error?: string;
+}
+
+export interface ReviewResult {
+  status: "approved" | "rejected" | "needs-revision";
+  feedback?: string;
+  reviewer: string;
+  issues?: ReviewIssue[];
+}
+
+export interface ReviewIssue {
+  severity: "critical" | "major" | "minor" | "suggestion";
+  description: string;
+  location?: string;
+}
+
+export class UnsupportedError extends Error {
+  constructor(method: string, message?: string) {
+    super(message ?? `Method "${method}" is not supported by this adapter`);
+    this.name = "UnsupportedError";
+  }
+}
+
 // ── Transcript Events ───────────────────────────────────────────
 
 export type TranscriptEventType =
@@ -262,7 +352,19 @@ export type TranscriptEventType =
   | "end_session"
   | "final_statement"
   | "agent_destroy"
-  | "session_end";
+  | "session_end"
+  // Workflow events
+  | "workflow_start"
+  | "step_start"
+  | "step_end"
+  | "gate_prompt"
+  | "gate_result"
+  | "artifact_write"
+  | "workflow_end"
+  // Execution events
+  | "code_execution"
+  | "skill_invocation"
+  | "review_submission";
 
 export interface TranscriptEntry {
   type: TranscriptEventType;
@@ -322,6 +424,11 @@ export interface WorkflowAdapter {
   openInEditor(path: string, editor: string): Promise<void>;
   persistState(key: string, value: unknown): Promise<void>;
   loadState(key: string): Promise<unknown>;
+  executeCode(handle: AgentHandle, code: string, opts?: ExecuteCodeOpts): Promise<ExecutionResult>;
+  invokeSkill(handle: AgentHandle, skillId: string, input: SkillInput): Promise<SkillResult>;
+  createArtifact(artifact: ArtifactManifest, content: string): Promise<void>;
+  loadArtifact(artifactId: string, sessionDir: string): Promise<LoadedArtifact>;
+  submitForReview(artifact: LoadedArtifact, reviewer: AgentHandle, reviewPrompt?: string): Promise<ReviewResult>;
 }
 
 export type AOSAdapter = AgentRuntimeAdapter & EventBusAdapter & UIAdapter & WorkflowAdapter;

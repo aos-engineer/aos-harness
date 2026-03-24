@@ -8,13 +8,21 @@ import type {
   AgentConfig,
   AgentHandle,
   AgentResponse,
+  ArtifactManifest,
   AuthMode,
   ContextUsage,
+  ExecuteCodeOpts,
+  ExecutionResult,
+  LoadedArtifact,
   MessageOpts,
   ModelCost,
   ModelTier,
+  ReviewResult,
+  SkillInput,
+  SkillResult,
   ThinkingMode,
 } from "../src/types";
+import { UnsupportedError } from "../src/types";
 
 export interface MockCall {
   method: string;
@@ -259,5 +267,65 @@ export class MockAdapter implements AOSAdapter {
   async loadState(key: string): Promise<unknown> {
     this.record("loadState", key);
     return null;
+  }
+
+  // ── Execution Methods (new) ─────────────────────────────────────
+
+  async executeCode(handle: AgentHandle, code: string, opts?: ExecuteCodeOpts): Promise<ExecutionResult> {
+    this.record("executeCode", handle.agentId, code, opts);
+    return {
+      success: true,
+      exit_code: 0,
+      stdout: "",
+      stderr: "",
+      duration_ms: 0,
+      files_created: [],
+      files_modified: [],
+    };
+  }
+
+  async invokeSkill(handle: AgentHandle, skillId: string, input: SkillInput): Promise<SkillResult> {
+    this.record("invokeSkill", handle.agentId, skillId, input);
+    return {
+      success: true,
+      output: "",
+      artifacts_produced: [],
+      files_created: [],
+      files_modified: [],
+    };
+  }
+
+  async createArtifact(artifact: ArtifactManifest, content: string): Promise<void> {
+    this.record("createArtifact", artifact.id, content);
+  }
+
+  async loadArtifact(artifactId: string, sessionDir: string): Promise<LoadedArtifact> {
+    this.record("loadArtifact", artifactId, sessionDir);
+    return {
+      manifest: {
+        schema: "aos/artifact/v1",
+        id: artifactId,
+        produced_by: [],
+        step_id: "mock-step",
+        format: "markdown",
+        content_path: `${sessionDir}/artifacts/${artifactId}.md`,
+        metadata: {
+          produced_at: new Date().toISOString(),
+          review_status: "pending",
+          review_gate: null,
+          word_count: 0,
+          revision: 1,
+        },
+      },
+      content: "",
+    };
+  }
+
+  async submitForReview(artifact: LoadedArtifact, reviewer: AgentHandle, reviewPrompt?: string): Promise<ReviewResult> {
+    this.record("submitForReview", artifact.manifest.id, reviewer.agentId, reviewPrompt);
+    return {
+      status: "approved",
+      reviewer: reviewer.agentId,
+    };
   }
 }

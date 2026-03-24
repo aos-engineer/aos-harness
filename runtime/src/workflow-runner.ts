@@ -14,8 +14,12 @@ import type { AOSAdapter } from "./types";
 
 export interface WorkflowStep {
   id: string;
+  name?: string;
   action: string;
   description: string;
+  agents?: string[];
+  prompt?: string;
+  structural_advantage?: "speaks-last" | null;
   input: string[];
   output: string;
   review_gate: boolean;
@@ -26,7 +30,7 @@ export interface WorkflowGate {
   type: "user-approval" | "automated-review";
   prompt: string;
   max_iterations?: number;
-  on_rejection: "re-run-step";
+  on_rejection: "re-run-step" | "retry_with_feedback";
 }
 
 export interface WorkflowConfig {
