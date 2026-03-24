@@ -52,11 +52,13 @@ export class WorkflowRunner {
   private config: WorkflowConfig;
   private adapter: AOSAdapter;
   private stepOutputs: Map<string, unknown> = new Map();
+  /** Maps step IDs to their output keys (step.output ?? step.id) for reverse lookup. */
+  private stepIdToOutputKey: Map<string, string> = new Map();
   private completedSteps: string[] = [];
   private sessionDir?: string;
   private artifactManager?: ArtifactManager;
   private onTranscriptEvent?: (event: TranscriptEntry) => void;
-  private gatesPassed = 0;
+  private gatesPassed: string[] = [];
 
   constructor(config: WorkflowConfig, adapter: AOSAdapter, opts?: {
     sessionDir?: string;
@@ -81,7 +83,7 @@ export class WorkflowRunner {
 
   /**
    * Execute the full workflow, step by step, respecting gates.
-   * Returns a map of step IDs to their outputs.
+   * Returns a map of output IDs (or step IDs) to their outputs.
    */
   async execute(): Promise<Map<string, unknown>> {
     this.emitEvent({
@@ -99,7 +101,7 @@ export class WorkflowRunner {
       type: "workflow_end",
       timestamp: new Date().toISOString(),
       workflow_id: this.config.id,
-      steps_completed: this.completedSteps.length,
+      steps_completed: this.completedSteps,
       gates_passed: this.gatesPassed,
     });
 
@@ -122,6 +124,20 @@ export class WorkflowRunner {
 
   // ── Private ────────────────────────────────────────────────────────
 
+  /** Resolve a step output by output name or step ID. */
+  private resolveOutput(inputId: string): unknown {
+    // Try direct lookup (inputId is an output name)
+    let value = this.stepOutputs.get(inputId);
+    if (value === undefined) {
+      // Fall back: inputId might be a step ID — resolve via reverse map
+      const outputKey = this.stepIdToOutputKey.get(inputId);
+      if (outputKey) {
+        value = this.stepOutputs.get(outputKey);
+      }
+    }
+    return value;
+  }
+
   private async runStep(step: WorkflowStep): Promise<void> {
     const stepStart = Date.now();
 
@@ -133,10 +149,10 @@ export class WorkflowRunner {
       agents: step.agents ?? [],
     });
 
-    // Gather inputs from previous steps
+    // Gather inputs from previous steps (resolve by output name first, then step ID)
     const inputs: Record<string, unknown> = {};
     for (const inputId of (step.input ?? [])) {
-      inputs[inputId] = this.stepOutputs.get(inputId);
+      inputs[inputId] = this.resolveOutput(inputId);
     }
 
     // Artifact injection: load referenced artifacts into context
@@ -153,7 +169,9 @@ export class WorkflowRunner {
 
     // Execute the step
     const output = await this.executeStep(step, inputs);
-    this.stepOutputs.set(step.id, output);
+    const outputKey = step.output ?? step.id;
+    this.stepOutputs.set(outputKey, output);
+    this.stepIdToOutputKey.set(step.id, outputKey);
     this.completedSteps.push(step.id);
 
     // Create artifact from step output if artifact manager is available
@@ -161,7 +179,7 @@ export class WorkflowRunner {
       const content = typeof output === "string"
         ? output
         : JSON.stringify(output, null, 2);
-      await this.artifactManager.createArtifact(step.output, content, {
+      const manifest = await this.artifactManager.createArtifact(step.output, content, {
         produced_by: step.agents ?? ["orchestrator"],
         step_id: step.id,
         format: "markdown",
@@ -172,6 +190,7 @@ export class WorkflowRunner {
         timestamp: new Date().toISOString(),
         artifact_id: step.output,
         format: "markdown",
+        content_path: manifest.content_path,
         revision: 1,
       });
     }
@@ -228,8 +247,34 @@ export class WorkflowRunner {
     const agents = step.agents ?? [];
     const prompt = step.prompt ?? "";
 
+    // Load actual input artifact content via artifactManager
+    const inputArtifacts: Record<string, string> = {};
+    if (this.artifactManager && step.input) {
+      for (const inputId of step.input) {
+        try {
+          const formatted = await this.artifactManager.formatForInjection(inputId);
+          inputArtifacts[inputId] = formatted;
+        } catch {
+          // Artifact may not exist yet — use step output as fallback
+          const stepOutput = this.resolveOutput(inputId);
+          if (stepOutput !== undefined) {
+            inputArtifacts[inputId] = typeof stepOutput === "string"
+              ? stepOutput
+              : JSON.stringify(stepOutput, null, 2);
+          }
+        }
+      }
+    }
+
     this.adapter.notify(
       `[${this.config.id}] Targeted delegation to [${agents.join(", ")}]: ${prompt}`,
+      "info",
+    );
+
+    // Real delegation requires engine-level agent spawning (adapter.dispatchParallel
+    // needs AgentHandles). Log what would happen and return structured output.
+    this.adapter.notify(
+      `[${this.config.id}] Would dispatch parallel to agents: ${agents.join(", ")}`,
       "info",
     );
 
@@ -239,6 +284,8 @@ export class WorkflowRunner {
       agents,
       prompt,
       inputs,
+      input_artifacts: inputArtifacts,
+      delegation: "pending",
     };
   }
 
@@ -260,8 +307,33 @@ export class WorkflowRunner {
 
     const prompt = step.prompt ?? "";
 
+    // Load actual input artifact content via artifactManager
+    const inputArtifacts: Record<string, string> = {};
+    if (this.artifactManager && step.input) {
+      for (const inputId of step.input) {
+        try {
+          const formatted = await this.artifactManager.formatForInjection(inputId);
+          inputArtifacts[inputId] = formatted;
+        } catch {
+          const stepOutput = this.resolveOutput(inputId);
+          if (stepOutput !== undefined) {
+            inputArtifacts[inputId] = typeof stepOutput === "string"
+              ? stepOutput
+              : JSON.stringify(stepOutput, null, 2);
+          }
+        }
+      }
+    }
+
     this.adapter.notify(
       `[${this.config.id}] Tension pair [${agents[0]} vs ${agents[1]}]: ${prompt}`,
+      "info",
+    );
+
+    // Real delegation requires engine-level agent spawning (adapter.sendMessage
+    // needs AgentHandles). Log the intended flow and return structured output.
+    this.adapter.notify(
+      `[${this.config.id}] Would send to ${agents[0]}: prompt, then ${agents[1]}: prompt + response, then ${agents[0]}: rebuttal`,
       "info",
     );
 
@@ -271,6 +343,13 @@ export class WorkflowRunner {
       agents,
       prompt,
       inputs,
+      input_artifacts: inputArtifacts,
+      delegation: "pending",
+      tension_flow: [
+        { agent: agents[0], role: "initial", prompt },
+        { agent: agents[1], role: "challenge", prompt: `[response from ${agents[0]}] + ${prompt}` },
+        { agent: agents[0], role: "rebuttal", prompt: `[response from ${agents[1]}]` },
+      ],
     };
   }
 
@@ -280,11 +359,38 @@ export class WorkflowRunner {
   ): Promise<unknown> {
     const prompt = step.prompt ?? "";
 
-    // Collect all input artifacts
+    // Collect all input artifacts — load actual content when possible
     const collectedInputs: Record<string, unknown> = {};
+    const inputArtifacts: Record<string, string> = {};
+
     for (const inputId of (step.input ?? [])) {
-      collectedInputs[inputId] = this.stepOutputs.get(inputId);
+      collectedInputs[inputId] = this.resolveOutput(inputId);
+
+      // Try to load artifact content for richer synthesis
+      if (this.artifactManager) {
+        try {
+          const formatted = await this.artifactManager.formatForInjection(inputId);
+          inputArtifacts[inputId] = formatted;
+        } catch {
+          // Artifact may not exist — use step output as fallback
+          const stepOutput = this.resolveOutput(inputId);
+          if (stepOutput !== undefined) {
+            inputArtifacts[inputId] = typeof stepOutput === "string"
+              ? stepOutput
+              : JSON.stringify(stepOutput, null, 2);
+          }
+        }
+      }
     }
+
+    // Build synthesis content from available artifacts
+    const synthesisContent = Object.entries(inputArtifacts).length > 0
+      ? Object.entries(inputArtifacts)
+          .map(([id, content]) => `--- Input: ${id} ---\n${content}`)
+          .join("\n\n")
+      : Object.entries(collectedInputs)
+          .map(([id, content]) => `--- Input: ${id} ---\n${typeof content === "string" ? content : JSON.stringify(content, null, 2)}`)
+          .join("\n\n");
 
     this.adapter.notify(
       `[${this.config.id}] Orchestrator synthesis: ${prompt} (inputs: ${Object.keys(collectedInputs).join(", ")})`,
@@ -296,6 +402,8 @@ export class WorkflowRunner {
       action: step.action,
       prompt,
       synthesis_inputs: collectedInputs,
+      input_artifacts: inputArtifacts,
+      synthesis_content: synthesisContent,
     };
   }
 
@@ -414,10 +522,12 @@ export class WorkflowRunner {
     step: WorkflowStep,
     inputs: Record<string, unknown>,
   ): Promise<void> {
+    const gateId = `gate-${gate.after}`;
+
     this.emitEvent({
       type: "gate_prompt",
       timestamp: new Date().toISOString(),
-      gate_id: `gate-${gate.after}`,
+      gate_id: gateId,
       after_step: gate.after,
       prompt: gate.prompt,
     });
@@ -427,7 +537,7 @@ export class WorkflowRunner {
     this.emitEvent({
       type: "gate_result",
       timestamp: new Date().toISOString(),
-      gate_id: `gate-${gate.after}`,
+      gate_id: gateId,
       result: approved ? "approved" : "rejected",
     });
 
@@ -439,9 +549,9 @@ export class WorkflowRunner {
       // Re-execute the step with updated inputs (feedback is now available)
       inputs[`${step.id}_feedback`] = feedback;
       const output = await this.executeStep(step, inputs);
-      this.stepOutputs.set(step.id, output);
+      this.stepOutputs.set(step.output ?? step.id, output);
     } else {
-      this.gatesPassed++;
+      this.gatesPassed.push(gateId);
     }
   }
 
@@ -451,13 +561,14 @@ export class WorkflowRunner {
     inputs: Record<string, unknown>,
   ): Promise<void> {
     const maxIterations = gate.max_iterations ?? 3;
+    const gateId = `gate-${gate.after}`;
     let currentPrompt = step.prompt ?? "";
 
     for (let iteration = 0; iteration <= maxIterations; iteration++) {
       this.emitEvent({
         type: "gate_prompt",
         timestamp: new Date().toISOString(),
-        gate_id: `gate-${gate.after}`,
+        gate_id: gateId,
         after_step: gate.after,
         prompt: gate.prompt,
       });
@@ -467,7 +578,7 @@ export class WorkflowRunner {
       this.emitEvent({
         type: "gate_result",
         timestamp: new Date().toISOString(),
-        gate_id: `gate-${gate.after}`,
+        gate_id: gateId,
         result: approved ? "approved" : "rejected",
         iteration: iteration + 1,
       });
@@ -478,10 +589,10 @@ export class WorkflowRunner {
           await this.artifactManager.updateReviewStatus(
             step.output,
             "approved",
-            `gate-${gate.after}`,
+            gateId,
           );
         }
-        this.gatesPassed++;
+        this.gatesPassed.push(gateId);
         return;
       }
 
@@ -510,7 +621,7 @@ export class WorkflowRunner {
         // Re-execute the step with augmented prompt
         inputs[`${step.id}_feedback`] = feedback;
         const output = await this.executeStep(augmentedStep, inputs);
-        this.stepOutputs.set(step.id, output);
+        this.stepOutputs.set(step.output ?? step.id, output);
 
         const content = typeof output === "string"
           ? output
@@ -522,21 +633,22 @@ export class WorkflowRunner {
           timestamp: new Date().toISOString(),
           artifact_id: step.output,
           format: manifest.format,
+          content_path: manifest.content_path,
           revision: manifest.metadata.revision,
         });
       } else {
         // Re-execute the step with augmented prompt
         inputs[`${step.id}_feedback`] = feedback;
         const output = await this.executeStep(augmentedStep, inputs);
-        this.stepOutputs.set(step.id, output);
+        this.stepOutputs.set(step.output ?? step.id, output);
       }
     }
   }
 
   private async executeAutomatedReviewGate(
     gate: WorkflowGate,
-    step: WorkflowStep,
-    inputs: Record<string, unknown>,
+    _step: WorkflowStep,
+    _inputs: Record<string, unknown>,
   ): Promise<void> {
     const maxIterations = gate.max_iterations ?? 3;
 

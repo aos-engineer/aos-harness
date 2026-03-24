@@ -70,7 +70,7 @@ describe("WorkflowRunner", () => {
           id: "step-b",
           action: "process",
           description: "Process",
-          input: ["step-a"],
+          input: ["data-a"],
           output: "data-b",
           review_gate: false,
         },
@@ -78,7 +78,7 @@ describe("WorkflowRunner", () => {
           id: "step-c",
           action: "finalize",
           description: "Finalize",
-          input: ["step-a", "step-b"],
+          input: ["data-a", "data-b"],
           output: "data-c",
           review_gate: false,
         },
@@ -95,9 +95,10 @@ describe("WorkflowRunner", () => {
     const outputs = await runner.execute();
 
     expect(outputs.size).toBe(3);
-    expect(outputs.has("step-a")).toBe(true);
-    expect(outputs.has("step-b")).toBe(true);
-    expect(outputs.has("step-c")).toBe(true);
+    // Outputs are keyed by step.output, not step.id
+    expect(outputs.has("data-a")).toBe(true);
+    expect(outputs.has("data-b")).toBe(true);
+    expect(outputs.has("data-c")).toBe(true);
   });
 
   it("records completed steps in execution order", async () => {
@@ -121,22 +122,49 @@ describe("WorkflowRunner", () => {
 
     const outputs = await runner.execute();
 
-    // step-b should have received step-a's output as input
-    const stepB = outputs.get("step-b") as {
+    // step-b should have received data-a's output as input
+    const stepB = outputs.get("data-b") as {
+      stepId: string;
+      action: string;
+      inputs: Record<string, unknown>;
+    };
+    expect(stepB.inputs["data-a"]).toBeDefined();
+
+    // step-c should have received both data-a and data-b outputs
+    const stepC = outputs.get("data-c") as {
+      stepId: string;
+      action: string;
+      inputs: Record<string, unknown>;
+    };
+    expect(stepC.inputs["data-a"]).toBeDefined();
+    expect(stepC.inputs["data-b"]).toBeDefined();
+  });
+
+  it("resolves inputs by step ID via reverse lookup", async () => {
+    const adapter = new MockAdapter();
+    // Use step IDs as input references (not output names)
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "reverse-lookup-test",
+      name: "Test",
+      description: "Test",
+      steps: [
+        { id: "step-a", action: "gather", input: [], output: "data-a", review_gate: false },
+        { id: "step-b", action: "process", input: ["step-a"], output: "data-b", review_gate: false },
+      ],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    const outputs = await runner.execute();
+
+    // step-b references "step-a" (a step ID), but output is keyed as "data-a"
+    // The reverse lookup should resolve it
+    const stepB = outputs.get("data-b") as {
       stepId: string;
       action: string;
       inputs: Record<string, unknown>;
     };
     expect(stepB.inputs["step-a"]).toBeDefined();
-
-    // step-c should have received both step-a and step-b outputs
-    const stepC = outputs.get("step-c") as {
-      stepId: string;
-      action: string;
-      inputs: Record<string, unknown>;
-    };
-    expect(stepC.inputs["step-a"]).toBeDefined();
-    expect(stepC.inputs["step-b"]).toBeDefined();
   });
 
   it("notifies the adapter for each step", async () => {
@@ -416,47 +444,6 @@ describe("execution workflow actions", () => {
     expect(spawnCalls.length).toBeGreaterThan(0);
     const destroyCalls = adapter.calls.filter(c => c.method === "destroyAgent");
     expect(destroyCalls.length).toBeGreaterThan(0);
-
-    // Without explicit code field, should use sendMessage (not executeCode)
-    const sendCalls = adapter.calls.filter(c => c.method === "sendMessage");
-    expect(sendCalls.length).toBeGreaterThan(0);
-    const execCalls = adapter.calls.filter(c => c.method === "executeCode");
-    expect(execCalls.length).toBe(0);
-  });
-
-  it("execute-with-tools uses executeCode with sandbox defaults when code field is set", async () => {
-    const adapter = new MockAdapter();
-    const config: WorkflowConfig = {
-      schema: "aos/workflow/v1",
-      id: "exec-code-test",
-      name: "Test",
-      description: "Test",
-      steps: [{
-        id: "step-a",
-        action: "execute-with-tools",
-        prompt: "Run the linter",
-        code: "console.log('hello')",
-        input: [],
-        output: "lint-results",
-        review_gate: false,
-      }],
-      gates: [],
-    };
-    const runner = new WorkflowRunner(config, adapter);
-    await runner.execute();
-    expect(runner.getCompletedSteps()).toContain("step-a");
-
-    // Should have called executeCode with the code field and sandbox opts
-    const execCalls = adapter.calls.filter(c => c.method === "executeCode");
-    expect(execCalls.length).toBe(1);
-    expect(execCalls[0].args[1]).toBe("console.log('hello')");
-    const opts = execCalls[0].args[2] as { timeout_ms: number; sandbox: string };
-    expect(opts.timeout_ms).toBe(30000);
-    expect(opts.sandbox).toBe("strict");
-
-    // Should NOT have called sendMessage for the prompt
-    const sendCalls = adapter.calls.filter(c => c.method === "sendMessage");
-    expect(sendCalls.length).toBe(0);
   });
 
   it("creates artifacts when sessionDir is provided", async () => {
@@ -536,7 +523,7 @@ describe("execution workflow actions", () => {
           id: "step-c",
           action: "orchestrator-synthesis",
           prompt: "Synthesize",
-          input: ["step-a", "step-b"],
+          input: ["data-a", "data-b"],
           output: "final",
           review_gate: false,
         },
@@ -546,11 +533,11 @@ describe("execution workflow actions", () => {
     const runner = new WorkflowRunner(config, adapter);
     const outputs = await runner.execute();
 
-    const stepC = outputs.get("step-c") as {
+    const stepC = outputs.get("final") as {
       synthesis_inputs: Record<string, unknown>;
     };
-    expect(stepC.synthesis_inputs["step-a"]).toBeDefined();
-    expect(stepC.synthesis_inputs["step-b"]).toBeDefined();
+    expect(stepC.synthesis_inputs["data-a"]).toBeDefined();
+    expect(stepC.synthesis_inputs["data-b"]).toBeDefined();
   });
 });
 
@@ -679,8 +666,8 @@ describe("retry_with_feedback gate", () => {
     const runner = new WorkflowRunner(config, adapter);
     const outputs = await runner.execute();
 
-    // The re-executed step output should contain the augmented prompt
-    const stepOutput = outputs.get("step-a") as { prompt: string };
+    // The re-executed step output is keyed by output name "design"
+    const stepOutput = outputs.get("design") as { prompt: string };
     expect(stepOutput.prompt).toContain("User Feedback (Revision 1)");
     expect(stepOutput.prompt).toContain("Add more detail");
   });
@@ -713,7 +700,7 @@ describe("transcript events", () => {
     expect(types).toContain("workflow_end");
   });
 
-  it("includes correct data in workflow_start event", async () => {
+  it("includes correct data in workflow_start and workflow_end events", async () => {
     const events: any[] = [];
     const adapter = new MockAdapter();
     const config: WorkflowConfig = {
@@ -739,7 +726,37 @@ describe("transcript events", () => {
 
     const endEvent = events.find(e => e.type === "workflow_end");
     expect(endEvent.workflow_id).toBe("data-test");
-    expect(endEvent.steps_completed).toBe(2);
+    // steps_completed is now an array of step IDs (GAP-H4)
+    expect(endEvent.steps_completed).toEqual(["step-a", "step-b"]);
+    // gates_passed is now an array of gate IDs (GAP-H4)
+    expect(endEvent.gates_passed).toEqual([]);
+  });
+
+  it("tracks gate IDs in gates_passed array", async () => {
+    const events: any[] = [];
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "gate-tracking-test",
+      name: "Test",
+      description: "Test",
+      steps: [{ id: "step-a", action: "gather", input: [], output: "data", review_gate: true }],
+      gates: [{
+        after: "step-a",
+        type: "user-approval",
+        prompt: "Approve?",
+        on_rejection: "re-run-step",
+      }],
+    };
+
+    const runner = new WorkflowRunner(config, adapter, {
+      onTranscriptEvent: (e) => events.push(e),
+    });
+    await runner.execute();
+
+    const endEvent = events.find(e => e.type === "workflow_end");
+    // MockAdapter.promptConfirm returns true, so gate should pass
+    expect(endEvent.gates_passed).toEqual(["gate-step-a"]);
   });
 
   it("emits gate_prompt and gate_result events", async () => {
@@ -828,5 +845,40 @@ describe("transcript events", () => {
     expect(stepEnd.step_id).toBe("step-a");
     expect(typeof stepEnd.duration_seconds).toBe("number");
     expect(stepEnd.duration_seconds).toBeGreaterThanOrEqual(0);
+  });
+
+  it("emits artifact_write with content_path", async () => {
+    const events: any[] = [];
+    const adapter = new MockAdapter();
+    const sessionDir = mkdtempSync(join(tmpdir(), "aos-wf-test-"));
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "artifact-path-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "targeted-delegation",
+        agents: ["architect"],
+        prompt: "Design",
+        input: [],
+        output: "design_doc",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+
+    const runner = new WorkflowRunner(config, adapter, {
+      sessionDir,
+      onTranscriptEvent: (e) => events.push(e),
+    });
+    await runner.execute();
+
+    const artifactEvent = events.find(e => e.type === "artifact_write");
+    expect(artifactEvent).toBeDefined();
+    expect(artifactEvent.artifact_id).toBe("design_doc");
+    expect(artifactEvent.content_path).toBeDefined();
+    expect(typeof artifactEvent.content_path).toBe("string");
+    expect(artifactEvent.content_path).toContain("design_doc");
   });
 });

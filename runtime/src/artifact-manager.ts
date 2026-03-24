@@ -181,6 +181,6 @@ export class ArtifactManager {
   }
 
   private manifestPath(id: string): string {
-    return join(this.artifactsDir, `${id}.manifest.yaml`);
+    return join(this.artifactsDir, `${id}.artifact.yaml`);
   }
 }
