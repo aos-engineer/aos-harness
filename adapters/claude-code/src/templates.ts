@@ -4,7 +4,7 @@
  * and CLAUDE.md fragments from AOS core config.
  */
 
-import type { AgentConfig, ProfileConfig, ModelTier } from "../../../runtime/src/types";
+import type { AgentConfig, ProfileConfig, ModelTier } from "@aos-framework/runtime/types";
 
 // ── Model tier mapping ──────────────────────────────────────────
 

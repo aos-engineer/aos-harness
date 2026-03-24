@@ -14,10 +14,10 @@ import { PiEventBus } from "./event-bus";
 import { PiUI } from "./ui";
 import { PiWorkflow } from "./workflow";
 
-import { AOSEngine } from "../../../runtime/src/engine";
-import type { AOSAdapter, ConstraintState, ProfileConfig } from "../../../runtime/src/types";
-import { resolveTemplate } from "../../../runtime/src/template-resolver";
-import { validateBrief } from "../../../runtime/src/config-loader";
+import { AOSEngine } from "@aos-framework/runtime";
+import type { AOSAdapter, ConstraintState, ProfileConfig } from "@aos-framework/runtime/types";
+import { resolveTemplate } from "@aos-framework/runtime/template-resolver";
+import { validateBrief } from "@aos-framework/runtime/config-loader";
 
 // ── Helpers ─────────────────────────────────────────────────────
 

@@ -14,9 +14,9 @@
 
 import { existsSync, mkdirSync, writeFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { loadProfile, loadAgent, loadDomain } from "../../../runtime/src/config-loader";
-import { applyDomain } from "../../../runtime/src/domain-merger";
-import type { AgentConfig } from "../../../runtime/src/types";
+import { loadProfile, loadAgent, loadDomain } from "@aos-framework/runtime/config-loader";
+import { applyDomain } from "@aos-framework/runtime/domain-merger";
+import type { AgentConfig } from "@aos-framework/runtime/types";
 import {
   generateAgentFile,
   generateCommandFile,
