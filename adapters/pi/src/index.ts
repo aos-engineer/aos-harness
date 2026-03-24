@@ -375,15 +375,37 @@ export default function (pi: ExtensionAPI) {
           const rawPrompt = readFileSync(promptPath, "utf-8");
           const briefContent = readFileSync(briefPath, "utf-8");
 
-          resolvedArbiterPrompt = resolveTemplate(rawPrompt, {
+          // Resolve template variables using spec-compliant underscore names (Section 6.13)
+          // Also include hyphenated aliases for backward compatibility
+          const briefSlugValue = selectedBrief.name;
+          const constraintsStr = `${profileRaw.match(/min_minutes:\s*(\d+)/)?.[1] ?? "?"}-${profileRaw.match(/max_minutes:\s*(\d+)/)?.[1] ?? "?"} min`;
+          const deliberationDirPath = join(projectRoot, ".aos", "sessions", sessionId);
+          const transcriptFilePath = join(deliberationDirPath, "transcript.jsonl");
+
+          const templateVars: Record<string, string> = {
+            // Spec-compliant underscore names (Section 6.13)
+            session_id: sessionId,
+            brief_slug: briefSlugValue,
+            brief: briefContent,
+            format: "brief",
+            agent_id: "arbiter",
+            agent_name: "Arbiter",
+            participants: participantNames.join(", "),
+            constraints: constraintsStr,
+            expertise_block: "",
+            output_path: memoPath,
+            deliberation_dir: deliberationDirPath,
+            transcript_path: transcriptFilePath,
+            // Hyphenated aliases for backward compatibility
             "session-id": sessionId,
-            "participants": participantNames.join(", "),
             "brief-content": briefContent,
             "output-path": memoPath,
-            "deliberation-dir": join(projectRoot, ".aos", "sessions", sessionId),
+            "deliberation-dir": deliberationDirPath,
             "memo-path": memoPath,
             "date": dateStr,
-          });
+          };
+
+          resolvedArbiterPrompt = resolveTemplate(rawPrompt, templateVars);
         }
       }
 
@@ -542,17 +564,43 @@ export default function (pi: ExtensionAPI) {
         responseList.push({ agent: agentId, response: resp.text, cost: resp.cost });
       }
 
-      resultText += "\n\n---\n\n### Constraint State\n";
-      resultText += `- Elapsed: ${cs.elapsed_minutes.toFixed(1)} minutes\n`;
-      resultText += `- Budget spent: $${cs.budget_spent.toFixed(2)}\n`;
-      resultText += `- Rounds completed: ${cs.rounds_completed}\n`;
-      resultText += `- Past all minimums: ${cs.past_all_minimums}\n`;
-      resultText += `- Approaching maximum: ${cs.approaching_any_maximum}\n`;
-      resultText += `- Hit maximum: ${cs.hit_maximum}\n`;
+      // Build structured constraint message per spec Section 6.11
+      const roundNum = cs.rounds_completed;
+      const timeMax = 10; // Will be overridden by actual profile constraints
+      const budgetMax = 10; // Will be overridden by actual profile constraints
+      const roundsMax = 8; // Will be overridden by actual profile constraints
+      const timePct = timeMax > 0 ? Math.round((cs.elapsed_minutes / timeMax) * 100) : 0;
+      const budgetPct = budgetMax > 0 ? Math.round((cs.budget_spent / budgetMax) * 100) : 0;
+      const roundsPct = roundsMax > 0 ? Math.round((roundNum / roundsMax) * 100) : 0;
 
+      resultText += `\n\n---\n\n## Deliberation Status — Round ${roundNum}\n`;
+      resultText += `\n### Constraints\n`;
+      resultText += `- **Time:** ${cs.elapsed_minutes.toFixed(1)} / ${timeMax.toFixed(1)} min (${timePct}%)\n`;
+      if (cs.metered) {
+        resultText += `- **Budget:** $${cs.budget_spent.toFixed(2)} / $${budgetMax.toFixed(2)} (${budgetPct}%)\n`;
+      }
+      resultText += `- **Rounds:** ${roundNum} / ${roundsMax} (${cs.past_all_minimums ? "minimums met" : "minimums not met"})\n`;
+      if (cs.bias_ratio > 0) {
+        resultText += `- **Bias:** ${cs.bias_ratio.toFixed(0)}:1 (limit 5)\n`;
+      }
+
+      resultText += `\n### Available Actions\n`;
+      resultText += `- delegate("all", "message") — broadcast\n`;
+      resultText += `- delegate(["agent-a", "agent-b"], "message") — targeted\n`;
+      resultText += `- end("closing message") — end deliberation\n`;
+
+      // Conditional warning/limit messages
       if (cs.hit_maximum) {
-        resultText +=
-          "\n**CONSTRAINT LIMIT REACHED.** You MUST call `end()` immediately to close the deliberation.";
+        resultText += `\n**[LIMIT REACHED]** Maximum hit (${cs.hit_reason}). You **MUST** call \`end()\` immediately to close the deliberation.\n`;
+      } else if (cs.approaching_any_maximum) {
+        const warnings: string[] = [];
+        if (cs.approaching_max_time) warnings.push("time");
+        if (cs.approaching_max_budget) warnings.push("budget");
+        if (cs.approaching_max_rounds) warnings.push("rounds");
+        resultText += `\n**[WARNING]** Approaching maximum: ${warnings.join(", ")}. Begin wrapping up — target the most important unresolved tension, then close.\n`;
+      }
+      if (cs.bias_blocked) {
+        resultText += `\n**[BIAS BLOCKED]** Over-addressed certain agents. Target neglected agents first: ${cs.least_addressed.join(", ")}.\n`;
       }
 
       return {

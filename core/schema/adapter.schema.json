@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "aos/adapter-config/v1",
+  "title": "AOS Adapter Configuration",
+  "type": "object",
+  "required": ["platform"],
+  "properties": {
+    "platform": { "enum": ["pi", "claude-code", "gemini", "custom"] },
+    "model_map": {
+      "type": "object",
+      "properties": {
+        "economy": { "type": "string" },
+        "standard": { "type": "string" },
+        "premium": { "type": "string" }
+      }
+    },
+    "theme": { "type": "string" },
+    "editor": { "type": "string" }
+  }
+}

@@ -133,6 +133,34 @@ export class AOSEngine {
       );
     }
 
+    // Pre-round budget estimation (spec Section 6.7)
+    const agentCount = routing.parallel.length + routing.sequential.length;
+    const modelCost = this.adapter.getModelCost("standard");
+    const estimatedTokens = this.profile.budget_estimation?.fixed_estimate_tokens ?? 2000;
+    const safetyMargin = this.profile.budget_estimation?.safety_margin ?? 0.15;
+    const estimatedCost = this.constraintEngine.estimateRoundCost(agentCount, estimatedTokens, modelCost);
+    const headroom = this.constraintEngine.checkBudgetHeadroom(estimatedCost, safetyMargin);
+
+    if (headroom < 0 && isFinite(headroom)) {
+      // Drop optional agents first
+      const requiredOnly = routing.parallel.filter((id) => {
+        const member = this.profile.assembly.perspectives.find((p) => p.agent === id);
+        return member?.required ?? false;
+      });
+      if (requiredOnly.length < routing.parallel.length) {
+        routing.parallel = requiredOnly;
+        this.transcript.push({
+          type: "budget_estimate",
+          timestamp: new Date().toISOString(),
+          round: this.roundNumber,
+          estimatedCost,
+          headroom,
+          action: "drop_optional",
+          droppedCount: agentCount - requiredOnly.length - routing.sequential.length,
+        });
+      }
+    }
+
     // Ensure agent handles exist
     const allAgents = [...routing.parallel, ...routing.sequential];
     for (const agentId of allAgents) {
@@ -215,6 +243,27 @@ export class AOSEngine {
       biasState.blocked,
     );
 
+    // Emit constraint_check after every round (spec Section 6.10)
+    const constraintState = this.constraintEngine.getState();
+    this.transcript.push({
+      type: "constraint_check",
+      timestamp: new Date().toISOString(),
+      round: this.roundNumber,
+      state: constraintState,
+    });
+
+    // Emit constraint_warning when approaching maximums (80%+)
+    if (constraintState.approaching_any_maximum) {
+      this.transcript.push({
+        type: "constraint_warning",
+        timestamp: new Date().toISOString(),
+        round: this.roundNumber,
+        approaching_max_time: constraintState.approaching_max_time,
+        approaching_max_budget: constraintState.approaching_max_budget,
+        approaching_max_rounds: constraintState.approaching_max_rounds,
+      });
+    }
+
     return responses;
   }
 
@@ -226,8 +275,27 @@ export class AOSEngine {
       );
     }
 
+    // Emit end_session before the final broadcast (spec Section 6.10)
+    this.transcript.push({
+      type: "end_session",
+      timestamp: new Date().toISOString(),
+      sessionId: this.sessionId,
+      closingMessage,
+    });
+
     // Route as broadcast (speaks-last gets final turn)
     const responses = await this.delegateMessage("all", closingMessage);
+
+    // Tag final statements (replace the generic "response" entries just added)
+    // The delegateMessage call above added "response" entries; re-tag the last N as final_statement
+    const finalCount = responses.length;
+    const transcriptLen = this.transcript.length;
+    for (let i = transcriptLen - 1, tagged = 0; i >= 0 && tagged < finalCount; i--) {
+      if (this.transcript[i].type === "response") {
+        this.transcript[i].type = "final_statement";
+        tagged++;
+      }
+    }
 
     this.transcript.push({
       type: "session_end",
