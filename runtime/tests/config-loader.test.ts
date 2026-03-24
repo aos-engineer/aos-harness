@@ -1,6 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import { join } from "node:path";
-import { loadAgent, loadProfile, loadDomain, validateBrief } from "../src/config-loader";
+import { writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { loadAgent, loadProfile, loadDomain, loadWorkflow, validateBrief } from "../src/config-loader";
 
 const fixturesDir = join(import.meta.dir, "..", "fixtures");
 
@@ -64,6 +65,174 @@ describe("loadDomain", () => {
 
   it("throws on missing domain.yaml", () => {
     expect(() => loadDomain("/nonexistent/path")).toThrow();
+  });
+});
+
+describe("loadWorkflow — execution workflow", () => {
+  const execWorkflowDir = join(fixturesDir, "workflows", "execution-workflow");
+
+  it("loads execution-workflow fixture with new action types", () => {
+    const wf = loadWorkflow(execWorkflowDir);
+    expect(wf.id).toBe("execution-workflow");
+    expect(wf.steps).toHaveLength(4);
+    expect(wf.steps[0].action).toBe("targeted-delegation");
+    expect(wf.steps[2].action).toBe("tension-pair");
+    expect(wf.steps[3].action).toBe("orchestrator-synthesis");
+  });
+
+  it("accepts retry_with_feedback as on_rejection value", () => {
+    const wf = loadWorkflow(execWorkflowDir);
+    expect(wf.gates[0].on_rejection).toBe("retry_with_feedback");
+    expect(wf.gates[1].on_rejection).toBe("retry_with_feedback");
+  });
+
+  it("tension-pair step has exactly 2 agents", () => {
+    const wf = loadWorkflow(execWorkflowDir);
+    const tensionStep = wf.steps.find((s) => s.action === "tension-pair");
+    expect(tensionStep).toBeDefined();
+    expect(tensionStep!.agents).toHaveLength(2);
+  });
+
+  it("rejects tension-pair step without exactly 2 agents", () => {
+    const tmpDir = join(fixturesDir, "workflows", "_tmp-tension-invalid");
+    mkdirSync(tmpDir, { recursive: true });
+    try {
+      writeFileSync(
+        join(tmpDir, "workflow.yaml"),
+        `schema: aos/workflow/v1
+id: bad-tension
+name: Bad Tension
+steps:
+  - id: review
+    action: tension-pair
+    agents: [only-one]
+    input: []
+    output: review_output
+    review_gate: false
+gates: []
+`,
+      );
+      expect(() => loadWorkflow(tmpDir)).toThrow("exactly 2 agents");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("validates artifact ID uniqueness", () => {
+    const tmpDir = join(fixturesDir, "workflows", "_tmp-dup-output");
+    mkdirSync(tmpDir, { recursive: true });
+    try {
+      writeFileSync(
+        join(tmpDir, "workflow.yaml"),
+        `schema: aos/workflow/v1
+id: dup-output
+name: Dup Output
+steps:
+  - id: step-a
+    action: gather
+    input: []
+    output: same_output
+    review_gate: false
+  - id: step-b
+    action: process
+    input: []
+    output: same_output
+    review_gate: false
+gates: []
+`,
+      );
+      expect(() => loadWorkflow(tmpDir)).toThrow("Duplicate artifact output ID");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("resolves input references by output ID", () => {
+    const wf = loadWorkflow(execWorkflowDir);
+    // design step references requirements_analysis (an output ID, not a step ID)
+    const designStep = wf.steps.find((s) => s.id === "design");
+    expect(designStep!.input).toContain("requirements_analysis");
+  });
+
+  it("resolves input references by step ID (backward compatibility)", () => {
+    const wf = loadWorkflow(join(fixturesDir, "workflows", "test-workflow"));
+    // test-workflow uses step IDs as input references
+    const stepTwo = wf.steps.find((s) => s.id === "step-two");
+    expect(stepTwo!.input).toContain("step-one");
+  });
+
+  it("rejects unknown input references", () => {
+    const tmpDir = join(fixturesDir, "workflows", "_tmp-bad-input");
+    mkdirSync(tmpDir, { recursive: true });
+    try {
+      writeFileSync(
+        join(tmpDir, "workflow.yaml"),
+        `schema: aos/workflow/v1
+id: bad-input
+name: Bad Input
+steps:
+  - id: step-a
+    action: gather
+    input: [nonexistent_ref]
+    output: data
+    review_gate: false
+gates: []
+`,
+      );
+      expect(() => loadWorkflow(tmpDir)).toThrow('references unknown input "nonexistent_ref"');
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("validates gate after references a step with review_gate: true", () => {
+    const tmpDir = join(fixturesDir, "workflows", "_tmp-bad-gate");
+    mkdirSync(tmpDir, { recursive: true });
+    try {
+      writeFileSync(
+        join(tmpDir, "workflow.yaml"),
+        `schema: aos/workflow/v1
+id: bad-gate
+name: Bad Gate
+steps:
+  - id: step-a
+    action: gather
+    input: []
+    output: data
+    review_gate: false
+gates:
+  - after: step-a
+    type: user-approval
+    prompt: "Approve?"
+`,
+      );
+      expect(() => loadWorkflow(tmpDir)).toThrow("without review_gate: true");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("loadProfile — workflow field", () => {
+  it("loads profile with workflow field", () => {
+    const profile = loadProfile(join(fixturesDir, "profiles", "workflow-council"));
+    expect(profile.id).toBe("workflow-council");
+    expect(profile.workflow).toBe("execution-workflow");
+  });
+
+  it("loads profile with role_override on perspectives", () => {
+    const profile = loadProfile(join(fixturesDir, "profiles", "workflow-council"));
+    expect(profile.assembly.perspectives[0].role_override).toBe("lead analyst");
+  });
+
+  it("defaults workflow to null when not specified", () => {
+    const profile = loadProfile(join(fixturesDir, "profiles", "test-council"));
+    expect(profile.workflow).toBeNull();
+  });
+
+  it("defaults role_override to null when not specified", () => {
+    const profile = loadProfile(join(fixturesDir, "profiles", "test-council"));
+    expect(profile.assembly.perspectives[0].role_override).toBeNull();
   });
 });
 
