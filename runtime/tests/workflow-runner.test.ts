@@ -1,5 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import { join } from "node:path";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { loadWorkflow } from "../src/config-loader";
 import { WorkflowRunner } from "../src/workflow-runner";
 import type { WorkflowConfig } from "../src/workflow-runner";
@@ -289,5 +291,207 @@ describe("WorkflowRunner", () => {
         (c.args[0] as string).includes("Automated review"),
     );
     expect(reviewNotifies.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ── Execution Workflow Actions ───────────────────────────────────
+
+describe("execution workflow actions", () => {
+  it("handles targeted-delegation action", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "exec-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "targeted-delegation",
+        agents: ["architect"],
+        prompt: "Design the system",
+        input: [],
+        output: "architecture",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toContain("step-a");
+  });
+
+  it("handles tension-pair action with 2 agents", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "tension-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "tension-pair",
+        agents: ["architect", "operator"],
+        prompt: "Challenge the design",
+        input: [],
+        output: "reviewed",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toContain("step-a");
+  });
+
+  it("rejects tension-pair with wrong number of agents", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "tension-fail",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "tension-pair",
+        agents: ["architect"],
+        prompt: "Challenge the design",
+        input: [],
+        output: "reviewed",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    await expect(runner.execute()).rejects.toThrow("exactly 2 agents");
+  });
+
+  it("handles orchestrator-synthesis action (no agents)", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "synth-test",
+      name: "Test",
+      description: "Test",
+      steps: [
+        { id: "step-a", action: "gather", input: [], output: "data-a", review_gate: false },
+        {
+          id: "step-b",
+          action: "orchestrator-synthesis",
+          prompt: "Assemble everything",
+          input: ["data-a"],
+          output: "final",
+          review_gate: false,
+        },
+      ],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toEqual(["step-a", "step-b"]);
+  });
+
+  it("handles execute-with-tools action", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "exec-tools-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "execute-with-tools",
+        prompt: "Run tests",
+        input: [],
+        output: "test-results",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toContain("step-a");
+
+    // Should have spawned and destroyed an agent
+    const spawnCalls = adapter.calls.filter(c => c.method === "spawnAgent");
+    expect(spawnCalls.length).toBeGreaterThan(0);
+    const destroyCalls = adapter.calls.filter(c => c.method === "destroyAgent");
+    expect(destroyCalls.length).toBeGreaterThan(0);
+  });
+
+  it("creates artifacts when sessionDir is provided", async () => {
+    const adapter = new MockAdapter();
+    const sessionDir = mkdtempSync(join(tmpdir(), "aos-wf-test-"));
+
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "artifact-test",
+      name: "Test",
+      description: "Test",
+      steps: [{
+        id: "step-a",
+        action: "targeted-delegation",
+        agents: ["architect"],
+        prompt: "Design",
+        input: [],
+        output: "design_doc",
+        review_gate: false,
+      }],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter, { sessionDir });
+    await runner.execute();
+
+    // Verify artifact was created via adapter.writeFile
+    const writeCalls = adapter.calls.filter(c => c.method === "writeFile");
+    expect(writeCalls.length).toBeGreaterThan(0);
+  });
+
+  it("still works with two-argument constructor", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "compat-test",
+      name: "Test",
+      description: "Test",
+      steps: [
+        { id: "step-a", action: "gather", input: [], output: "data", review_gate: false },
+      ],
+      gates: [],
+    };
+    // Two-argument constructor must still work
+    const runner = new WorkflowRunner(config, adapter);
+    await runner.execute();
+    expect(runner.getCompletedSteps()).toEqual(["step-a"]);
+  });
+
+  it("includes synthesis inputs from previous steps", async () => {
+    const adapter = new MockAdapter();
+    const config: WorkflowConfig = {
+      schema: "aos/workflow/v1",
+      id: "synth-inputs-test",
+      name: "Test",
+      description: "Test",
+      steps: [
+        { id: "step-a", action: "gather", input: [], output: "data-a", review_gate: false },
+        { id: "step-b", action: "gather", input: [], output: "data-b", review_gate: false },
+        {
+          id: "step-c",
+          action: "orchestrator-synthesis",
+          prompt: "Synthesize",
+          input: ["step-a", "step-b"],
+          output: "final",
+          review_gate: false,
+        },
+      ],
+      gates: [],
+    };
+    const runner = new WorkflowRunner(config, adapter);
+    const outputs = await runner.execute();
+
+    const stepC = outputs.get("step-c") as {
+      synthesis_inputs: Record<string, unknown>;
+    };
+    expect(stepC.synthesis_inputs["step-a"]).toBeDefined();
+    expect(stepC.synthesis_inputs["step-b"]).toBeDefined();
   });
 });

@@ -9,6 +9,8 @@
  */
 
 import type { AOSAdapter } from "./types";
+import { UnsupportedError } from "./types";
+import { ArtifactManager } from "./artifact-manager";
 
 // ── Workflow Config Types ──────────────────────────────────────────
 
@@ -49,10 +51,16 @@ export class WorkflowRunner {
   private adapter: AOSAdapter;
   private stepOutputs: Map<string, unknown> = new Map();
   private completedSteps: string[] = [];
+  private sessionDir?: string;
+  private artifactManager?: ArtifactManager;
 
-  constructor(config: WorkflowConfig, adapter: AOSAdapter) {
+  constructor(config: WorkflowConfig, adapter: AOSAdapter, opts?: { sessionDir?: string }) {
     this.config = config;
     this.adapter = adapter;
+    if (opts?.sessionDir) {
+      this.sessionDir = opts.sessionDir;
+      this.artifactManager = new ArtifactManager(adapter, opts.sessionDir);
+    }
   }
 
   /**
@@ -90,10 +98,34 @@ export class WorkflowRunner {
       inputs[inputId] = this.stepOutputs.get(inputId);
     }
 
+    // Artifact injection: load referenced artifacts into context
+    if (this.artifactManager && step.input && step.input.length > 0) {
+      for (const inputId of step.input) {
+        try {
+          const formatted = await this.artifactManager.formatForInjection(inputId);
+          inputs[`__artifact_${inputId}`] = formatted;
+        } catch {
+          // Artifact may not exist (e.g., step output without artifact) — skip
+        }
+      }
+    }
+
     // Execute the step
     const output = await this.executeStep(step, inputs);
     this.stepOutputs.set(step.id, output);
     this.completedSteps.push(step.id);
+
+    // Create artifact from step output if artifact manager is available
+    if (this.artifactManager && step.output) {
+      const content = typeof output === "string"
+        ? output
+        : JSON.stringify(output, null, 2);
+      await this.artifactManager.createArtifact(step.output, content, {
+        produced_by: step.agents ?? ["orchestrator"],
+        step_id: step.id,
+        format: "markdown",
+      });
+    }
 
     // Check for gate after this step
     const gate = this.config.gates.find((g) => g.after === step.id);
@@ -110,7 +142,183 @@ export class WorkflowRunner {
       `[${this.config.id}] Step: ${step.description ?? step.id}`,
       "info",
     );
-    return { stepId: step.id, action: step.action, inputs };
+
+    switch (step.action) {
+      case "targeted-delegation":
+        return this.executeTargetedDelegation(step, inputs);
+
+      case "tension-pair":
+        return this.executeTensionPair(step, inputs);
+
+      case "orchestrator-synthesis":
+        return this.executeOrchestratorSynthesis(step, inputs);
+
+      case "execute-with-tools":
+        return this.executeWithTools(step, inputs);
+
+      default:
+        // Existing behavior for "gather", "process", etc.
+        return { stepId: step.id, action: step.action, inputs };
+    }
+  }
+
+  private async executeTargetedDelegation(
+    step: WorkflowStep,
+    inputs: Record<string, unknown>,
+  ): Promise<unknown> {
+    const agents = step.agents ?? [];
+    const prompt = step.prompt ?? "";
+
+    this.adapter.notify(
+      `[${this.config.id}] Targeted delegation to [${agents.join(", ")}]: ${prompt}`,
+      "info",
+    );
+
+    return {
+      stepId: step.id,
+      action: step.action,
+      agents,
+      prompt,
+      inputs,
+    };
+  }
+
+  private async executeTensionPair(
+    step: WorkflowStep,
+    inputs: Record<string, unknown>,
+  ): Promise<unknown> {
+    const agents = step.agents ?? [];
+
+    if (agents.length !== 2) {
+      this.adapter.notify(
+        `[${this.config.id}] tension-pair requires exactly 2 agents, got ${agents.length}`,
+        "error",
+      );
+      throw new Error(
+        `tension-pair step "${step.id}" requires exactly 2 agents, got ${agents.length}`,
+      );
+    }
+
+    const prompt = step.prompt ?? "";
+
+    this.adapter.notify(
+      `[${this.config.id}] Tension pair [${agents[0]} vs ${agents[1]}]: ${prompt}`,
+      "info",
+    );
+
+    return {
+      stepId: step.id,
+      action: step.action,
+      agents,
+      prompt,
+      inputs,
+    };
+  }
+
+  private async executeOrchestratorSynthesis(
+    step: WorkflowStep,
+    inputs: Record<string, unknown>,
+  ): Promise<unknown> {
+    const prompt = step.prompt ?? "";
+
+    // Collect all input artifacts
+    const collectedInputs: Record<string, unknown> = {};
+    for (const inputId of (step.input ?? [])) {
+      collectedInputs[inputId] = this.stepOutputs.get(inputId);
+    }
+
+    this.adapter.notify(
+      `[${this.config.id}] Orchestrator synthesis: ${prompt} (inputs: ${Object.keys(collectedInputs).join(", ")})`,
+      "info",
+    );
+
+    return {
+      stepId: step.id,
+      action: step.action,
+      prompt,
+      synthesis_inputs: collectedInputs,
+    };
+  }
+
+  private async executeWithTools(
+    step: WorkflowStep,
+    inputs: Record<string, unknown>,
+  ): Promise<unknown> {
+    const prompt = step.prompt ?? "";
+
+    this.adapter.notify(
+      `[${this.config.id}] Execute with tools: ${prompt}`,
+      "info",
+    );
+
+    // Attempt code execution or skill invocation via the adapter.
+    // These may not be supported by all adapters — catch UnsupportedError gracefully.
+    let executionResult: unknown = null;
+
+    try {
+      // Create a temporary handle for execution
+      const handle = await this.adapter.spawnAgent(
+        {
+          schema: "aos/agent/v1",
+          id: `${step.id}-executor`,
+          name: step.name ?? step.id,
+          role: "executor",
+          cognition: {
+            objective_function: "execute",
+            time_horizon: { primary: "immediate", secondary: "", peripheral: "" },
+            core_bias: "none",
+            risk_tolerance: "moderate",
+            default_stance: "neutral",
+          },
+          persona: {
+            temperament: [],
+            thinking_patterns: [],
+            heuristics: [],
+            evidence_standard: { convinced_by: [], not_convinced_by: [] },
+            red_lines: [],
+          },
+          tensions: [],
+          report: { structure: "flat" },
+          tools: null,
+          skills: [],
+          expertise: [],
+          model: { tier: "standard", thinking: "off" },
+        },
+        this.config.id,
+      );
+
+      try {
+        executionResult = await this.adapter.executeCode(handle, prompt);
+      } catch (err) {
+        if (err instanceof UnsupportedError) {
+          this.adapter.notify(
+            `[${this.config.id}] executeCode not supported, skipping`,
+            "info",
+          );
+        } else {
+          throw err;
+        }
+      }
+
+      await this.adapter.destroyAgent(handle);
+    } catch (err) {
+      if (err instanceof UnsupportedError) {
+        this.adapter.notify(
+          `[${this.config.id}] Execution adapter not available, skipping`,
+          "info",
+        );
+      } else {
+        throw err;
+      }
+    }
+
+    return {
+      stepId: step.id,
+      action: step.action,
+      prompt,
+      executionResult,
+      inputs,
+    };
   }
 
   private async executeGate(
