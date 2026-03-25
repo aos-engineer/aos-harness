@@ -1,17 +1,40 @@
 {
   "name": "aos-framework",
+  "version": "0.1.0",
+  "description": "Agentic Orchestration System — assemble AI agents into deliberation and execution teams",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aos-engineer/aos-framework.git"
+  },
+  "homepage": "https://github.com/aos-engineer/aos-framework",
+  "keywords": [
+    "ai",
+    "agents",
+    "orchestration",
+    "multi-agent",
+    "deliberation",
+    "execution",
+    "llm",
+    "framework"
+  ],
   "private": true,
   "workspaces": [
     "runtime",
     "cli",
     "adapters/*"
   ],
+  "bin": {
+    "aos": "./cli/src/index.ts"
+  },
   "scripts": {
     "test": "bun test --cwd runtime",
     "test:integration": "bun run tests/integration/validate-config.ts",
     "validate": "bun run cli/src/index.ts validate",
     "typecheck": "bun x tsc --noEmit --project runtime/tsconfig.json",
     "lint:yaml-safety": "bash scripts/check-yaml-safety.sh",
+    "lint": "bun run lint:yaml-safety && bun run typecheck",
+    "prerelease": "bun run lint && bun run test",
     "publish:all": "bun run scripts/publish.ts"
   }
 }

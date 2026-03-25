@@ -1,127 +1,182 @@
 # AOS Framework
 
-**Agentic Orchestration System**
+**Agentic Orchestration System** — Assemble specialized AI agents into deliberation and execution teams.
 
-Assemble specialized AI agents into deliberation teams that debate, challenge, and synthesize strategic recommendations.
+[![CI](https://github.com/aos-engineer/aos-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/aos-engineer/aos-framework/actions/workflows/ci.yml)
 
 ---
 
 ## What It Is
 
-AOS Framework is a language-agnostic orchestration layer for multi-agent deliberation. It ships with:
+AOS Framework is a language-agnostic orchestration system for multi-agent AI workflows. It supports two orchestration patterns:
 
-- 12 original agent personas with distinct reasoning biases
-- Config-driven profiles that control team composition, turn order, and model assignment
-- Optional domain packs that load domain-specific context and constraints
-- Platform adapters that host deliberations inside different runtimes (Pi CLI is the primary adapter)
+- **Deliberation** — Agents debate a strategic question, the Arbiter synthesizes ranked recommendations with documented dissent. Output: structured memo.
+- **Execution** — A CTO/CIO/CEO orchestrator delegates production work to agents who produce architecture, task breakdowns, security reviews, and implementation plans. Output: execution package.
 
-The framework separates orchestration concerns (core config, agent definitions) from execution concerns (runtime engine) and platform concerns (adapters), so it can run in any environment that can execute a JavaScript or TypeScript process.
+The framework ships with:
 
----
-
-## 3-Tier Model
-
-| Tier | Who | What You Do |
-|------|-----|-------------|
-| Install and Run | Anyone | Clone, install, run `/aos-run` — zero configuration required |
-| Customize and Build | Practitioners | Edit profiles, swap domain packs, tune model tiers |
-| Full Platform | Builders | Write new adapters, extend the runtime, add agent personas |
+- 13 agent personas with distinct cognitive biases and reasoning frameworks
+- 6 orchestration profiles (strategic-council, cto-execution, security-review, delivery-ops, architecture-review, incident-response)
+- 5 domain packs (SaaS, healthcare, fintech, platform-engineering, personal-decisions)
+- 3 skill definitions (code-review, security-scan, task-decomposition)
+- Platform adapters for Pi CLI, Claude Code, and extensible to any runtime
 
 ---
 
 ## Quick Start
 
-The primary adapter is the Pi CLI adapter.
+### Install
 
 ```bash
-cd aos-framework/adapters/pi && bun install
+git clone https://github.com/aos-engineer/aos-framework.git
+cd aos-framework
+bun install
+```
+
+### Run a deliberation
+
+```bash
+# Using the Pi CLI adapter
+cd adapters/pi && bun install
 pi -e src/index.ts
 /aos-run
 ```
 
-Requirements: [Pi CLI](https://pi.dev), [Bun](https://bun.sh), and `ANTHROPIC_API_KEY` set in your environment.
+### Run an execution profile
+
+```bash
+# Using the AOS CLI directly
+bun run cli/src/index.ts run cto-execution --brief core/briefs/sample-cto-execution/brief.md
+```
+
+### CLI commands
+
+```bash
+aos init                          # Initialize AOS in the current project
+aos run [profile]                 # Run a deliberation or execution session
+aos run cto-execution --brief ... # Run the CTO execution workflow
+aos create agent <name>           # Scaffold a new agent
+aos create profile <name>         # Scaffold a new profile
+aos create domain <name>          # Scaffold a new domain
+aos create skill <name>           # Scaffold a new skill
+aos validate                      # Validate all configs
+aos list                          # List all agents, profiles, domains, skills
+aos replay <transcript.jsonl>     # Replay a session transcript
+```
+
+**Requirements:** [Bun](https://bun.sh) (v1.0+), and an API key for your chosen model provider.
+
+---
+
+## Orchestration Patterns
+
+### Deliberation (strategic-council)
+
+Submit a brief with a strategic question. 11 agents debate under time and budget constraints. The Arbiter synthesizes a memo with ranked recommendations, agent stances, dissent, and next actions.
+
+```
+Brief → Arbiter frames question → Agents debate (broadcast + targeted rounds)
+→ Provocateur stress-tests (speaks last) → Arbiter synthesizes → Memo output
+```
+
+### Execution (cto-execution)
+
+Submit a feature request. The CTO orchestrator drives an 8-step workflow with 3 review gates, producing a complete execution package.
+
+```
+Brief → Requirements (Advocate + Strategist) → Architecture (Architect)
+→ Architecture Review (Architect vs Operator) → Phase Planning (Strategist + Operator)
+→ Task Breakdown (Operator) → Security Review (Sentinel)
+→ Stress Test (Provocateur) → Final Assembly → Execution Package output
+```
 
 ---
 
 ## Agent Roster
 
-| Agent       | Category      | Role                        | Core Bias                                      |
-|-------------|---------------|-----------------------------|------------------------------------------------|
-| Arbiter     | Orchestrator  | Session chair               | Neutral facilitation, synthesis over advocacy  |
-| Catalyst    | Perspective   | Creative accelerant         | Novelty, reframe, break assumptions            |
-| Sentinel    | Perspective   | Risk and threat monitor     | Downside awareness, system integrity           |
-| Architect   | Perspective   | Systems designer            | Structure, coherence, long-term fit            |
-| Provocateur | Perspective   | Devil's advocate            | Stress-test consensus, surface blind spots     |
-| Navigator   | Perspective   | Strategic orientation       | Direction, prioritisation, resource trade-offs |
-| Advocate    | Perspective   | Stakeholder voice           | Human impact, equity, legitimacy               |
-| Pathfinder  | Perspective   | Exploration and optionality | Map unknowns, preserve future choices          |
-| Strategist  | Perspective   | Competitive positioning     | Advantage, timing, external dynamics           |
-| Operator    | Operational   | Execution realism           | Feasibility, sequencing, operational drag      |
-| Steward     | Operational   | Resource and ethics guardian| Sustainability, values, stewardship            |
-| Auditor     | Operational   | Evidence and logic reviewer | Factual accuracy, reasoning quality            |
-
-### Tension Pairs
-
-The framework seeds productive conflict by pairing agents with opposing biases:
-
-- Catalyst vs Sentinel — acceleration vs caution
-- Provocateur vs Architect — disruption vs coherence
-- Pathfinder vs Operator — optionality vs execution realism
-- Navigator vs Advocate — strategic efficiency vs human impact
-- Strategist vs Steward — competitive gain vs sustainable practice
-- Auditor vs Catalyst — evidence discipline vs generative exploration
+| Agent | Category | Role | Core Bias |
+|---|---|---|---|
+| **Arbiter** | Orchestrator | Session chair, synthesis | Neutral facilitation |
+| **CTO Orchestrator** | Orchestrator | Execution leader | Execution quality |
+| **Catalyst** | Perspective | Acceleration, monetization | Speed |
+| **Sentinel** | Perspective | Protection, sustainability | Trust |
+| **Architect** | Perspective | Systems design, feasibility | System durability |
+| **Provocateur** | Perspective | Stress-testing (speaks last) | Truth-seeking |
+| **Navigator** | Perspective | Market positioning, timing | Positioning |
+| **Advocate** | Perspective | User voice, behavior reality | User behavior |
+| **Pathfinder** | Perspective | 10x thinking, asymmetric bets | Asymmetric upside |
+| **Strategist** | Perspective | Problem selection, sequencing | Impact per effort |
+| **Operator** | Operational | Execution reality, capacity | Execution |
+| **Steward** | Operational | Ethics, compliance, governance | Compliance |
+| **Auditor** | Operational | Retrospective, institutional memory | Learning |
 
 ---
 
-## Architecture Overview
+## Architecture
 
 ```
 aos-framework/
-  core/          # Agent definitions, profiles, domain packs, schema
-  runtime/       # Execution engine — deliberation loop, phase management
-  adapters/      # Platform adapters (pi/, and future targets)
+  core/               # Language-agnostic config (YAML + Markdown)
+    agents/           # 13 agent personas (orchestrators, perspectives, operational)
+    profiles/         # 6 orchestration profiles
+    domains/          # 5 domain knowledge packs
+    skills/           # 3 skill definitions (aos/skill/v1)
+    workflows/        # 7 workflow definitions
+    schema/           # JSON Schema for validation
+    briefs/           # Sample briefs
+  runtime/            # Minimal TypeScript engine (~2000 lines)
+    src/              # Engine, constraint engine, delegation router, artifact manager,
+                      # workflow runner, template resolver, config loader, output renderer
+    tests/            # 194 tests across 12 files
+  adapters/           # Platform-specific implementations
+    pi/               # Pi CLI adapter (primary — full 4-layer implementation)
+    claude-code/      # Claude Code adapter (static artifact generator)
+  cli/                # CLI tooling (init, run, create, validate, list, replay)
+  docs/               # Specs, plans, getting-started guides
 ```
 
-| Layer    | Purpose                                                            |
-|----------|--------------------------------------------------------------------|
-| `core/`  | Source of truth for agent personas, team profiles, and config      |
-| `runtime/` | Platform-agnostic engine that drives deliberation phases         |
-| `adapters/` | Thin host integrations that implement the `AOSAdapter` contract |
+### 4-Layer Adapter Contract
 
----
-
-## Project Structure
-
-```
-aos-framework/
-  core/
-    agents/
-      orchestrators/    # Arbiter
-      perspectives/     # Catalyst, Sentinel, Architect, Provocateur,
-                        # Navigator, Advocate, Pathfinder, Strategist
-      operational/      # Operator, Steward, Auditor
-    briefs/             # Session brief templates
-    domains/            # Optional domain context packs
-    profiles/           # Team composition and turn-order profiles
-    schema/             # Config and message schema definitions
-  runtime/
-    src/                # Deliberation engine, phase runner, memo writer
-  adapters/
-    pi/
-      src/              # Pi CLI adapter (agent-runtime, event-bus, ui, workflow)
-      README.md         # Pi adapter documentation
-  docs/
-    specs/              # Framework specification
-```
+| Layer | Purpose | Methods |
+|---|---|---|
+| L1: Agent Runtime | Agent lifecycle | spawnAgent, sendMessage, destroyAgent |
+| L2: Event Bus | Hooks and interception | onSessionStart, onToolCall, onMessageEnd |
+| L3: User Interface | Rendering and interaction | registerCommand, renderAgentResponse, promptConfirm |
+| L4: Workflow Engine | Process orchestration | dispatchParallel, executeCode, invokeSkill, createArtifact |
 
 ---
 
 ## Documentation
 
-- Framework specification and design rationale: `docs/specs/`
+- **Specs:** `docs/specs/2026-03-23-aos-framework-design.md` (core framework)
+- **Execution Profiles:** `docs/specs/2026-03-24-aos-execution-profiles/` (4-document spec suite)
+- **Getting Started:** `docs/getting-started/README.md`
+- **Creating Agents:** `docs/creating-agents/README.md`
+- **Creating Profiles:** `docs/creating-profiles/README.md`
+
+---
+
+## Development
+
+```bash
+# Run tests
+bun run test
+
+# Type check
+bun run typecheck
+
+# Validate all configs
+bun run validate
+
+# Security lint
+bun run lint:yaml-safety
+
+# Full lint (safety + types)
+bun run lint
+```
 
 ---
 
 ## License
 
-License TBD.
+MIT
