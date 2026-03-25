@@ -1,80 +1,230 @@
 ---
-import Docs from '../../layouts/Docs.astro';
+import Base from '../../layouts/Base.astro';
+
+const sidebarLinks = [
+  { id: 'prerequisites', label: 'Prerequisites' },
+  { id: 'install', label: 'Install' },
+  { id: 'first-deliberation', label: 'Run Your First Deliberation' },
+  { id: 'execution-profile', label: 'Run an Execution Profile' },
+  { id: 'write-a-brief', label: 'Write a Brief' },
+  { id: 'next-steps', label: 'Next Steps' },
+];
 ---
 
-<Docs title="Getting Started">
-  <h1>Getting Started with AOS Framework</h1>
+<Base title="Getting Started">
+  <div class="mx-auto max-w-[1200px] px-6 py-10">
+    <div class="flex gap-12">
 
-  <p>
-    The AOS Framework (Agent Orchestration System) is a config-driven runtime for orchestrating
-    multi-agent deliberation sessions. You define agents with distinct cognitive profiles,
-    assemble them into advisory councils via profiles, and the framework manages structured
-    debate with constraint enforcement, bias protection, and transcript recording.
-  </p>
+      <!-- Sidebar -->
+      <aside class="hidden lg:block w-[220px] shrink-0">
+        <div class="sticky top-[80px]">
+          <p class="text-[12px] font-medium uppercase tracking-wider text-[var(--color-text-muted)] mb-4">On this page</p>
+          <nav class="flex flex-col gap-1">
+            {sidebarLinks.map(link => (
+              <a
+                href={`#${link.id}`}
+                class="text-[14px] leading-[2] text-[var(--color-text-muted)] hover:text-[var(--color-text)] no-underline transition-colors border-l-2 border-transparent hover:border-[var(--color-signal)] pl-3"
+              >
+                {link.label}
+              </a>
+            ))}
+          </nav>
+        </div>
+      </aside>
 
-  <h2>Prerequisites</h2>
-  <ul>
-    <li><strong>Bun</strong> (v1.0+) &mdash; JavaScript runtime. Install from <a href="https://bun.sh">bun.sh</a></li>
-    <li><strong>Pi CLI</strong> &mdash; AI coding agent that serves as the primary adapter runtime</li>
-    <li><strong>Anthropic API Key</strong> &mdash; Set <code>ANTHROPIC_API_KEY</code> in your environment, or use a Pi subscription</li>
-  </ul>
+      <!-- Main Content -->
+      <main class="min-w-0 max-w-[720px]">
 
-  <h2>Installation</h2>
+        <!-- Mobile pill nav -->
+        <div class="lg:hidden flex gap-2 overflow-x-auto pb-4 mb-6 -mx-1 px-1">
+          {sidebarLinks.map(link => (
+            <a
+              href={`#${link.id}`}
+              class="shrink-0 text-[13px] font-medium text-[var(--color-text-muted)] px-3 py-1.5 rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-text)] hover:text-white hover:border-transparent no-underline transition-all"
+            >
+              {link.label}
+            </a>
+          ))}
+        </div>
 
-  <h3>Option A: Quick Install (recommended)</h3>
-  <pre><code>bunx @aos-framework/cli init --adapter pi</code></pre>
+        <!-- Breadcrumb -->
+        <div class="text-[13px] text-[var(--color-text-muted)] mb-6">
+          <a href="/docs/getting-started" class="text-[var(--color-signal)] no-underline hover:underline">Docs</a>
+          <span class="mx-1.5">&gt;</span>
+          <span>Getting Started</span>
+        </div>
 
-  <h3>Option B: Clone the Repository</h3>
-  <pre><code>git clone https://github.com/aos-framework/aos-framework
+        <!-- Page Header -->
+        <h1 class="text-4xl md:text-[48px] font-extrabold text-[var(--color-text)] leading-tight tracking-tight">Getting Started</h1>
+        <p class="text-[15px] text-[var(--color-text-secondary)] mt-2 mb-12">Set up AOS Framework in 5 minutes</p>
+
+        <!-- Prerequisites -->
+        <section id="prerequisites" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Prerequisites</h2>
+          </div>
+          <div class="flex flex-col gap-3">
+            <div class="flex items-start gap-3">
+              <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--color-success)] text-white text-[12px] font-bold mt-0.5 shrink-0">&#10003;</span>
+              <span class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed"><strong class="text-[var(--color-text)]">Bun v1.0+</strong> installed &mdash; <a href="https://bun.sh" class="text-[var(--color-signal)]">bun.sh</a></span>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--color-success)] text-white text-[12px] font-bold mt-0.5 shrink-0">&#10003;</span>
+              <span class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed"><strong class="text-[var(--color-text)]">An API key</strong> for at least one LLM provider (OpenAI, Anthropic, or Google)</span>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--color-success)] text-white text-[12px] font-bold mt-0.5 shrink-0">&#10003;</span>
+              <span class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed"><strong class="text-[var(--color-text)]">A terminal</strong> &mdash; macOS, Linux, or WSL on Windows</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Install -->
+        <section id="install" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Install</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Clone the repository and install dependencies:</p>
+          <pre><code>git clone https://github.com/AOS-Framework/aos-framework.git
 cd aos-framework
 bun install</code></pre>
 
-  <h2>Verify Installation</h2>
-  <pre><code>aos validate</code></pre>
-  <p>You should see all agents, profiles, and domains pass validation.</p>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">Set your API key:</p>
+          <pre><code>export ANTHROPIC_API_KEY="sk-ant-..."
+# or
+export OPENAI_API_KEY="sk-..."</code></pre>
 
-  <h2>Your First Deliberation</h2>
+          <div class="mt-6 bg-[var(--color-bg)] border-l-4 border-[var(--color-signal)] rounded-r-lg px-5 py-4">
+            <p class="text-[12px] font-semibold uppercase text-[var(--color-signal)] mb-1">Tip</p>
+            <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">AOS supports multiple providers. Set any combination of <code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>, or <code>GOOGLE_API_KEY</code>. The framework selects the appropriate provider based on each agent's model configuration.</p>
+          </div>
+        </section>
 
-  <h3>1. Review the sample brief</h3>
-  <p>
-    Check <code>core/briefs/sample-product-decision/brief.md</code>. It contains a product strategy
-    question with sections for Situation, Stakes, Constraints, and Key Question.
-  </p>
+        <!-- Run Your First Deliberation -->
+        <section id="first-deliberation" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Run Your First Deliberation</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Run the built-in Strategic Council with a sample brief:</p>
+          <pre><code>aos run strategic-council --brief briefs/sample-brief.md</code></pre>
 
-  <h3>2. Dry run (no API calls)</h3>
-  <pre><code>aos run strategic-council \
-  --brief core/briefs/sample-product-decision/brief.md \
-  --dry-run</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6">
+            This assembles 11 specialist agents &mdash; Catalyst, Sentinel, Architect, Provocateur, Navigator, Advocate, Pathfinder, Strategist, Operator, Steward, and Auditor &mdash; under a neutral Arbiter. The agents debate your brief from opposing perspectives. Tension pairs (Catalyst vs. Sentinel, Architect vs. Pathfinder) create productive conflict.
+          </p>
 
-  <h3>3. Run a real deliberation</h3>
-  <pre><code>aos run strategic-council \
-  --brief core/briefs/sample-product-decision/brief.md \
-  --domain saas</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-4">The Arbiter synthesizes the discussion into a structured memo with:</p>
+          <ul class="mt-2 mb-4 space-y-1.5 text-[15px] text-[var(--color-text-secondary)] leading-relaxed list-disc list-inside">
+            <li>Ranked recommendations</li>
+            <li>Agent stances and dissent</li>
+            <li>Trade-offs and risks</li>
+            <li>Concrete next actions</li>
+          </ul>
 
-  <p>
-    The Arbiter orchestrates 11 specialist agents, each analyzing your problem through their
-    unique cognitive lens. The session runs within the constraint bounds defined in the profile
-    (2-10 minutes, $1-$10, 2-8 rounds).
-  </p>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Output is saved to:</p>
+          <pre><code>output/memos/2026-03-25-sample-brief-abc123/memo.md</code></pre>
+        </section>
 
-  <h2>Understanding the Output</h2>
-  <p>The primary output is a <strong>structured memo</strong> with:</p>
-  <ul>
-    <li><strong>Ranked Recommendations</strong> &mdash; Top options with confidence levels</li>
-    <li><strong>Agent Stances</strong> &mdash; Each agent's position and reasoning</li>
-    <li><strong>Dissenting Views</strong> &mdash; Formally documented disagreements</li>
-    <li><strong>Trade-offs and Risks</strong> &mdash; Key concerns and mitigation strategies</li>
-    <li><strong>Next Actions</strong> &mdash; Concrete next steps</li>
-  </ul>
+        <!-- Run an Execution Profile -->
+        <section id="execution-profile" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Run an Execution Profile</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Execution profiles go beyond deliberation &mdash; they produce implementation-ready artifacts:</p>
+          <pre><code>aos run cto-execution --brief briefs/feature-brief.md</code></pre>
 
-  <p>A <strong>JSONL transcript</strong> is also saved. Replay it:</p>
-  <pre><code>aos replay output/&lt;session&gt;/transcript.jsonl</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">The CTO Execution profile uses a structured 8-step workflow:</p>
+          <ol class="space-y-2 text-[15px] text-[var(--color-text-secondary)] leading-relaxed list-decimal list-inside">
+            <li><strong class="text-[var(--color-text)]">Requirements Analysis</strong> &mdash; Advocate and Strategist extract requirements from your brief</li>
+            <li><strong class="text-[var(--color-text)]">Architecture Design</strong> &mdash; Architect produces an architecture decision record</li>
+            <li><strong class="text-[var(--color-text)]">Review Gate</strong> &mdash; You approve or send back with feedback</li>
+            <li><strong class="text-[var(--color-text)]">Task Breakdown</strong> &mdash; Operator breaks the plan into concrete engineering tasks</li>
+            <li><strong class="text-[var(--color-text)]">Risk Assessment</strong> &mdash; Sentinel reviews for security, reliability, and maintainability</li>
+            <li><strong class="text-[var(--color-text)]">Stress Test</strong> &mdash; Provocateur challenges the timeline, finds gaps</li>
+            <li><strong class="text-[var(--color-text)]">Final Assembly</strong> &mdash; CTO Orchestrator synthesizes everything</li>
+            <li><strong class="text-[var(--color-text)]">Output</strong> &mdash; Complete execution package saved to disk</li>
+          </ol>
 
-  <h2>Next Steps</h2>
-  <ul>
-    <li><a href="/docs/creating-agents">Creating Agents</a> &mdash; Design custom cognitive agents</li>
-    <li><a href="/docs/creating-profiles">Creating Profiles</a> &mdash; Assemble agents into councils</li>
-    <li><a href="/docs/creating-domains">Creating Domains</a> &mdash; Add domain-specific overlays</li>
-    <li><a href="/agents">Agent Gallery</a> &mdash; Explore all 12 built-in agents</li>
-  </ul>
-</Docs>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">Output is saved to:</p>
+          <pre><code>output/executions/2026-03-25-feature-brief-abc123/
+  executive-summary.md
+  architecture-decision-record.md
+  task-breakdown.md
+  risk-assessment.md
+  implementation-checklist.md</code></pre>
+        </section>
+
+        <!-- Write a Brief -->
+        <section id="write-a-brief" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Write a Brief</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">A brief is the input document that frames the problem for the agents. The required sections depend on the profile type.</p>
+
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4"><strong class="text-[var(--color-text)]">Deliberation brief</strong> (for strategic-council):</p>
+          <pre><code>## Situation
+We are a B2B SaaS platform with 2,400 customers and $8M ARR.
+Our largest competitor just raised $50M and announced a free tier.
+
+## Stakes
+If we respond poorly, we risk losing 15-20% of our SMB segment.
+If we respond well, we can capture switchers from their disrupted user base.
+
+## Constraints
+- $200K budget for competitive response
+- 3-person product team, no new hires until Q3
+- Cannot break existing API contracts
+
+## Key Question
+Should we launch a free tier to match, or double down on our
+premium positioning and invest in switching-cost features?</code></pre>
+
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4"><strong class="text-[var(--color-text)]">Execution brief</strong> (for cto-execution):</p>
+          <pre><code>## Feature / Vision
+Build a real-time collaborative editing system for our
+document workspace product.
+
+## Context
+Current architecture is a monolithic Rails app with PostgreSQL.
+Documents are stored as Markdown blobs. No WebSocket infrastructure exists.
+Team has experience with Redis but not with CRDTs or OT.
+
+## Constraints
+- Ship MVP in 8 weeks with 2 backend + 1 frontend engineers
+- Must support up to 50 concurrent editors per document
+- Cannot migrate existing document storage format
+
+## Success Criteria
+- Users can see each other's cursors and edits in real time
+- No data loss on concurrent edits
+- Latency under 200ms for edit propagation
+- Graceful degradation when a user loses connection</code></pre>
+        </section>
+
+        <!-- Next Steps -->
+        <section id="next-steps" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Next Steps</h2>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <a href="/docs/creating-agents" class="group bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 no-underline card-hover block">
+              <h3 class="text-[17px] font-semibold text-[var(--color-text)] mb-1.5 group-hover:text-[var(--color-text)]">Creating Agents</h3>
+              <p class="text-[13px] text-[var(--color-text-muted)] leading-relaxed mb-3">Learn how to define custom agent personas with cognition, heuristics, and tensions.</p>
+              <span class="text-[var(--color-signal)] text-[14px] font-medium">&rarr;</span>
+            </a>
+            <a href="/docs/creating-profiles" class="group bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 no-underline card-hover block">
+              <h3 class="text-[17px] font-semibold text-[var(--color-text)] mb-1.5 group-hover:text-[var(--color-text)]">Creating Profiles</h3>
+              <p class="text-[13px] text-[var(--color-text-muted)] leading-relaxed mb-3">Assemble agents into deliberation councils or execution teams.</p>
+              <span class="text-[var(--color-signal)] text-[14px] font-medium">&rarr;</span>
+            </a>
+            <a href="/docs/creating-domains" class="group bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 no-underline card-hover block">
+              <h3 class="text-[17px] font-semibold text-[var(--color-text)] mb-1.5 group-hover:text-[var(--color-text)]">Creating Domains</h3>
+              <p class="text-[13px] text-[var(--color-text-muted)] leading-relaxed mb-3">Add industry-specific knowledge overlays to sharpen agent analysis.</p>
+              <span class="text-[var(--color-signal)] text-[14px] font-medium">&rarr;</span>
+            </a>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+</Base>

@@ -4,7 +4,18 @@ interface Props {
   description?: string;
 }
 
-const { title, description = 'AOS Framework — Train AI agents to think like your best advisors' } = Astro.props;
+const { title, description = 'AOS Framework — Agentic Orchestration System for multi-agent AI workflows' } = Astro.props;
+
+const currentPath = Astro.url.pathname;
+
+const navLinks = [
+  { href: '/agents', label: 'Agents' },
+  { href: '/profiles', label: 'Profiles' },
+  { href: '/skills', label: 'Skills' },
+  { href: '/domains', label: 'Domains' },
+  { href: '/docs/getting-started', label: 'Docs' },
+  { href: 'https://github.com/aos-engineer/aos-framework', label: 'GitHub', external: true },
+];
 ---
 
 <!doctype html>
@@ -13,25 +24,40 @@ const { title, description = 'AOS Framework — Train AI agents to think like yo
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
-    <meta property="og:title" content={title} />
+    <meta property="og:title" content={`${title} | AOS.engineer`} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <title>{title} | AOS.engineer</title>
   </head>
   <body class="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
-    <nav class="border-b border-[var(--color-border)] px-6 py-4">
-      <div class="mx-auto max-w-6xl flex items-center justify-between">
-        <a href="/" class="text-xl font-bold text-white">
-          AOS<span class="text-[var(--color-accent)]">.engineer</span>
+    <!-- Navigation -->
+    <nav class="sticky top-0 z-50 bg-[var(--color-surface)]/80 backdrop-blur-lg border-b border-[var(--color-border)]">
+      <div class="mx-auto max-w-[1200px] px-6 h-[52px] flex items-center justify-between">
+        <a href="/" class="text-lg font-extrabold text-[var(--color-text)] hover:text-[var(--color-text)] no-underline">
+          AOS<span class="text-[var(--color-signal)]">.engineer</span>
         </a>
-        <div class="flex gap-6 text-sm">
-          <a href="/agents" class="text-[var(--color-text-muted)] hover:text-white transition-colors">Agents</a>
-          <a href="/profiles" class="text-[var(--color-text-muted)] hover:text-white transition-colors">Profiles</a>
-          <a href="/skills" class="text-[var(--color-text-muted)] hover:text-white transition-colors">Skills</a>
-          <a href="/domains" class="text-[var(--color-text-muted)] hover:text-white transition-colors">Domains</a>
-          <a href="/docs/getting-started" class="text-[var(--color-text-muted)] hover:text-white transition-colors">Docs</a>
-          <a href="https://github.com/aos-framework/aos-framework" class="text-[var(--color-text-muted)] hover:text-white transition-colors" target="_blank" rel="noopener">GitHub</a>
+        <div class="hidden md:flex items-center gap-7">
+          {navLinks.map(link => (
+            <a
+              href={link.href}
+              class:list={[
+                "text-[13px] font-medium transition-colors no-underline",
+                currentPath.startsWith(link.href) && !link.external
+                  ? "text-[var(--color-text)] font-semibold"
+                  : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              ]}
+              {...(link.external ? { target: "_blank", rel: "noopener" } : {})}
+            >
+              {link.label}
+              {link.external && (
+                <span class="text-[10px] ml-0.5 opacity-50">&nearr;</span>
+              )}
+            </a>
+          ))}
         </div>
       </div>
     </nav>
@@ -40,10 +66,17 @@ const { title, description = 'AOS Framework — Train AI agents to think like yo
       <slot />
     </main>
 
-    <footer class="border-t border-[var(--color-border)] px-6 py-8 mt-16">
-      <div class="mx-auto max-w-6xl text-center text-sm text-[var(--color-text-muted)]">
-        <p>AOS Framework &mdash; Agentic Orchestration System</p>
-        <p class="mt-1">Open source. Config-driven. Multi-platform.</p>
+    <!-- Footer -->
+    <footer class="border-t border-[var(--color-border)] mt-20">
+      <div class="mx-auto max-w-[1200px] px-6 py-10 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="text-[13px] text-[var(--color-text-muted)]">
+          <span class="font-semibold text-[var(--color-text)]">AOS Framework</span> &mdash; Agentic Orchestration System
+        </div>
+        <div class="flex items-center gap-6 text-[13px] text-[var(--color-text-muted)]">
+          <a href="/docs/getting-started" class="hover:text-[var(--color-text)] no-underline text-[var(--color-text-muted)]">Docs</a>
+          <a href="https://github.com/aos-engineer/aos-framework" class="hover:text-[var(--color-text)] no-underline text-[var(--color-text-muted)]" target="_blank" rel="noopener">GitHub</a>
+          <span>MIT License</span>
+        </div>
       </div>
     </footer>
   </body>

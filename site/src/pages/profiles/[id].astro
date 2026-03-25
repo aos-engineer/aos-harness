@@ -14,151 +14,153 @@ const { profile } = Astro.props;
 const agents = loadAllAgents();
 const agentMap = new Map(agents.map(a => [a.id, a]));
 const workflow = profile.workflow ? loadWorkflow(profile.workflow) : null;
+const isExecution = profile.type === 'execution';
 ---
 
 <Base title={profile.name} description={profile.description}>
-  <div class="px-6 py-12">
-    <div class="mx-auto max-w-4xl">
-      <div class="text-sm text-[var(--color-text-muted)] mb-6">
-        <a href="/profiles" class="hover:text-white">Profiles</a> &rarr; {profile.name}
+  <div class="px-6 pt-6 pb-20">
+    <div class="mx-auto max-w-[1200px]">
+
+      <!-- Breadcrumb -->
+      <div class="text-[13px] text-[var(--color-text-muted)] mb-8">
+        <a href="/profiles" class="text-[var(--color-signal)] hover:text-[var(--color-signal-hover)]">Profiles</a>
+        <span class="mx-2">&rsaquo;</span>
+        <span>{profile.name}</span>
       </div>
 
-      <div class="flex items-center gap-3 mb-2">
-        <h1 class="text-4xl font-bold text-white">{profile.name}</h1>
-        <span class={`text-xs px-2 py-0.5 rounded ${
-          profile.type === 'execution'
-            ? 'bg-emerald-500/10 text-emerald-400'
-            : 'bg-blue-500/10 text-blue-400'
-        }`}>
-          {profile.type}
-        </span>
+      <!-- Header -->
+      <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-10">
+        <div class="max-w-[720px]">
+          <h1 class="text-5xl font-extrabold tracking-tight text-[var(--color-text)]">{profile.name}</h1>
+          <p class="text-[17px] text-[var(--color-text-secondary)] leading-relaxed mt-3">{profile.description}</p>
+        </div>
+        <div class="flex flex-col gap-2 items-start md:items-end flex-shrink-0">
+          <span class={`badge ${isExecution ? 'badge-execution' : 'badge-deliberation'}`}>{profile.type}</span>
+          <span class="badge" style="background: rgba(0,0,0,0.05); color: var(--color-text-muted);">{profile.output.format}</span>
+        </div>
       </div>
-      <p class="text-lg text-[var(--color-text-muted)] mb-2">{profile.description}</p>
-      <p class="text-sm text-[var(--color-text-muted)] mb-8">Output format: <span class="text-white">{profile.output.format}</span></p>
 
       <!-- Assembly -->
-      <section class="mb-10">
-        <h2 class="text-2xl font-bold text-white mb-4">Assembly</h2>
-        <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden">
-          <!-- Orchestrator -->
-          <div class="p-4 border-b border-[var(--color-border)] bg-[var(--color-orchestrator)]/5">
-            <div class="flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-[var(--color-orchestrator)]"></span>
-              <span class="font-semibold text-white">
-                <a href={`/agents/${profile.assembly.orchestrator}`} class="hover:text-[var(--color-accent)]">
-                  {agentMap.get(profile.assembly.orchestrator)?.name ?? profile.assembly.orchestrator}
-                </a>
-              </span>
-              <span class="text-xs text-[var(--color-orchestrator)]">Orchestrator</span>
-            </div>
-          </div>
+      <section class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 mb-4">
+        <h2 class="text-xl font-bold text-[var(--color-text)] mb-5">Assembly</h2>
 
-          <!-- Perspectives -->
+        <!-- Orchestrator -->
+        <div class="bg-[var(--color-bg)] rounded-lg px-4 py-3.5 mb-4 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <span class="dot" style="background: var(--color-orchestrator); width: 6px; height: 6px;"></span>
+            <a href={`/agents/${profile.assembly.orchestrator}`} class="text-[15px] font-semibold text-[var(--color-text)] hover:text-[var(--color-signal)] no-underline">
+              {agentMap.get(profile.assembly.orchestrator)?.name ?? profile.assembly.orchestrator}
+            </a>
+          </div>
+          <span class="text-[11px] font-medium text-[var(--color-orchestrator)] uppercase tracking-wider">Orchestrator</span>
+        </div>
+
+        <!-- Perspectives -->
+        <div class="flex flex-col gap-2">
           {profile.assembly.perspectives.map(p => {
             const agent = agentMap.get(p.agent);
             return (
-              <div class="p-4 border-b border-[var(--color-border)] last:border-b-0">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-[var(--color-perspective)]"></span>
-                    <a href={`/agents/${p.agent}`} class="font-medium text-white hover:text-[var(--color-accent)]">
-                      {agent?.name ?? p.agent}
-                    </a>
-                    {p.structural_advantage && (
-                      <span class="text-xs px-2 py-0.5 rounded bg-[var(--color-warning)]/10 text-[var(--color-warning)]">
-                        {p.structural_advantage}
-                      </span>
-                    )}
-                  </div>
-                  <div class="flex items-center gap-3">
-                    <span class="text-xs text-[var(--color-text-muted)]">
-                      {agent?.cognition.core_bias}
-                    </span>
-                    <span class={`text-xs px-2 py-0.5 rounded ${p.required ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]' : 'bg-[var(--color-bg)] text-[var(--color-text-muted)]'}`}>
-                      {p.required ? 'required' : 'optional'}
-                    </span>
-                  </div>
+              <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-4 py-3 flex items-center justify-between">
+                <div class="flex items-center gap-3 flex-1 min-w-0">
+                  <a href={`/agents/${p.agent}`} class="text-sm font-semibold text-[var(--color-signal)] hover:text-[var(--color-signal-hover)] no-underline flex-shrink-0">
+                    {agent?.name ?? p.agent}
+                  </a>
+                  {p.role_override && (
+                    <span class="text-[13px] text-[var(--color-text-muted)] italic truncate">"{p.role_override}"</span>
+                  )}
                 </div>
-                {p.role_override && (
-                  <p class="text-xs text-[var(--color-text-muted)] mt-1 italic ml-4">
-                    "{p.role_override}"
-                  </p>
-                )}
+                <span class={`badge flex-shrink-0 ml-3 ${p.required ? 'badge-required' : 'badge-optional'}`}>
+                  {p.required ? 'required' : 'optional'}
+                </span>
               </div>
             );
           })}
         </div>
       </section>
 
-      <!-- Workflow (execution profiles only) -->
+      <!-- Execution Workflow -->
       {workflow && (
-        <section class="mb-10">
-          <h2 class="text-2xl font-bold text-white mb-4">Execution Workflow</h2>
-          <p class="text-sm text-[var(--color-text-muted)] mb-4">{workflow.description}</p>
-          <div class="space-y-2">
-            {workflow.steps.map((step: any, i: number) => (
-              <div class="flex items-center gap-3 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-3">
-                <span class="text-sm font-bold text-[var(--color-accent)] w-6">{i + 1}</span>
-                <div class="flex-1">
-                  <span class="font-medium text-white">{step.name ?? step.id}</span>
-                  {step.agents && (
-                    <span class="text-xs text-[var(--color-text-muted)] ml-2">
-                      ({step.agents.join(', ')})
-                    </span>
-                  )}
-                </div>
-                <span class="text-xs px-2 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-muted)]">
-                  {step.action}
-                </span>
-                {step.review_gate && (
-                  <span class="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-400">
-                    review gate
-                  </span>
-                )}
-              </div>
-            ))}
+        <section class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 mb-4">
+          <h2 class="text-xl font-bold text-[var(--color-text)]">Execution Workflow</h2>
+          <p class="text-[13px] text-[var(--color-text-muted)] mt-1 mb-6">
+            {workflow.steps?.length ?? 0} steps from feature request to engineering handoff
+          </p>
+
+          <div class="relative pl-8">
+            <!-- Timeline line -->
+            <div class="absolute left-[9px] top-3 bottom-3 w-0.5 bg-[var(--color-border)]"></div>
+
+            <div class="flex flex-col gap-4">
+              {workflow.steps?.map((step: any, i: number) => {
+                const actionColors = {
+                  'targeted-delegation': 'badge-deliberation',
+                  'tension-pair': 'badge-orchestrator',
+                  'orchestrator-synthesis': 'badge-execution',
+                } as any;
+                const badgeClass = actionColors[step.action] ?? 'badge-optional';
+
+                return (
+                  <div class="relative">
+                    <div class="absolute -left-8 top-0.5 w-5 h-5 rounded-full bg-[var(--color-surface)] border-2 border-[var(--color-border)] flex items-center justify-center text-[11px] font-semibold text-[var(--color-text-muted)]">
+                      {i + 1}
+                    </div>
+                    <div>
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-[15px] font-semibold text-[var(--color-text)]">{step.name ?? step.id}</span>
+                        <span class={`badge ${badgeClass}`}>{step.action}</span>
+                      </div>
+                      {step.agents && (
+                        <p class="text-[13px] text-[var(--color-text-muted)] mt-1">{step.agents.join(', ')}</p>
+                      )}
+                      {step.review_gate && (
+                        <p class="text-xs font-medium text-[var(--color-success)] mt-1.5">&#10003; User review gate</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </section>
       )}
 
       <!-- Constraints -->
-      <section class="mb-10">
-        <h2 class="text-2xl font-bold text-white mb-4">Constraints</h2>
+      <section class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 mb-4">
+        <h2 class="text-xl font-bold text-[var(--color-text)] mb-5">Constraints</h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4">
-            <h3 class="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Time</h3>
-            <p class="text-2xl font-bold text-white">{profile.constraints.time.min_minutes}-{profile.constraints.time.max_minutes}</p>
-            <p class="text-sm text-[var(--color-text-muted)]">minutes</p>
+          <div class="bg-[var(--color-bg)] rounded-lg p-5">
+            <p class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wider">Time</p>
+            <p class="text-[22px] font-bold text-[var(--color-text)] mt-2">{profile.constraints.time.min_minutes}&ndash;{profile.constraints.time.max_minutes} min</p>
           </div>
-          {profile.constraints.budget && (
-            <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4">
-              <h3 class="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Budget</h3>
-              <p class="text-2xl font-bold text-white">${profile.constraints.budget.min}-${profile.constraints.budget.max}</p>
-              <p class="text-sm text-[var(--color-text-muted)]">{profile.constraints.budget.currency}</p>
-            </div>
-          )}
-          <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4">
-            <h3 class="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Rounds</h3>
-            <p class="text-2xl font-bold text-white">{profile.constraints.rounds.min}-{profile.constraints.rounds.max}</p>
-            <p class="text-sm text-[var(--color-text-muted)]">exchanges</p>
+          <div class="bg-[var(--color-bg)] rounded-lg p-5">
+            <p class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wider">Budget</p>
+            {profile.constraints.budget ? (
+              <p class="text-[22px] font-bold text-[var(--color-text)] mt-2">${profile.constraints.budget.min}&ndash;${profile.constraints.budget.max}</p>
+            ) : (
+              <p class="text-[22px] font-bold text-[var(--color-text)] mt-2">No limit</p>
+            )}
+          </div>
+          <div class="bg-[var(--color-bg)] rounded-lg p-5">
+            <p class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wider">Rounds</p>
+            <p class="text-[22px] font-bold text-[var(--color-text)] mt-2">{profile.constraints.rounds.min}&ndash;{profile.constraints.rounds.max}</p>
           </div>
         </div>
       </section>
 
       <!-- Tension Pairs -->
       {profile.delegation.tension_pairs.length > 0 && (
-        <section class="mb-10">
-          <h2 class="text-2xl font-bold text-white mb-4">Tension Pairs</h2>
-          <div class="space-y-3">
+        <section class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 mb-4">
+          <h2 class="text-xl font-bold text-[var(--color-text)] mb-5">Tension Pairs</h2>
+          <div class="flex flex-col gap-2">
             {profile.delegation.tension_pairs.map(([a, b]) => {
               const agentA = agentMap.get(a);
               const agentB = agentMap.get(b);
               return (
-                <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4 flex items-center gap-4">
-                  <a href={`/agents/${a}`} class="font-medium text-white hover:text-[var(--color-accent)]">{agentA?.name ?? a}</a>
-                  <span class="text-[var(--color-accent)]">&harr;</span>
-                  <a href={`/agents/${b}`} class="font-medium text-white hover:text-[var(--color-accent)]">{agentB?.name ?? b}</a>
-                  <span class="text-xs text-[var(--color-text-muted)] ml-auto">
+                <div class="bg-[var(--color-bg)] rounded-lg px-4 py-3.5 flex items-center gap-3">
+                  <a href={`/agents/${a}`} class="text-sm font-semibold text-[var(--color-signal)] hover:text-[var(--color-signal-hover)] no-underline">{agentA?.name ?? a}</a>
+                  <span class="text-[var(--color-text-muted)]">&harr;</span>
+                  <a href={`/agents/${b}`} class="text-sm font-semibold text-[var(--color-signal)] hover:text-[var(--color-signal-hover)] no-underline">{agentB?.name ?? b}</a>
+                  <span class="text-[13px] text-[var(--color-text-secondary)] ml-auto">
                     {agentA?.cognition.core_bias} vs {agentB?.cognition.core_bias}
                   </span>
                 </div>
@@ -169,21 +171,20 @@ const workflow = profile.workflow ? loadWorkflow(profile.workflow) : null;
       )}
 
       <!-- Delegation Rules -->
-      <section class="mb-10">
-        <h2 class="text-2xl font-bold text-white mb-4">Delegation Rules</h2>
-        <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4">
-          <dl class="grid grid-cols-2 gap-4">
-            <div>
-              <dt class="text-xs text-[var(--color-text-muted)] uppercase tracking-wider">Bias Limit</dt>
-              <dd class="text-white">{profile.delegation.bias_limit}x max ratio</dd>
-            </div>
-            <div>
-              <dt class="text-xs text-[var(--color-text-muted)] uppercase tracking-wider">Opening Rounds</dt>
-              <dd class="text-white">{profile.delegation.opening_rounds} (forced broadcast)</dd>
-            </div>
-          </dl>
+      <section class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6">
+        <h2 class="text-xl font-bold text-[var(--color-text)] mb-5">Delegation Rules</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <p class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wider">Bias Limit</p>
+            <p class="text-[15px] font-semibold text-[var(--color-text)] mt-1.5">{profile.delegation.bias_limit}x max ratio</p>
+          </div>
+          <div>
+            <p class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wider">Opening Rounds</p>
+            <p class="text-[15px] font-semibold text-[var(--color-text)] mt-1.5">{profile.delegation.opening_rounds} (forced broadcast)</p>
+          </div>
         </div>
       </section>
+
     </div>
   </div>
 </Base>
