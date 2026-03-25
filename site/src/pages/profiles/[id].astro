@@ -1,6 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { loadAllProfiles, loadAllAgents } from '../../lib/content';
+import { loadAllProfiles, loadAllAgents, loadWorkflow } from '../../lib/content';
 
 export function getStaticPaths() {
   const profiles = loadAllProfiles();
@@ -13,6 +13,7 @@ export function getStaticPaths() {
 const { profile } = Astro.props;
 const agents = loadAllAgents();
 const agentMap = new Map(agents.map(a => [a.id, a]));
+const workflow = profile.workflow ? loadWorkflow(profile.workflow) : null;
 ---
 
 <Base title={profile.name} description={profile.description}>
@@ -22,8 +23,18 @@ const agentMap = new Map(agents.map(a => [a.id, a]));
         <a href="/profiles" class="hover:text-white">Profiles</a> &rarr; {profile.name}
       </div>
 
-      <h1 class="text-4xl font-bold text-white mb-2">{profile.name}</h1>
-      <p class="text-lg text-[var(--color-text-muted)] mb-8">{profile.description}</p>
+      <div class="flex items-center gap-3 mb-2">
+        <h1 class="text-4xl font-bold text-white">{profile.name}</h1>
+        <span class={`text-xs px-2 py-0.5 rounded ${
+          profile.type === 'execution'
+            ? 'bg-emerald-500/10 text-emerald-400'
+            : 'bg-blue-500/10 text-blue-400'
+        }`}>
+          {profile.type}
+        </span>
+      </div>
+      <p class="text-lg text-[var(--color-text-muted)] mb-2">{profile.description}</p>
+      <p class="text-sm text-[var(--color-text-muted)] mb-8">Output format: <span class="text-white">{profile.output.format}</span></p>
 
       <!-- Assembly -->
       <section class="mb-10">
@@ -46,31 +57,69 @@ const agentMap = new Map(agents.map(a => [a.id, a]));
           {profile.assembly.perspectives.map(p => {
             const agent = agentMap.get(p.agent);
             return (
-              <div class="p-4 border-b border-[var(--color-border)] last:border-b-0 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span class="w-2 h-2 rounded-full bg-[var(--color-perspective)]"></span>
-                  <a href={`/agents/${p.agent}`} class="font-medium text-white hover:text-[var(--color-accent)]">
-                    {agent?.name ?? p.agent}
-                  </a>
-                  {p.structural_advantage && (
-                    <span class="text-xs px-2 py-0.5 rounded bg-[var(--color-warning)]/10 text-[var(--color-warning)]">
-                      {p.structural_advantage}
+              <div class="p-4 border-b border-[var(--color-border)] last:border-b-0">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-[var(--color-perspective)]"></span>
+                    <a href={`/agents/${p.agent}`} class="font-medium text-white hover:text-[var(--color-accent)]">
+                      {agent?.name ?? p.agent}
+                    </a>
+                    {p.structural_advantage && (
+                      <span class="text-xs px-2 py-0.5 rounded bg-[var(--color-warning)]/10 text-[var(--color-warning)]">
+                        {p.structural_advantage}
+                      </span>
+                    )}
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span class="text-xs text-[var(--color-text-muted)]">
+                      {agent?.cognition.core_bias}
                     </span>
-                  )}
+                    <span class={`text-xs px-2 py-0.5 rounded ${p.required ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]' : 'bg-[var(--color-bg)] text-[var(--color-text-muted)]'}`}>
+                      {p.required ? 'required' : 'optional'}
+                    </span>
+                  </div>
                 </div>
-                <div class="flex items-center gap-3">
-                  <span class="text-xs text-[var(--color-text-muted)]">
-                    {agent?.cognition.core_bias}
-                  </span>
-                  <span class={`text-xs px-2 py-0.5 rounded ${p.required ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]' : 'bg-[var(--color-bg)] text-[var(--color-text-muted)]'}`}>
-                    {p.required ? 'required' : 'optional'}
-                  </span>
-                </div>
+                {p.role_override && (
+                  <p class="text-xs text-[var(--color-text-muted)] mt-1 italic ml-4">
+                    "{p.role_override}"
+                  </p>
+                )}
               </div>
             );
           })}
         </div>
       </section>
+
+      <!-- Workflow (execution profiles only) -->
+      {workflow && (
+        <section class="mb-10">
+          <h2 class="text-2xl font-bold text-white mb-4">Execution Workflow</h2>
+          <p class="text-sm text-[var(--color-text-muted)] mb-4">{workflow.description}</p>
+          <div class="space-y-2">
+            {workflow.steps.map((step: any, i: number) => (
+              <div class="flex items-center gap-3 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-3">
+                <span class="text-sm font-bold text-[var(--color-accent)] w-6">{i + 1}</span>
+                <div class="flex-1">
+                  <span class="font-medium text-white">{step.name ?? step.id}</span>
+                  {step.agents && (
+                    <span class="text-xs text-[var(--color-text-muted)] ml-2">
+                      ({step.agents.join(', ')})
+                    </span>
+                  )}
+                </div>
+                <span class="text-xs px-2 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-muted)]">
+                  {step.action}
+                </span>
+                {step.review_gate && (
+                  <span class="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-400">
+                    review gate
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <!-- Constraints -->
       <section class="mb-10">

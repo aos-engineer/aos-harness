@@ -23,7 +23,16 @@ const agentMap = new Map(agents.map(a => [a.id, a]));
 
           return (
             <a href={`/profiles/${profile.id}`} class="block bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-6 hover:border-[var(--color-accent)] transition-colors group">
-              <h2 class="text-xl font-bold text-white group-hover:text-[var(--color-accent)] transition-colors mb-2">{profile.name}</h2>
+              <div class="flex items-center gap-2 mb-2">
+                <h2 class="text-xl font-bold text-white group-hover:text-[var(--color-accent)] transition-colors">{profile.name}</h2>
+                <span class={`text-xs px-2 py-0.5 rounded ${
+                  profile.type === 'execution'
+                    ? 'bg-emerald-500/10 text-emerald-400'
+                    : 'bg-blue-500/10 text-blue-400'
+                }`}>
+                  {profile.type}
+                </span>
+              </div>
               <p class="text-sm text-[var(--color-text-muted)] mb-4 line-clamp-2">{profile.description}</p>
 
               <div class="flex flex-wrap gap-4 text-xs text-[var(--color-text-muted)] mb-4">
@@ -51,6 +60,7 @@ const agentMap = new Map(agents.map(a => [a.id, a]));
                   <span>${profile.constraints.budget.min}-${profile.constraints.budget.max}</span>
                 )}
                 <span>Bias limit: {profile.delegation.bias_limit}x</span>
+                <span class="ml-auto">Output: {profile.output.format}</span>
               </div>
             </a>
           );

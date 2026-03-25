@@ -1,10 +1,11 @@
 ---
 import Base from '../layouts/Base.astro';
-import { loadAllAgents, loadAllProfiles, loadAllDomains } from '../lib/content';
+import { loadAllAgents, loadAllProfiles, loadAllDomains, loadAllSkills } from '../lib/content';
 
 const agents = loadAllAgents();
 const profiles = loadAllProfiles();
 const domains = loadAllDomains();
+const skills = loadAllSkills();
 ---
 
 <Base title="AOS Framework">
@@ -16,9 +17,9 @@ const domains = loadAllDomains();
         <span class="text-[var(--color-accent)]">your best advisors</span>
       </h1>
       <p class="mt-6 text-xl text-[var(--color-text-muted)] max-w-2xl mx-auto">
-        AOS Framework is a config-driven orchestration system for multi-agent deliberation.
-        Define cognitive biases, assemble advisory councils, and get structured recommendations
-        with documented dissent.
+        AOS Framework is a config-driven orchestration system for multi-agent AI workflows.
+        Assemble advisory councils for strategic deliberation, or orchestrate execution teams
+        that produce architecture, task breakdowns, and implementation plans.
       </p>
       <div class="mt-10 flex gap-4 justify-center">
         <a href="/docs/getting-started" class="bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white px-6 py-3 rounded-lg font-medium transition-colors">
@@ -34,7 +35,8 @@ const domains = loadAllDomains();
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4">
           <p class="text-xs text-[var(--color-text-muted)] mb-2">Get started in 60 seconds</p>
           <pre class="!bg-transparent !border-0 !p-0 text-sm"><code><span class="text-[var(--color-success)]">$</span> bunx @aos-framework/cli init --adapter pi
-<span class="text-[var(--color-success)]">$</span> aos run strategic-council --brief your-decision.md</code></pre>
+<span class="text-[var(--color-success)]">$</span> aos run strategic-council --brief your-decision.md
+<span class="text-[var(--color-success)]">$</span> aos run cto-execution --brief your-feature.md</code></pre>
         </div>
       </div>
     </div>
@@ -42,7 +44,7 @@ const domains = loadAllDomains();
 
   <!-- Stats -->
   <section class="px-6 py-16 border-t border-[var(--color-border)]">
-    <div class="mx-auto max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-8">
+    <div class="mx-auto max-w-6xl grid grid-cols-1 md:grid-cols-4 gap-8">
       <div class="text-center">
         <div class="text-4xl font-bold text-white">{agents.length}</div>
         <div class="mt-2 text-[var(--color-text-muted)]">Cognitive Agents</div>
@@ -54,7 +56,14 @@ const domains = loadAllDomains();
         <div class="text-4xl font-bold text-white">{profiles.length}</div>
         <div class="mt-2 text-[var(--color-text-muted)]">Orchestration Profiles</div>
         <p class="mt-1 text-sm text-[var(--color-text-muted)]">
-          Pre-configured councils for strategy, security, delivery, and more
+          Deliberation councils and execution teams
+        </p>
+      </div>
+      <div class="text-center">
+        <div class="text-4xl font-bold text-white">{skills.length}</div>
+        <div class="mt-2 text-[var(--color-text-muted)]">Skills</div>
+        <p class="mt-1 text-sm text-[var(--color-text-muted)]">
+          Reusable capabilities like code review, security scan, and task breakdown
         </p>
       </div>
       <div class="text-center">
@@ -71,7 +80,10 @@ const domains = loadAllDomains();
   <section class="px-6 py-16 border-t border-[var(--color-border)]">
     <div class="mx-auto max-w-6xl">
       <h2 class="text-3xl font-bold text-white text-center mb-12">How It Works</h2>
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+
+      <!-- Deliberation Flow -->
+      <h3 class="text-lg font-semibold text-blue-400 mb-4">Deliberation Mode</h3>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-6">
           <div class="text-2xl font-bold text-[var(--color-accent)] mb-2">1</div>
           <h3 class="text-lg font-semibold text-white mb-2">Write a Brief</h3>
@@ -81,9 +93,9 @@ const domains = loadAllDomains();
         </div>
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-6">
           <div class="text-2xl font-bold text-[var(--color-accent)] mb-2">2</div>
-          <h3 class="text-lg font-semibold text-white mb-2">Choose a Profile</h3>
+          <h3 class="text-lg font-semibold text-white mb-2">Choose a Council</h3>
           <p class="text-sm text-[var(--color-text-muted)]">
-            Select a council configuration. Each profile defines which agents participate and how they interact.
+            Select a deliberation profile. Each defines which agents participate and how they interact.
           </p>
         </div>
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-6">
@@ -98,6 +110,39 @@ const domains = loadAllDomains();
           <h3 class="text-lg font-semibold text-white mb-2">Get a Memo</h3>
           <p class="text-sm text-[var(--color-text-muted)]">
             Receive ranked recommendations with documented dissent, trade-offs, and next actions.
+          </p>
+        </div>
+      </div>
+
+      <!-- Execution Flow -->
+      <h3 class="text-lg font-semibold text-emerald-400 mb-4">Execution Mode</h3>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-6">
+          <div class="text-2xl font-bold text-emerald-400 mb-2">1</div>
+          <h3 class="text-lg font-semibold text-white mb-2">Submit a Feature</h3>
+          <p class="text-sm text-[var(--color-text-muted)]">
+            Describe your feature, product change, or initiative with context and success criteria.
+          </p>
+        </div>
+        <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-6">
+          <div class="text-2xl font-bold text-emerald-400 mb-2">2</div>
+          <h3 class="text-lg font-semibold text-white mb-2">Workflow Executes</h3>
+          <p class="text-sm text-[var(--color-text-muted)]">
+            The CTO orchestrator delegates to agents in sequence: requirements, architecture, planning, tasks.
+          </p>
+        </div>
+        <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-6">
+          <div class="text-2xl font-bold text-emerald-400 mb-2">3</div>
+          <h3 class="text-lg font-semibold text-white mb-2">Review Gates</h3>
+          <p class="text-sm text-[var(--color-text-muted)]">
+            Approve or redirect at key checkpoints. Each phase produces artifacts that feed the next.
+          </p>
+        </div>
+        <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-6">
+          <div class="text-2xl font-bold text-emerald-400 mb-2">4</div>
+          <h3 class="text-lg font-semibold text-white mb-2">Execution Package</h3>
+          <p class="text-sm text-[var(--color-text-muted)]">
+            Get architecture docs, phase plans, task breakdowns, and risk assessments ready for handoff.
           </p>
         </div>
       </div>
@@ -157,9 +202,10 @@ const domains = loadAllDomains();
   <!-- CTA -->
   <section class="px-6 py-20 text-center">
     <div class="mx-auto max-w-2xl">
-      <h2 class="text-3xl font-bold text-white mb-4">Ready to build your advisory council?</h2>
+      <h2 class="text-3xl font-bold text-white mb-4">Ready to orchestrate your AI team?</h2>
       <p class="text-[var(--color-text-muted)] mb-8">
-        Start with the built-in Strategic Council, or create your own agents and profiles.
+        Start with the built-in Strategic Council for deliberation,
+        or the CTO Execution Profile for production planning.
       </p>
       <a href="/docs/getting-started" class="bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white px-8 py-3 rounded-lg font-medium transition-colors inline-block">
         Get Started

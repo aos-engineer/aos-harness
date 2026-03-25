@@ -32,6 +32,12 @@ export interface AgentData {
   tensions: { agent: string; dynamic: string }[];
   model: { tier: string; thinking: string };
   promptExcerpt: string;
+  capabilities?: {
+    can_execute_code: boolean;
+    can_produce_files: boolean;
+    can_review_artifacts: boolean;
+    output_types: string[];
+  };
 }
 
 export interface ProfileData {
@@ -40,7 +46,7 @@ export interface ProfileData {
   description: string;
   assembly: {
     orchestrator: string;
-    perspectives: { agent: string; required: boolean; structural_advantage?: string }[];
+    perspectives: { agent: string; required: boolean; structural_advantage?: string; role_override?: string }[];
   };
   constraints: {
     time: { min_minutes: number; max_minutes: number };
@@ -52,6 +58,9 @@ export interface ProfileData {
     bias_limit: number;
     opening_rounds: number;
   };
+  workflow?: string | null;
+  type: 'deliberation' | 'execution';
+  output: { format: string; sections?: string[] };
 }
 
 export interface DomainData {
@@ -105,6 +114,7 @@ export function loadAllAgents(): AgentData[] {
         tensions: data.tensions ?? [],
         model: data.model,
         promptExcerpt,
+        capabilities: data.capabilities,
       });
     }
   }
@@ -130,9 +140,49 @@ export function loadAllProfiles(): ProfileData[] {
         assembly: data.assembly,
         constraints: data.constraints,
         delegation: data.delegation,
+        workflow: data.workflow ?? null,
+        type: data.workflow ? 'execution' as const : 'deliberation' as const,
+        output: data.output ?? { format: 'memo' },
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export interface SkillData {
+  id: string;
+  name: string;
+  description: string;
+  input: { required?: any[]; optional?: any[] };
+  output: { artifacts?: any[]; structured_result?: boolean };
+  compatible_agents: string[];
+}
+
+export function loadAllSkills(): SkillData[] {
+  const skillsDir = join(CORE_DIR, 'skills');
+  if (!existsSync(skillsDir)) return [];
+
+  return readdirSync(skillsDir)
+    .filter(name => existsSync(join(skillsDir, name, 'skill.yaml')))
+    .map(name => {
+      const data = loadYaml<any>(join(skillsDir, name, 'skill.yaml'));
+      return {
+        id: data.id ?? name,
+        name: data.name ?? name,
+        description: data.description ?? '',
+        input: data.input ?? {},
+        output: data.output ?? {},
+        compatible_agents: data.compatible_agents ?? [],
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function loadWorkflow(workflowId: string): any {
+  const yamlPath = join(CORE_DIR, 'workflows', `${workflowId}.workflow.yaml`);
+  if (existsSync(yamlPath)) return loadYaml(yamlPath);
+  const dirPath = join(CORE_DIR, 'workflows', workflowId, 'workflow.yaml');
+  if (existsSync(dirPath)) return loadYaml(dirPath);
+  return null;
 }
 
 export function loadAllDomains(): DomainData[] {
