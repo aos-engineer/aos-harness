@@ -6,14 +6,7 @@ services:
       context: .
       dockerfile: site/Dockerfile
     image: novashock/aos-framework-site:latest
-    ports:
-      - "80:80"
     restart: unless-stopped
-    labels:
-      # Dokploy labels (adjust as needed for your Dokploy setup)
-      - "dokploy.enabled=true"
-      - "dokploy.domain=framework.aos.engineer"
-      - "dokploy.port=80"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
       interval: 30s
