@@ -35,6 +35,7 @@ export interface EngineOpts {
   domain?: string;
   domainDir?: string;
   workflowsDir?: string;
+  onTranscriptEvent?: (entry: TranscriptEntry) => void | Promise<void>;
 }
 
 export class AOSEngine {
@@ -53,10 +54,12 @@ export class AOSEngine {
   private workflowMode: boolean = false;
   private workflowConfig: WorkflowConfig | null = null;
   private workflowsDir: string | null = null;
+  private onTranscriptEvent?: (entry: TranscriptEntry) => void | Promise<void>;
 
   constructor(adapter: AOSAdapter, profilePath: string, opts: EngineOpts) {
     this.adapter = adapter;
     this.sessionId = this.generateSessionId();
+    this.onTranscriptEvent = opts.onTranscriptEvent;
 
     // Load profile
     this.profile = loadProfile(profilePath);
@@ -126,7 +129,7 @@ export class AOSEngine {
 
     this.startTime = Date.now();
 
-    this.transcript.push({
+    this.pushTranscript({
       type: "session_start",
       timestamp: new Date(this.startTime).toISOString(),
       session_id: this.sessionId,
@@ -271,7 +274,7 @@ export class AOSEngine {
       });
       if (requiredOnly.length < routing.parallel.length) {
         routing.parallel = requiredOnly;
-        this.transcript.push({
+        this.pushTranscript({
           type: "budget_estimate",
           timestamp: new Date().toISOString(),
           round: this.roundNumber,
@@ -294,7 +297,7 @@ export class AOSEngine {
         const handle = await this.adapter.spawnAgent(config, this.sessionId);
         this.handles.set(agentId, handle);
 
-        this.transcript.push({
+        this.pushTranscript({
           type: "agent_spawn",
           timestamp: new Date().toISOString(),
           agentId,
@@ -303,7 +306,7 @@ export class AOSEngine {
     }
 
     // Record delegation in transcript
-    this.transcript.push({
+    this.pushTranscript({
       type: "delegation",
       timestamp: new Date().toISOString(),
       round: this.roundNumber,
@@ -329,7 +332,7 @@ export class AOSEngine {
 
         // Handle agent failure per error_handling config
         if (resp.status === "failed") {
-          this.transcript.push({
+          this.pushTranscript({
             type: "error",
             timestamp: new Date().toISOString(),
             agentId: routing.parallel[i],
@@ -347,7 +350,7 @@ export class AOSEngine {
         }
 
         responses.push(resp);
-        this.transcript.push({
+        this.pushTranscript({
           type: "response",
           timestamp: new Date().toISOString(),
           agentId: routing.parallel[i],
@@ -366,7 +369,7 @@ export class AOSEngine {
 
       // Handle agent failure per error_handling config
       if (response.status === "failed") {
-        this.transcript.push({
+        this.pushTranscript({
           type: "error",
           timestamp: new Date().toISOString(),
           agentId,
@@ -384,7 +387,7 @@ export class AOSEngine {
       }
 
       responses.push(response);
-      this.transcript.push({
+      this.pushTranscript({
         type: "response",
         timestamp: new Date().toISOString(),
         agentId,
@@ -414,7 +417,7 @@ export class AOSEngine {
 
     // Emit constraint_check after every round (spec Section 6.10)
     const constraintState = this.constraintEngine.getState();
-    this.transcript.push({
+    this.pushTranscript({
       type: "constraint_check",
       timestamp: new Date().toISOString(),
       round: this.roundNumber,
@@ -423,7 +426,7 @@ export class AOSEngine {
 
     // Emit constraint_warning when approaching maximums (80%+)
     if (constraintState.approaching_any_maximum) {
-      this.transcript.push({
+      this.pushTranscript({
         type: "constraint_warning",
         timestamp: new Date().toISOString(),
         round: this.roundNumber,
@@ -445,7 +448,7 @@ export class AOSEngine {
     }
 
     // Emit end_session before the final broadcast (spec Section 6.10)
-    this.transcript.push({
+    this.pushTranscript({
       type: "end_session",
       timestamp: new Date().toISOString(),
       sessionId: this.sessionId,
@@ -466,7 +469,7 @@ export class AOSEngine {
       }
     }
 
-    this.transcript.push({
+    this.pushTranscript({
       type: "session_end",
       timestamp: new Date().toISOString(),
       sessionId: this.sessionId,
@@ -500,7 +503,7 @@ export class AOSEngine {
           }
           const handle = await this.adapter.spawnAgent(config, this.sessionId);
           this.handles.set(orchestratorId, handle);
-          this.transcript.push({
+          this.pushTranscript({
             type: "agent_spawn",
             timestamp: new Date().toISOString(),
             agentId: orchestratorId,
@@ -508,7 +511,7 @@ export class AOSEngine {
         }
         const handle = this.handles.get(orchestratorId)!;
         const response = await this.adapter.sendMessage(handle, message);
-        this.transcript.push({
+        this.pushTranscript({
           type: "response",
           timestamp: new Date().toISOString(),
           agentId: orchestratorId,
@@ -546,5 +549,15 @@ export class AOSEngine {
   /** Push an external transcript entry (e.g., steer events from the adapter). */
   pushTranscript(entry: TranscriptEntry): void {
     this.transcript.push(entry);
+    if (this.onTranscriptEvent) {
+      try {
+        const result = this.onTranscriptEvent(entry);
+        if (result instanceof Promise) {
+          result.catch(() => {});
+        }
+      } catch {
+        // Silent failure — platform observability must never block deliberation
+      }
+    }
   }
 }
