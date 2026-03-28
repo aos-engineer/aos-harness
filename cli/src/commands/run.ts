@@ -6,6 +6,42 @@ import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { c, type ParsedArgs } from "../colors";
 import { getFrameworkRoot, discoverDirs, promptSelect } from "../utils";
+import type { TranscriptEntry } from "../../../runtime/src/types";
+
+function createEventBuffer(platformUrl: string, sessionId: string) {
+  const buffer: TranscriptEntry[] = [];
+  const FLUSH_INTERVAL = 500;
+  const BATCH_SIZE = 20;
+  const TIMEOUT_MS = 2000;
+
+  async function flush() {
+    if (buffer.length === 0) return;
+    const batch = buffer.splice(0, BATCH_SIZE);
+    try {
+      await fetch(`${platformUrl}/api/sessions/${sessionId}/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(batch),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch {
+      // Drop silently in Phase 1
+    }
+  }
+
+  const interval = setInterval(flush, FLUSH_INTERVAL);
+
+  return {
+    enqueue(entry: TranscriptEntry) {
+      buffer.push(entry);
+      if (buffer.length >= BATCH_SIZE) flush();
+    },
+    async shutdown() {
+      clearInterval(interval);
+      await flush();
+    },
+  };
+}
 
 const HELP = `
 ${c.bold("aos run")} — Run a deliberation or execution session
@@ -20,6 +56,7 @@ ${c.bold("OPTIONS")}
   --verbose             Stream engine decisions to stderr
   --dry-run             Validate config and print simulation summary without launching
   --workflow-dir <path> Directory containing workflow YAML files (default: core/workflows/)
+  --platform-url <url> Platform API URL for live observability (e.g. http://localhost:3001)
 
 ${c.bold("DESCRIPTION")}
   Launches a deliberation or execution session using the specified profile.
@@ -268,6 +305,7 @@ ${c.bold(`AOS ${sessionType} Session`)}
 `);
 
   // Check for .aos/config.yaml to determine adapter
+  let platformUrl = (args.flags["platform-url"] as string) || null;
   const aosConfigPath = join(process.cwd(), ".aos", "config.yaml");
   let adapter = "pi";
   if (existsSync(aosConfigPath)) {
@@ -275,6 +313,9 @@ ${c.bold(`AOS ${sessionType} Session`)}
     const configText = await Bun.file(aosConfigPath).text();
     const config = yaml.load(configText, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown>;
     adapter = (config.adapter as string) || "pi";
+    if (!platformUrl && config?.platform && (config.platform as Record<string, unknown>)?.enabled && (config.platform as Record<string, unknown>)?.url) {
+      platformUrl = (config.platform as Record<string, unknown>).url as string;
+    }
   }
 
   const adapterDir = join(root, "adapters", adapter === "claude-code" ? "claude-code" : adapter);
@@ -305,6 +346,9 @@ ${c.bold(`AOS ${sessionType} Session`)}
     }
     if (args.flags.verbose) {
       env.AOS_VERBOSE = "1";
+    }
+    if (platformUrl) {
+      env.AOS_PLATFORM_URL = platformUrl;
     }
     if (isExecutionProfile && workflowConfig) {
       env.AOS_WORKFLOW_ID = workflowConfig.id;
