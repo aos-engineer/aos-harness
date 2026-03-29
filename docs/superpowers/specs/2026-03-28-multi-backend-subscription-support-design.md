@@ -30,7 +30,7 @@ Pi remains the recommended backend. All four are first-class alternatives.
 A single `CLIAgentRuntime` class implements `AgentRuntimeAdapter`. It handles the common subprocess lifecycle shared across all CLI backends:
 
 - Subprocess spawn, stdout/stderr piping, exit code handling
-- Line-by-line stream parsing via provider plugin
+- Output parsing via provider plugin (streaming or batch, see Section 3.2)
 - Retry with exponential/linear backoff
 - Timeout enforcement via AbortController
 - Abort handling (SIGTERM → 5s → SIGKILL)
@@ -47,7 +47,7 @@ Each backend implements this interface:
 interface CLIProviderCapabilities {
   session: "native" | "stateless";
   streaming: boolean;
-  thinking: boolean;
+  thinking: "none" | "basic" | "extended";
   toolUse: boolean;
   contextFiles: boolean;
   systemPrompt: boolean;
@@ -59,7 +59,12 @@ interface CLIProvider {
   binary: string;
   capabilities: CLIProviderCapabilities;
 
-  buildArgs(opts: {
+  // How to construct the CLI invocation.
+  // The runtime calls buildArgs for every sendMessage. If the provider
+  // needs the message delivered via stdin instead of as a positional
+  // argument (see Section 3.4 — Message Delivery), it sets
+  // messageVia: "stdin" in the return value from prepareInvocation.
+  prepareInvocation(opts: {
     message: string;
     systemPrompt?: string;
     sessionFile: string;
@@ -67,11 +72,29 @@ interface CLIProvider {
     thinking: ThinkingMode;
     contextFiles: string[];
     isFirstCall: boolean;
-  }): string[];
+  }): {
+    args: string[];           // CLI arguments (message may or may not be included)
+    messageVia: "arg" | "stdin";  // How the message is delivered
+  };
 
+  // Return the filtered set of environment variables to pass to the
+  // subprocess. The provider is responsible for allowlisting: only
+  // return variables that the CLI needs. The runtime passes this
+  // record as the subprocess env directly — it does NOT merge with
+  // or inherit from process.env. This prevents accidental secret
+  // leakage. See Section 3.5 — Environment Isolation.
   buildEnv(): Record<string, string>;
 
-  parseLine(line: string): CLIEvent | null;
+  // Output parsing. CLIs have two output models:
+  //   - Streaming (Pi): JSON events emitted line by line during execution
+  //   - Batch (Claude Code, Gemini, Codex): a single JSON blob on completion
+  //
+  // The runtime reads stdout line by line. For each line, it calls
+  // parseOutput. The provider returns CLIEvent(s) or null (skip line).
+  // Streaming providers emit text_delta events per line. Batch providers
+  // return null for all lines except the final JSON blob, where they
+  // emit a single message_end event.
+  parseOutput(line: string): CLIEvent | null;
 
   resolveModelId(tier: ModelTier): string;
 
@@ -93,6 +116,33 @@ type CLIEvent =
   | { type: "error"; message: string };
 ```
 
+### 3.4 Message Delivery
+
+Agent messages can be large — a system prompt plus injected context files plus the deliberation message can easily exceed OS argument length limits (128KB–2MB depending on platform). The provider's `prepareInvocation` method declares how the message should be delivered:
+
+- **`messageVia: "arg"`** — Message included as a positional CLI argument. Used when the message is small enough (provider decides the threshold, recommended: 100KB).
+- **`messageVia: "stdin"`** — Message piped to the subprocess's stdin. The `args` array omits the message; the runtime writes it to the process's stdin pipe and closes it. Used when the message exceeds the threshold.
+
+The runtime handles both modes transparently. The provider only needs to set the flag and omit the message from `args` when using stdin. Each provider defines its own threshold and stdin syntax based on what its CLI supports.
+
+### 3.5 Environment Isolation
+
+The `buildEnv()` method returns the **complete** environment for the subprocess. The runtime passes this record directly as the subprocess env — it does not merge with or inherit from `process.env`. This means:
+
+- The provider is responsible for allowlisting: only return variables the CLI needs
+- Variables not explicitly included are not available to the subprocess
+- This prevents accidental leakage of secrets (API keys for other services, credentials, tokens)
+
+Each provider's allowlist is documented in its plugin section (Section 5). The pattern follows the existing Pi adapter's allowlist approach, now formalized as a contract.
+
+### 3.6 Response Content Agnosticism
+
+The engine treats agent response text as opaque content. It does not parse, validate, or expect specific formatting in the `text` field of `AgentResponse`. Responses flow through the delegation router and into transcripts as-is.
+
+This means different model families (Claude via Pi/Claude Code, Gemini, OpenAI via Codex) may produce stylistically different responses. The engine is content-agnostic by design — it routes messages and enforces constraints, not response format. If a profile's orchestrator prompt instructs agents to respond in a specific format (e.g., structured JSON, markdown sections), that formatting depends on the model's ability to follow instructions, not the runtime.
+
+Providers should not attempt to normalize response content across model families. The plugin boundary handles transport and metadata, not semantics.
+
 ## 4. Backend Discovery & Selection
 
 ### 4.1 BackendResolver
@@ -106,7 +156,29 @@ On startup, AOS runs a `BackendResolver` that:
 
 If no CLI is found, AOS exits with a clear error listing what to install.
 
-### 4.2 BackendInfo
+**If multiple CLIs are available and no override is set**, the resolver logs which backend was auto-selected and which alternatives are available:
+
+```
+Backend auto-selected: pi (also available: claude, gemini)
+Use --backend <name> or AOS_BACKEND=<name> to override.
+```
+
+This prevents confusion when a user has multiple CLIs installed and AOS silently picks one that affects billing or capability.
+
+### 4.2 Fallback Chain Rationale
+
+The fallback order `pi` → `claude` → `gemini` → `codex` is based on capability coverage:
+
+| Priority | Backend | Rationale |
+|---|---|---|
+| 1st | Pi | Recommended. Full capability set: native sessions, streaming, thinking, JSON events with usage stats. Most complete AOS integration. |
+| 2nd | Claude Code | Same model family as Pi (Anthropic Claude). Streaming, thinking, tool use, JSON output. Session support via `--resume`/`--continue`. Closest to Pi in behavior. |
+| 3rd | Gemini | Different model family. Capabilities TBD but likely covers core features. |
+| 4th | Codex | Newest CLI, least validated. Different model family (OpenAI). |
+
+The ordering prioritizes: (1) capability completeness, (2) model family familiarity with AOS prompts, (3) maturity of integration.
+
+### 4.3 BackendInfo
 
 ```typescript
 interface BackendInfo {
@@ -117,7 +189,7 @@ interface BackendInfo {
 }
 ```
 
-### 4.3 Override Behavior
+### 4.4 Override Behavior
 
 - `--backend <name>` or `AOS_BACKEND=<name>` → validate that CLI exists, error if not
 - No override → run fallback chain, pick first available
@@ -137,7 +209,7 @@ interface BackendInfo {
   - `economy` → `anthropic/claude-haiku-4-5`
   - `standard` → `anthropic/claude-sonnet-4-6`
   - `premium` → `anthropic/claude-opus-4-6`
-- **Capabilities:** All supported (session, streaming, thinking, toolUse, contextFiles, systemPrompt, jsonOutput)
+- **Capabilities:** All supported (session: native, streaming: true, thinking: "extended", toolUse: true, contextFiles: true, systemPrompt: true, jsonOutput: true)
 
 ### 5.2 Claude Code Provider
 
@@ -145,13 +217,13 @@ interface BackendInfo {
 - **Session:** Explore native support via `--resume`/`--continue` flags. Fall back to `stateless` if unreliable.
 - **Args:** `--output-format json --model <model> --system-prompt <prompt> -p <message>`
 - **Parsing:** JSON output with `result` and `usage` fields. Token counts available, cost not reported in subscription mode.
-- **Auth:** Always `{ type: "subscription", metered: false }`. Users with API keys should use Pi.
-- **Env allowlist:** Standard system vars only. Claude Code manages auth via `~/.claude/`.
+- **Auth:** `ANTHROPIC_API_KEY` present → `{ type: "api_key", metered: true }` (Claude Code will use the API key and the user will be billed), absent → `{ type: "subscription", metered: false }`. This ensures AOS correctly tracks billing when an API key is active, even through Claude Code.
+- **Env allowlist:** Standard system vars, `ANTHROPIC_API_KEY` (if present). Claude Code also uses its own auth via `~/.claude/` when no API key is set.
 - **Model map:**
   - `economy` → `haiku`
   - `standard` → `sonnet`
   - `premium` → `opus`
-- **Capabilities:** Streaming (yes), thinking (yes), toolUse (yes), contextFiles (yes), systemPrompt (yes), jsonOutput (yes). Session support TBD during implementation.
+- **Capabilities:** session: TBD (explore `--resume`/`--continue`), streaming: true, thinking: "extended", toolUse: true, contextFiles: true, systemPrompt: true, jsonOutput: true.
 
 ### 5.3 Gemini Provider
 
@@ -212,7 +284,7 @@ The runtime does not build its own conversation history management. If a CLI has
 Each provider determines auth mode from its own environment:
 
 - **Pi:** `ANTHROPIC_API_KEY` → metered, else subscription
-- **Claude Code:** Always subscription (manages own auth)
+- **Claude Code:** `ANTHROPIC_API_KEY` → metered, else subscription (Claude Code uses the API key when present)
 - **Gemini:** `GOOGLE_API_KEY` → metered, else subscription
 - **Codex:** `OPENAI_API_KEY` → metered, else subscription
 
@@ -245,8 +317,14 @@ The AOS CLI entry point gains:
 
 After backend selection, the engine compares profile requirements against `provider.capabilities`:
 
-- **Hard requirement mismatch** (e.g., profile mandates `thinking: "extended"`, backend doesn't support it) → Error, refuse to start, suggest Pi
-- **Soft preference mismatch** (e.g., streaming unavailable) → Warning, continue with degraded experience
+- **Hard requirement mismatch** → Error, refuse to start, suggest Pi. Examples:
+  - Profile mandates `thinking: "extended"` but backend declares `thinking: "none"` or `thinking: "basic"`
+  - Profile requires native session support but backend is stateless
+- **Soft preference mismatch** → Warning, continue with degraded experience. Examples:
+  - Streaming unavailable (response delivered at once instead of progressively)
+  - Context file injection unsupported (files inlined into message instead)
+
+The `thinking` capability uses a granular scale (`"none" | "basic" | "extended"`) rather than a boolean. This lets the runtime distinguish between a backend that cannot think at all, one that supports basic chain-of-thought, and one that supports extended/budget-based thinking. A profile requiring `"extended"` will reject a `"basic"` backend.
 
 ### 8.4 Existing Code Impact
 
@@ -299,7 +377,7 @@ CLI returns auth error → provider maps to `CLIEvent { type: "error" }` → run
 
 ### 10.3 CLI Output Format Changes
 
-Only the affected provider's `parseLine` breaks. Plugin boundary contains blast radius to one file.
+Only the affected provider's `parseOutput` breaks. Plugin boundary contains blast radius to one file.
 
 ### 10.4 Error Philosophy
 
@@ -307,23 +385,41 @@ Only the affected provider's `parseLine` breaks. Plugin boundary contains blast 
 - **Fail early** — catch mismatches at startup, not mid-deliberation
 - **Fail narrowly** — plugin boundary contains CLI-specific issues
 
-## 11. Future Considerations
+## 11. Migration Path
 
-### 11.1 Mixed-Provider Sessions
+Refactoring `PiAgentRuntime` into `CLIAgentRuntime` + `PiProvider` is a significant change to tested, working code. To prevent a "big bang" refactor where a bug in the shared runtime breaks the only working backend, the implementation follows three steps:
+
+### Step 1: Extract PiProvider
+
+Extract Pi-specific logic (arg building, env allowlist, output parsing, model mapping, auth detection) from `PiAgentRuntime` into a new `PiProvider` class. `PiAgentRuntime` calls into `PiProvider` but retains all runtime logic. **Verify Pi still works identically** — all existing tests pass, behavior unchanged.
+
+### Step 2: Introduce CLIAgentRuntime
+
+Move the generic runtime logic (subprocess spawn, streaming, retry, abort, timeout) from `PiAgentRuntime` into `CLIAgentRuntime`. Wire Pi through it: `new CLIAgentRuntime(piProvider)`. Delete `PiAgentRuntime`. **Verify Pi still works identically** — same tests, same behavior, different code organization.
+
+### Step 3: Add New Providers
+
+With the shared runtime proven against Pi, add Claude Code, Gemini, and Codex providers. Each is a new file implementing `CLIProvider`. Add `BackendResolver` and wire into the CLI entry point.
+
+Each step is a separate commit (or PR). Step 1 and 2 are pure refactors with no behavior change. Step 3 adds new functionality.
+
+## 12. Future Considerations
+
+### 12.1 Mixed-Provider Sessions
 
 Current design: single backend per session. The `CLIProvider` interface and `CLIAgentRuntime` are structured so that a future `MixedBackendRuntime` could hold multiple providers and route per-agent based on tier or routing rules. No breaking changes needed.
 
-### 11.2 Additional Backends
+### 12.2 Additional Backends
 
 New CLIs (Cursor, Windsurf, etc.) require only a new provider plugin file implementing `CLIProvider`. No changes to the shared runtime, engine, or existing providers.
 
-### 11.3 API Key Mode for Non-Pi Backends
+### 12.3 API Key Mode for Non-Pi Backends
 
 Currently, Claude Code/Gemini/Codex providers default to subscription mode. If these CLIs gain better API-key-mode support or cost reporting, the providers can update `detectAuthMode()` and `getModelCost()` independently.
 
-## 12. Testing Strategy
+## 13. Testing Strategy
 
-- **Unit tests per provider:** Mock subprocess output, verify `parseLine` produces correct `CLIEvent` sequences
+- **Unit tests per provider:** Mock subprocess output, verify `parseOutput` produces correct `CLIEvent` sequences
 - **Unit tests for CLIAgentRuntime:** Mock provider, verify spawn/stream/retry/abort/timeout lifecycle
 - **Unit tests for BackendResolver:** Mock `which` calls, verify fallback chain and override behavior
 - **Integration tests:** Run each backend against a real CLI (where available in CI) with a minimal agent config
