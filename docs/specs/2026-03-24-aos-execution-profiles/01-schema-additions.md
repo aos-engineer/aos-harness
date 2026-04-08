@@ -25,7 +25,7 @@ This document specifies all schema and runtime changes required to support execu
 | `execution-package` output format | `aos/profile/v1` | New enum value for `output.format` | No |
 | `{{role_override}}` template variable | Template resolver | New variable | No |
 
-All changes follow the schema versioning policy (Section 6E of the framework spec): new optional fields are backwards-compatible additions within the same version.
+All changes follow the schema versioning policy (Section 6E of the harness spec): new optional fields are backwards-compatible additions within the same version.
 
 ---
 
@@ -151,7 +151,7 @@ Profiles may override this by specifying their own `sections` list. The default 
 | `phases_completed` | string[] | Workflow step IDs that completed successfully |
 | `gates_passed` | string[] | Review gate IDs that received user approval |
 
-These are populated by the engine when writing the output. They are informational — the framework does not read them back.
+These are populated by the engine when writing the output. They are informational — the harness does not read them back.
 
 ---
 
@@ -236,7 +236,7 @@ This matches the behavior of all existing agents (advisory mode, text/markdown o
 2. **Workflow step matching:** When a workflow step declares `action: execute-with-tools`, the engine can validate that the delegated agents have the required capabilities. If no agent in the step's `agents` list has `can_execute_code: true`, the engine emits a warning.
 3. **Orchestrator context:** The CTO orchestrator (or any orchestrator) can use capability declarations to make delegation decisions. The `{{participants}}` template variable can optionally include capability summaries.
 
-**Why advisory, not enforcement:** Capabilities are a planning tool, not a sandbox. An agent with `can_execute_code: false` might still receive code in its context and reason about it — it just won't invoke `executeCode()`. The adapter's tool whitelist (Section 6.14 of the framework spec) remains the enforcement mechanism.
+**Why advisory, not enforcement:** Capabilities are a planning tool, not a sandbox. An agent with `can_execute_code: false` might still receive code in its context and reason about it — it just won't invoke `executeCode()`. The adapter's tool whitelist (Section 6.14 of the harness spec) remains the enforcement mechanism.
 
 ### 3.2 Capability Profiles for Existing Agents
 
@@ -565,7 +565,7 @@ steps:
 }
 ```
 
-**Template resolution:** The `prompt` field supports all standard template variables (Section 6.13 of the framework spec) plus `{{role_override}}`. Artifact content from `input` references is injected separately via `adapter.injectContext()`, not inlined into the prompt.
+**Template resolution:** The `prompt` field supports all standard template variables (Section 6.13 of the harness spec) plus `{{role_override}}`. Artifact content from `input` references is injected separately via `adapter.injectContext()`, not inlined into the prompt.
 
 ### 5.5 Gate `on_rejection` Behavior
 
@@ -617,7 +617,7 @@ gates:
 
 ### 6.1 `{{role_override}}`
 
-**Location:** Template variable reference (Section 6.13 of the framework spec)
+**Location:** Template variable reference (Section 6.13 of the harness spec)
 
 | Variable | Available In | Description |
 |---|---|---|
@@ -657,7 +657,7 @@ Execution profiles introduce these new transcript events:
 | `artifact_write` | Artifact written to disk | artifact_id, content_path, format, revision |
 | `workflow_end` | Workflow execution completes | workflow_id, steps_completed, gates_passed |
 
-These supplement the existing 15 transcript event types (Section 6.10 of the framework spec). Existing events (`delegation`, `response`, `constraint_check`, etc.) continue to be emitted within workflow steps.
+These supplement the existing 15 transcript event types (Section 6.10 of the harness spec). Existing events (`delegation`, `response`, `constraint_check`, etc.) continue to be emitted within workflow steps.
 
 ### 7.2 Transcript Event Sequence for a Workflow Step
 

@@ -100,7 +100,7 @@ Agents with short time horizons (Catalyst: 30-90 days) naturally create tension 
 
 ### Core Bias
 
-The agent's fundamental analytical lean. This is intentional -- AOS agents are designed to be biased, and the framework creates balance through structured opposition. Examples:
+The agent's fundamental analytical lean. This is intentional -- AOS agents are designed to be biased, and the harness creates balance through structured opposition. Examples:
 - `speed-and-monetization` (Catalyst)
 - `sustainability-and-protection` (Sentinel)
 - `systemic-integrity` (Architect)

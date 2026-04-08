@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-24
 **Status:** Draft
-**Extends:** [AOS Framework Design Specification (2026-03-23)](../2026-03-23-aos-framework-design.md)
+**Extends:** [AOS Harness Design Specification (2026-03-23)](../2026-03-23-aos-harness-design.md)
 **Spec Suite:**
 - `00-overview.md` — This document. Vision, reference implementation, architectural direction.
 - `01-schema-additions.md` — Layer 1: All schema and runtime changes (implementation-ready).
@@ -13,9 +13,9 @@
 
 ## 1. Executive Summary
 
-The AOS Framework currently supports **deliberation profiles** — agents debate, the Arbiter synthesizes, and the output is a recommendation memo. This answers the question "what should we do?"
+The AOS Harness currently supports **deliberation profiles** — agents debate, the Arbiter synthesizes, and the output is a recommendation memo. This answers the question "what should we do?"
 
-This spec suite extends the framework to support **execution profiles** — the orchestrator receives a feature request or product vision, breaks it into workstreams, delegates actual production work to agents (including code creation, security review, and artifact generation), reviews their output, and delivers a complete execution package. This answers the question "how do we do it, and start doing it now?"
+This spec suite extends the harness to support **execution profiles** — the orchestrator receives a feature request or product vision, breaks it into workstreams, delegates actual production work to agents (including code creation, security review, and artifact generation), reviews their output, and delivers a complete execution package. This answers the question "how do we do it, and start doing it now?"
 
 The framework already has the architectural foundations for this. Profiles define agent assemblies and delegation strategies. Workflows define multi-step processes with review gates. The Arbiter role generalizes to any orchestrator. Agent outputs shift from opinions to artifacts. The key additions are:
 
@@ -378,7 +378,7 @@ gates:
 
 ### 5.2 Workflow Action Types
 
-The existing workflow schema (Section 5E of the framework spec) defines actions like `read-context`, `ask-questions`, `generate-options`, `write-code`, `run-tests`. The CTO execution workflow introduces action types that operate at the orchestration level:
+The existing workflow schema (Section 5E of the harness spec) defines actions like `read-context`, `ask-questions`, `generate-options`, `write-code`, `run-tests`. The CTO execution workflow introduces action types that operate at the orchestration level:
 
 | Action Type | Behavior | Used In |
 |---|---|---|
@@ -750,7 +750,7 @@ The `execution-package` format adds these frontmatter fields beyond the standard
 
 ## 8. The Delegation Chain Vision
 
-> **Status: Architectural direction only.** This section describes the target state for Phase 3+ of the framework. Nothing in this section should be built against or treated as a specification. It exists to ensure that nothing built in the current phase precludes this future direction.
+> **Status: Architectural direction only.** This section describes the target state for Phase 3+ of the harness. Nothing in this section should be built against or treated as a specification. It exists to ensure that nothing built in the current phase precludes this future direction.
 
 ### Nested Orchestration
 
@@ -827,4 +827,4 @@ This spec introduces one new template variable:
 |---|---|---|
 | `{{role_override}}` | Agent prompts | Profile-level instruction override. Contains the `role_override` string from the agent's entry in the profile's `assembly.perspectives[]`. Empty string if not set. |
 
-The full template variable reference remains in the framework spec (Section 6.13). This variable is added to that table.
+The full template variable reference remains in the harness spec (Section 6.13). This variable is added to that table.

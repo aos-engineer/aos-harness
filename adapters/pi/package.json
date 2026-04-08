@@ -1,5 +1,5 @@
 {
-  "name": "@aos-framework/pi-adapter",
+  "name": "@aos-harness/pi-adapter",
   "version": "0.1.0",
   "type": "module",
   "pi": {
@@ -8,7 +8,7 @@
   "exports": { ".": "./src/index.ts" },
   "files": ["src/"],
   "dependencies": {
-    "@aos-framework/runtime": "workspace:*",
+    "@aos-harness/runtime": "workspace:*",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {

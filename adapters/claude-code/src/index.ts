@@ -1,5 +1,5 @@
 /**
- * AOS Framework — Claude Code Adapter
+ * AOS Harness — Claude Code Adapter
  *
  * Barrel file re-exporting the adapter's public API.
  */

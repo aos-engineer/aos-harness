@@ -5,7 +5,7 @@
 import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { c, type ParsedArgs } from "../colors";
-import { getFrameworkRoot, discoverDirs, promptSelect } from "../utils";
+import { getHarnessRoot, discoverDirs, promptSelect } from "../utils";
 import type { TranscriptEntry } from "../../../runtime/src/types";
 
 function createEventBuffer(platformUrl: string, sessionId: string) {
@@ -83,7 +83,7 @@ export async function runCommand(args: ParsedArgs): Promise<void> {
     return;
   }
 
-  const root = getFrameworkRoot();
+  const root = getHarnessRoot();
   const coreDir = join(root, "core");
 
   // ── Resolve profile ──────────────────────────────────────────
@@ -337,7 +337,7 @@ ${c.bold(`AOS ${sessionType} Session`)}
       ...process.env as Record<string, string>,
       AOS_PROFILE: profileName!,
       AOS_BRIEF: briefPath,
-      AOS_FRAMEWORK_ROOT: root,
+      AOS_HARNESS_ROOT: root,
       AOS_SESSION_ID: sessionId,
       AOS_DELIBERATION_DIR: deliberationDir,
     };

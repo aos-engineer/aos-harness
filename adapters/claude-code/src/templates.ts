@@ -4,7 +4,7 @@
  * and CLAUDE.md fragments from AOS core config.
  */
 
-import type { AgentConfig, ProfileConfig, ModelTier } from "@aos-framework/runtime/types";
+import type { AgentConfig, ProfileConfig, ModelTier } from "@aos-harness/runtime/types";
 
 // ── Model tier mapping ──────────────────────────────────────────
 
@@ -154,9 +154,9 @@ export function generateClaudeMdFragment(
 
   const constraintSummary = formatConstraintSummary(profile);
 
-  return `## AOS Framework — Agentic Orchestration
+  return `## AOS Harness — Agentic Orchestration
 
-This project uses the AOS Framework for multi-perspective strategic deliberation.
+This project uses the AOS Harness for multi-perspective strategic deliberation.
 
 ### Available Commands
 - \`/aos-${profile.id}\` — Run the ${profile.name} deliberation with your brief

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement the AOS Execution Profiles spec suite — enabling the framework to support execution-oriented profiles with workflow-driven delegation, artifact passing, agent capabilities, and adapter execution methods.
+**Goal:** Implement the AOS Execution Profiles spec suite — enabling the harness to support execution-oriented profiles with workflow-driven delegation, artifact passing, agent capabilities, and adapter execution methods.
 
 **Architecture:** Three implementation layers that can be worked in parallel after the shared types (Task 1) are complete. Layer 1 modifies core schemas and runtime. Layer 2 extends the adapter contract. Layer 3 adds skill awareness manifests. A reference implementation (CTO execution profile) validates all layers.
 

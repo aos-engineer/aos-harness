@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * AOS Framework — Monorepo Publish Script
+ * AOS Harness — Monorepo Publish Script
  *
  * Runs tests, validates configs, and publishes all packages.
  * Dry-run by default. Pass --confirm to actually publish.
@@ -30,7 +30,7 @@ function readPkg(dir: string) {
 }
 
 async function main() {
-  console.log("=== AOS Framework Publish ===\n");
+  console.log("=== AOS Harness Publish ===\n");
 
   // 1. Run unit tests
   console.log("▸ Running unit tests...");

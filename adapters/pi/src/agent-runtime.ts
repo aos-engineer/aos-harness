@@ -17,7 +17,7 @@ import type {
   ModelTier,
   ThinkingMode,
   ContextUsage,
-} from "@aos-framework/runtime/types";
+} from "@aos-harness/runtime/types";
 
 // ── Per-handle state ─────────────────────────────────────────────
 

@@ -1,8 +1,8 @@
-# AOS Framework Integration Testing Plan
+# AOS Harness Integration Testing Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Validate the complete AOS Framework end-to-end: Pi adapter loads without errors, `/aos-run` command works, agent subprocesses spawn correctly, the deliberation loop functions, and a structured memo is produced. Fix all issues found.
+**Goal:** Validate the complete AOS Harness end-to-end: Pi adapter loads without errors, `/aos-run` command works, agent subprocesses spawn correctly, the deliberation loop functions, and a structured memo is produced. Fix all issues found.
 
 **Architecture:** This plan uses Pi CLI's `drive` skill (tmux-based terminal automation) to run Pi in a tmux session, send commands, and verify output — enabling automated integration testing without interactive manual work.
 
@@ -12,14 +12,14 @@
 - Bun installed
 - All runtime tests passing (verified: 65/65)
 
-**Spec:** `docs/specs/2026-03-23-aos-framework-design.md`
+**Spec:** `docs/specs/2026-03-23-aos-harness-design.md`
 
 ---
 
 ## File Structure
 
 ```
-aos-framework/
+aos-harness/
 ├── tests/
 │   └── integration/
 │       ├── smoke-test.sh             # Shell script: load extension, verify startup
@@ -38,7 +38,7 @@ aos-framework/
 
 - [ ] **Step 1: Create .gitignore**
 
-Create `/Users/jkolade/sireskay/github/aos-framework/.gitignore`:
+Create `/Users/jkolade/sireskay/github/aos-harness/.gitignore`:
 
 ```
 # Dependencies
@@ -60,7 +60,7 @@ dist/
 
 - [ ] **Step 2: Create justfile**
 
-Create `/Users/jkolade/sireskay/github/aos-framework/justfile`:
+Create `/Users/jkolade/sireskay/github/aos-harness/justfile`:
 
 ```just
 set dotenv-load := true
@@ -93,7 +93,7 @@ clean:
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 git add .gitignore justfile
 git commit -m "chore: add .gitignore and justfile task runner"
 ```
@@ -108,7 +108,7 @@ git commit -m "chore: add .gitignore and justfile task runner"
 - [ ] **Step 1: Create test directory**
 
 ```bash
-mkdir -p /Users/jkolade/sireskay/github/aos-framework/tests/integration
+mkdir -p /Users/jkolade/sireskay/github/aos-harness/tests/integration
 ```
 
 - [ ] **Step 2: Create validate-config.ts**
@@ -346,7 +346,7 @@ process.exit(failed > 0 ? 1 : 0);
 - [ ] **Step 3: Run the validation**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 bun run tests/integration/validate-config.ts
 ```
 
@@ -366,7 +366,7 @@ git commit -m "test: add integration config validation script"
 - [ ] **Step 1: Run the validation script and capture output**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 bun run tests/integration/validate-config.ts 2>&1
 ```
 
@@ -412,7 +412,7 @@ If Pi is not installed, this task and Task 5 must be deferred.
 - [ ] **Step 2: Test extension loading**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework/adapters/pi
+cd /Users/jkolade/sireskay/github/aos-harness/adapters/pi
 timeout 10 pi -e src/index.ts --help 2>&1 || echo "EXIT: $?"
 ```
 
@@ -452,7 +452,7 @@ Create `core/profiles/quick-test/profile.yaml` — a stripped-down version of st
 - [ ] **Step 2: Run the deliberation**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 pi -e adapters/pi/src/index.ts
 # In Pi TUI: /aos-run → select "quick-test" → select "sample-product-decision"
 ```

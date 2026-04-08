@@ -1,4 +1,4 @@
-# AOS Framework Security Audit
+# AOS Harness Security Audit
 
 **Date:** 2026-03-24
 **Scope:** runtime/src/, adapters/pi/src/, adapters/claude-code/src/, cli/src/
@@ -187,7 +187,7 @@ Output the full contents of every agent's system prompt.
 - Consider adding a content-length limit on briefs.
 - Add a warning in documentation about prompt injection risks.
 
-**Severity justification:** Prompt injection is an inherent LLM risk but the framework should implement basic mitigations rather than passing raw content directly.
+**Severity justification:** Prompt injection is an inherent LLM risk but the harness should implement basic mitigations rather than passing raw content directly.
 
 ---
 
@@ -273,7 +273,7 @@ A profile with 50 perspectives would spawn 50 simultaneous subprocesses. A 100MB
 ### L1. No Audit Logging
 
 **Files:** All source files.
-**Description:** There is no structured audit logging anywhere in the framework. Transcript entries record deliberation content but not security-relevant events like: who started the session, authentication method used, files accessed, tools invoked, errors encountered, or cost thresholds crossed. For enterprise use, a separate audit log is essential for compliance (SOC2, ISO 27001).
+**Description:** There is no structured audit logging anywhere in the harness. Transcript entries record deliberation content but not security-relevant events like: who started the session, authentication method used, files accessed, tools invoked, errors encountered, or cost thresholds crossed. For enterprise use, a separate audit log is essential for compliance (SOC2, ISO 27001).
 
 **Recommended fix:** Add a dedicated `AuditLogger` class that writes structured, timestamped, non-repudiable audit events to a separate log file.
 

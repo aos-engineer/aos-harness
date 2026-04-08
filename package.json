@@ -1,13 +1,13 @@
 {
-  "name": "aos-framework",
+  "name": "aos-harness",
   "version": "0.1.0",
   "description": "Agentic Orchestration System — assemble AI agents into deliberation and execution teams",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/aos-engineer/aos-framework.git"
+    "url": "https://github.com/aos-engineer/aos-harness.git"
   },
-  "homepage": "https://github.com/aos-engineer/aos-framework",
+  "homepage": "https://github.com/aos-engineer/aos-harness",
   "keywords": [
     "ai",
     "agents",
@@ -16,7 +16,7 @@
     "deliberation",
     "execution",
     "llm",
-    "framework"
+    "harness"
   ],
   "private": true,
   "workspaces": [

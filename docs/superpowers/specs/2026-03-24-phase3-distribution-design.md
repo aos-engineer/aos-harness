@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make the AOS Framework installable, discoverable, and demo-ready. Validate the adapter contract across a third platform (Gemini CLI). Seed the community contribution model.
+Make the AOS Harness installable, discoverable, and demo-ready. Validate the adapter contract across a third platform (Gemini CLI). Seed the community contribution model.
 
 ## Architecture
 
@@ -35,7 +35,7 @@ adapters/gemini/
 ├── src/
 │   ├── generate.ts       # CLI entry: --profile, --domain, --output
 │   └── templates.ts      # Gemini-specific formatting
-├── package.json          # @aos-framework/gemini-adapter
+├── package.json          # @aos-harness/gemini-adapter
 ├── tsconfig.json
 └── README.md
 ```
@@ -104,7 +104,7 @@ You are **Catalyst**, a perspective agent in a structured multi-agent deliberati
 ### GEMINI-aos.md Fragment
 
 ```markdown
-# AOS Framework — Strategic Council
+# AOS Harness — Strategic Council
 
 ## Available Agents
 | Agent | Role | Bias |
@@ -133,7 +133,7 @@ You are **Catalyst**, a perspective agent in a structured multi-agent deliberati
 
 ### Dependencies
 
-- `@aos-framework/runtime` (for config-loader, domain-merger, template-resolver)
+- `@aos-harness/runtime` (for config-loader, domain-merger, template-resolver)
 - `js-yaml`
 
 ---
@@ -142,13 +142,13 @@ You are **Catalyst**, a perspective agent in a structured multi-agent deliberati
 
 ### Purpose
 
-Make the framework installable via `bunx @aos-framework/cli init`. Enable clean dependency management across packages.
+Make the harness installable via `bunx @aos-harness/cli init`. Enable clean dependency management across packages.
 
 ### Root package.json
 
 ```json
 {
-  "name": "aos-framework",
+  "name": "aos-harness",
   "private": true,
   "workspaces": [
     "runtime",
@@ -170,7 +170,7 @@ Make the framework installable via `bunx @aos-framework/cli init`. Enable clean 
 #### runtime/package.json
 ```json
 {
-  "name": "@aos-framework/runtime",
+  "name": "@aos-harness/runtime",
   "version": "0.1.0",
   "type": "module",
   "exports": {
@@ -190,7 +190,7 @@ Make the framework installable via `bunx @aos-framework/cli init`. Enable clean 
 #### cli/package.json
 ```json
 {
-  "name": "@aos-framework/cli",
+  "name": "@aos-harness/cli",
   "version": "0.1.0",
   "type": "module",
   "bin": {
@@ -198,7 +198,7 @@ Make the framework installable via `bunx @aos-framework/cli init`. Enable clean 
   },
   "files": ["src/", "../core/"],
   "dependencies": {
-    "@aos-framework/runtime": "workspace:*",
+    "@aos-harness/runtime": "workspace:*",
     "js-yaml": "^4.1.0"
   }
 }
@@ -208,11 +208,11 @@ Make the framework installable via `bunx @aos-framework/cli init`. Enable clean 
 
 ```json
 {
-  "name": "@aos-framework/pi-adapter",
+  "name": "@aos-harness/pi-adapter",
   "exports": { ".": "./src/index.ts" },
   "files": ["src/"],
   "dependencies": {
-    "@aos-framework/runtime": "workspace:*"
+    "@aos-harness/runtime": "workspace:*"
   }
 }
 ```
@@ -229,18 +229,18 @@ Make the framework installable via `bunx @aos-framework/cli init`. Enable clean 
 ### .npmrc
 
 ```
-@aos-framework:registry=https://registry.npmjs.org/
+@aos-harness:registry=https://registry.npmjs.org/
 ```
 
 ### What Ships as Packages
 
 | Package | Public | Purpose |
 |---------|--------|---------|
-| `@aos-framework/runtime` | Yes | Core engine, types, loaders |
-| `@aos-framework/cli` | Yes | CLI + bundled core config |
-| `@aos-framework/pi-adapter` | Yes | Pi extension |
-| `@aos-framework/claude-code-adapter` | Yes | Claude Code generator |
-| `@aos-framework/gemini-adapter` | Yes | Gemini CLI generator |
+| `@aos-harness/runtime` | Yes | Core engine, types, loaders |
+| `@aos-harness/cli` | Yes | CLI + bundled core config |
+| `@aos-harness/pi-adapter` | Yes | Pi extension |
+| `@aos-harness/claude-code-adapter` | Yes | Claude Code generator |
+| `@aos-harness/gemini-adapter` | Yes | Gemini CLI generator |
 
 The `core/` directory is NOT a separate package — it ships bundled with the CLI.
 
@@ -250,7 +250,7 @@ The `core/` directory is NOT a separate package — it ships bundled with the CL
 
 ### Purpose
 
-Public-facing site for the AOS Framework. Landing page, agent/profile/domain galleries, documentation. Reads directly from `core/` YAML files — one source of truth.
+Public-facing site for the AOS Harness. Landing page, agent/profile/domain galleries, documentation. Reads directly from `core/` YAML files — one source of truth.
 
 ### Stack
 
@@ -422,7 +422,7 @@ This runs as a prebuild step: `"prebuild": "bash scripts/link-content.sh"`
 #### Landing Page (`index.astro`)
 - Hero: "Train AI agents to think like your best advisors"
 - Value prop: 3-column grid (12 Agents, 5 Profiles, 5 Domains)
-- Quick start code snippet: `bunx @aos-framework/cli init && aos run strategic-council`
+- Quick start code snippet: `bunx @aos-harness/cli init && aos run strategic-council`
 - Demo video placeholder (16:9 aspect ratio container)
 - CTA: "Get Started" → /docs/getting-started
 
@@ -602,10 +602,10 @@ registry/
     {
       "id": "aos/arbiter",
       "name": "Arbiter",
-      "author": "aos-framework",
+      "author": "aos-harness",
       "description": "Neutral orchestrator that synthesizes competing perspectives into ranked recommendations",
       "tags": ["orchestrator", "synthesis", "facilitation"],
-      "source": "https://github.com/aos-framework/aos-framework",
+      "source": "https://github.com/aos-engineer/aos-harness",
       "version": "0.1.0",
       "compatible_profiles": ["strategic-council", "security-review", "delivery-ops", "architecture-review", "incident-response"],
       "schema_version": "aos/agent/v1"
@@ -647,7 +647,7 @@ Documents:
 
 ### Packaging Tests
 - Workspace resolution: `bun install` at root resolves all workspace dependencies
-- CLI binary: `bunx @aos-framework/cli --help` prints usage
+- CLI binary: `bunx @aos-harness/cli --help` prints usage
 - Exports: each package's exports resolve correctly
 
 ### Site Tests
@@ -665,7 +665,7 @@ Documents:
 
 ## Success Criteria
 
-1. `bunx @aos-framework/cli init --adapter gemini` generates valid Gemini CLI config
+1. `bunx @aos-harness/cli init --adapter gemini` generates valid Gemini CLI config
 2. `bun install` at monorepo root resolves all workspace dependencies
 3. `cd site && bun run build` produces static site with all galleries populated
 4. `bun run registry/validate.ts` passes with 0 errors

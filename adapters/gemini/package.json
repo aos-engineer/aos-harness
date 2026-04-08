@@ -1,5 +1,5 @@
 {
-  "name": "@aos-framework/gemini-adapter",
+  "name": "@aos-harness/gemini-adapter",
   "version": "0.1.0",
   "type": "module",
   "main": "src/generate.ts",
@@ -10,7 +10,7 @@
   "exports": { ".": "./src/index.ts" },
   "files": ["src/"],
   "dependencies": {
-    "@aos-framework/runtime": "workspace:*",
+    "@aos-harness/runtime": "workspace:*",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {

@@ -40,7 +40,7 @@ In an AOS execution workflow, the "user" is the orchestrator — another agent t
 
 ### 3.1 Schema: `aos/skill/v1`
 
-This schema defines the metadata that makes a skill discoverable and invocable by the AOS framework. It does NOT replace the skill's implementation — it is a manifest that wraps the skill.
+This schema defines the metadata that makes a skill discoverable and invocable by the AOS harness. It does NOT replace the skill's implementation — it is a manifest that wraps the skill.
 
 ```yaml
 schema: aos/skill/v1

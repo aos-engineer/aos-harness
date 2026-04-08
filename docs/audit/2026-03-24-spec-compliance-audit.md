@@ -1,7 +1,7 @@
-# AOS Framework Spec Compliance Audit
+# AOS Harness Spec Compliance Audit
 
 **Date:** 2026-03-24
-**Spec:** `docs/specs/2026-03-23-aos-framework-design.md`
+**Spec:** `docs/specs/2026-03-23-aos-harness-design.md`
 **Auditor:** Automated spec-vs-implementation audit
 
 ---

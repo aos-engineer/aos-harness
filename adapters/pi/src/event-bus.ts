@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import type { EventBusAdapter } from "@aos-framework/runtime/types";
+import type { EventBusAdapter } from "@aos-harness/runtime/types";
 
 export class PiEventBus implements EventBusAdapter {
   private handlers: {

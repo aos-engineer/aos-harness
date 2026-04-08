@@ -35,7 +35,7 @@ No existing adapter method signatures or semantics change. The new methods are a
 
 ```typescript
 // Additions to WorkflowAdapter (Layer 4)
-// These extend the existing interface from Section 6.1 of the framework spec.
+// These extend the existing interface from Section 6.1 of the harness spec.
 
 interface WorkflowAdapter {
   // === Existing methods (unchanged) ===
@@ -408,7 +408,7 @@ The Claude Code adapter (`adapters/claude-code/`) currently generates static art
 - The skill_map in adapter config maps abstract skill IDs to Claude Code skill names
 - Context files passed via the Agent tool's context mechanism
 
-**Limitation:** Claude Code's code generation adapter is currently a static generator (Section Appendix B of the framework spec). Supporting runtime execution requires a shift from "generate .claude/ artifacts" to "run as a live adapter." This is a Claude Code adapter evolution, not a framework change.
+**Limitation:** Claude Code's code generation adapter is currently a static generator (Section Appendix B of the harness spec). Supporting runtime execution requires a shift from "generate .claude/ artifacts" to "run as a live adapter." This is a Claude Code adapter evolution, not a framework change.
 
 ### 4.5 Graceful Degradation
 
@@ -461,7 +461,7 @@ This means an execution profile can run on an adapter that only partially suppor
 
 ### 6.1 Code Execution Sandboxing
 
-`executeCode()` runs arbitrary code. Security is the adapter's responsibility, not the framework's. Guidelines:
+`executeCode()` runs arbitrary code. Security is the adapter's responsibility, not the harness's. Guidelines:
 
 1. **Default to strict sandbox.** No network access, limited filesystem access (session directory only).
 2. **Relaxed sandbox requires explicit opt-in.** The `sandbox: "relaxed"` option should only be used when the workflow step explicitly requires network or full fs access.

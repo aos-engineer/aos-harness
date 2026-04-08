@@ -1,5 +1,5 @@
-// ── AOS Framework Pi Extension Entry Point ──────────────────────
-// Wires all 4 adapter layers together and makes the AOS Framework
+// ── AOS Harness Pi Extension Entry Point ──────────────────────
+// Wires all 4 adapter layers together and makes the AOS Harness
 // runnable as a Pi extension.
 
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, statSync, symlinkSync, rmSync } from "node:fs";
@@ -14,10 +14,10 @@ import { PiEventBus } from "./event-bus";
 import { PiUI } from "./ui";
 import { PiWorkflow } from "./workflow";
 
-import { AOSEngine } from "@aos-framework/runtime";
-import type { AOSAdapter, ConstraintState, ProfileConfig } from "@aos-framework/runtime/types";
-import { resolveTemplate } from "@aos-framework/runtime/template-resolver";
-import { validateBrief } from "@aos-framework/runtime/config-loader";
+import { AOSEngine } from "@aos-harness/runtime";
+import type { AOSAdapter, ConstraintState, ProfileConfig } from "@aos-harness/runtime/types";
+import { resolveTemplate } from "@aos-harness/runtime/template-resolver";
+import { validateBrief } from "@aos-harness/runtime/config-loader";
 
 // ── Helpers ─────────────────────────────────────────────────────
 
@@ -186,7 +186,7 @@ export default function (pi: ExtensionAPI) {
     // Apply theme
     if (ctx.hasUI) {
       ctx.ui.setTheme("synthwave");
-      setTimeout(() => ctx.ui.setTitle("AOS Framework"), 150);
+      setTimeout(() => ctx.ui.setTitle("AOS Harness"), 150);
     }
 
     // Wire event bus to Pi lifecycle
@@ -194,7 +194,7 @@ export default function (pi: ExtensionAPI) {
 
     if (!projectRoot) {
       ctx.ui.notify(
-        "AOS Framework loaded but no project root found (no core/ directory). Navigate to an AOS project and restart.",
+        "AOS Harness loaded but no project root found (no core/ directory). Navigate to an AOS project and restart.",
         "warning",
       );
       return;
@@ -206,9 +206,9 @@ export default function (pi: ExtensionAPI) {
     const agentsDir = join(projectRoot, "core", "agents");
     const agentMap = discoverAgents(agentsDir);
 
-    ctx.ui.setStatus("aos", "AOS Framework ready");
+    ctx.ui.setStatus("aos", "AOS Harness ready");
     ctx.ui.notify(
-      `AOS Framework initialized\nProject: ${projectRoot}\nProfiles: ${profiles.length} | Agents: ${agentMap.size}\n\nRun /aos-run to start a deliberation.`,
+      `AOS Harness initialized\nProject: ${projectRoot}\nProfiles: ${profiles.length} | Agents: ${agentMap.size}\n\nRun /aos-run to start a deliberation.`,
       "info",
     );
   });
