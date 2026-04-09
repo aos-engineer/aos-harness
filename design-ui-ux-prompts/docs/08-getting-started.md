@@ -44,7 +44,7 @@ Breadcrumb:
 
 Page header:
 - H1: "Getting Started" — 48px desktop / 32px mobile, Inter 800, #1d1d1f
-- Subtitle: "Set up AOS Framework in 5 minutes" — Body (15px, #424245), 8px below title
+- Subtitle: "Set up AOS Harness in 5 minutes" — Body (15px, #424245), 8px below title
 
 Section headers:
 - H2 style: 28px desktop / 22px mobile, Inter 700, #1d1d1f
@@ -76,7 +76,7 @@ Docs > Getting Started
 
 --- Page Header ---
 # Getting Started
-Set up AOS Framework in 5 minutes
+Set up AOS Harness in 5 minutes
 
 --- Section: Prerequisites ---
 ## Prerequisites
@@ -92,8 +92,8 @@ Checklist items (green checkmark + text):
 Clone the repository and install dependencies:
 
 ```bash
-git clone https://github.com/AOS-Framework/aos-framework.git
-cd aos-framework
+git clone https://github.com/aos-engineer/aos-harness.git
+cd aos-harness
 bun install
 ```
 

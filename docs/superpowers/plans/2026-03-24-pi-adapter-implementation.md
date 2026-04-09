@@ -1,4 +1,4 @@
-# AOS Framework Pi Adapter Implementation Plan
+# AOS Harness Pi Adapter Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -12,9 +12,9 @@
 5. Handles TUI rendering (streaming widgets, constraint gauges, agent status footer)
 6. Manages agent subprocesses via `pi --mode json --session <file>` spawning
 
-**Tech Stack:** TypeScript, Pi extension API (`@mariozechner/pi-coding-agent`, `@mariozechner/pi-tui`, `@sinclair/typebox`), AOS runtime (`@aos-framework/runtime`)
+**Tech Stack:** TypeScript, Pi extension API (`@mariozechner/pi-coding-agent`, `@mariozechner/pi-tui`, `@sinclair/typebox`), AOS runtime (`@aos-harness/runtime`)
 
-**Spec:** `docs/specs/2026-03-23-aos-framework-design.md` (Sections 2.2, 2.3, 6.1-6.15)
+**Spec:** `docs/specs/2026-03-23-aos-harness-design.md` (Sections 2.2, 2.3, 6.1-6.15)
 
 **Reference:** The ceo-agents project at `/Users/jkolade/sireskay/github/TAC/ceo-agents/apps/ceo/extensions/` demonstrates the subprocess spawning, JSON event parsing, TUI widget, and tool registration patterns. Study it for Pi API usage patterns but write original code.
 
@@ -23,7 +23,7 @@
 ## File Structure
 
 ```
-aos-framework/
+aos-harness/
 ├── adapters/
 │   └── pi/
 │       ├── src/
@@ -47,7 +47,7 @@ aos-framework/
 - [ ] **Step 1: Create directories**
 
 ```bash
-mkdir -p /Users/jkolade/sireskay/github/aos-framework/adapters/pi/src
+mkdir -p /Users/jkolade/sireskay/github/aos-harness/adapters/pi/src
 ```
 
 - [ ] **Step 2: Create package.json**
@@ -56,7 +56,7 @@ Create `adapters/pi/package.json`:
 
 ```json
 {
-  "name": "@aos-framework/pi-adapter",
+  "name": "@aos-harness/pi-adapter",
   "version": "0.1.0",
   "type": "module",
   "pi": {
@@ -96,7 +96,7 @@ Create `adapters/pi/tsconfig.json`:
     "resolveJsonModule": true,
     "rootDir": ".",
     "paths": {
-      "@aos-framework/runtime/*": ["../../runtime/src/*"]
+      "@aos-harness/runtime/*": ["../../runtime/src/*"]
     }
   },
   "include": ["src/**/*.ts"]
@@ -106,13 +106,13 @@ Create `adapters/pi/tsconfig.json`:
 - [ ] **Step 4: Install dependencies**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework/adapters/pi && bun install
+cd /Users/jkolade/sireskay/github/aos-harness/adapters/pi && bun install
 ```
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 git add adapters/pi/package.json adapters/pi/tsconfig.json adapters/pi/bun.lock
 git commit -m "chore: scaffold Pi adapter package"
 ```
@@ -316,7 +316,7 @@ The extension entry point must:
    - Discover project root (walk up from cwd looking for `core/` directory or `.aos/` config)
    - Load `.env` if it exists
    - Set theme (e.g., "synthwave" or a custom AOS theme)
-   - Set title "AOS Framework"
+   - Set title "AOS Harness"
    - Display startup notification with available profiles and agent count
    - Set status line
 
@@ -378,7 +378,7 @@ The extension entry point must:
 - [ ] **Step 2: Verify the extension loads**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 pi -e adapters/pi/src/index.ts --help
 ```
 
@@ -398,7 +398,7 @@ git commit -m "feat(pi-adapter): add extension entry point — wires all layers,
 - [ ] **Step 1: Manual smoke test**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 pi -e adapters/pi/src/index.ts
 ```
 
@@ -448,7 +448,7 @@ git tag v0.1.0-pi-adapter
 - [ ] **Step 1: Create adapter README**
 
 Create `adapters/pi/README.md` with:
-- What this is (Pi CLI adapter for AOS Framework)
+- What this is (Pi CLI adapter for AOS Harness)
 - Prerequisites (Pi, Bun, Anthropic API key)
 - Quick start (`pi -e adapters/pi/src/index.ts` then `/aos-run`)
 - Configuration (model tier mapping, editor, theme)
@@ -458,7 +458,7 @@ Create `adapters/pi/README.md` with:
 
 Create root `README.md` with:
 - Project name and one-line description
-- What AOS Framework is (agentic orchestration system)
+- What AOS Harness is (agentic orchestration system)
 - Quick start for Tier 1 users
 - Architecture overview (config + runtime + adapter)
 - Agent roster table

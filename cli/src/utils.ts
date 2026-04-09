@@ -6,11 +6,11 @@ import { join, resolve } from "node:path";
 import { existsSync, readdirSync } from "node:fs";
 
 /**
- * Resolve the AOS framework root directory.
- * Walks up from the CLI source to find the framework root (where core/, runtime/, adapters/ live).
+ * Resolve the AOS harness root directory.
+ * Walks up from the CLI source to find the harness root (where core/, runtime/, adapters/ live).
  */
-export function getFrameworkRoot(): string {
-  // cli/src/utils.ts -> cli/src -> cli -> framework root
+export function getHarnessRoot(): string {
+  // cli/src/utils.ts -> cli/src -> cli -> harness root
   return resolve(import.meta.dir, "../..");
 }
 

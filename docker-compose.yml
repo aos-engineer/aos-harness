@@ -1,14 +1,14 @@
-## AOS Framework — Production Docker Compose (Dokploy)
+## AOS Harness — Production Docker Compose (Dokploy)
 ##
 ## Architecture:
-##   framework.aos.engineer → site (static Astro site, nginx, port 80)
+##   harness.aos.engineer → site (static Astro site, nginx, port 80)
 ##
 ## Routing: Managed via Dokploy Domains UI (not Traefik labels).
 ## No database, no env vars required — pure static site.
 
 services:
   site:
-    image: novashock/aos-framework-site:latest
+    image: novashock/aos-harness-site:latest
     build:
       context: .
       dockerfile: site/Dockerfile

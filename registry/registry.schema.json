@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aos-framework.dev/registry.schema.json",
+  "$id": "https://aos-harness.dev/registry.schema.json",
   "title": "AOS Community Registry",
   "description": "Schema for validating AOS community registry entries (agents, profiles, domains).",
   "type": "object",

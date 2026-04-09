@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * AOS Framework CLI — entry point.
+ * AOS Harness CLI — entry point.
  * Usage: aos <command> [options]
  */
 
@@ -16,7 +16,7 @@ import { c, parseArgs } from "./colors";
 
 function printHelp(): void {
   console.log(`
-${c.bold("AOS Framework CLI")}
+${c.bold("AOS Harness CLI")}
 
 ${c.bold("USAGE")}
   aos <command> [options]

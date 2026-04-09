@@ -1,21 +1,21 @@
-# AOS Framework Runtime Implementation Plan
+# AOS Harness Runtime Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the AOS Framework runtime — 7 TypeScript modules (~1200 lines) that load config, resolve templates, evaluate constraints, route delegation, merge domains, and drive the session lifecycle. All testable with a mock adapter, no platform dependency.
+**Goal:** Build the AOS Harness runtime — 7 TypeScript modules (~1200 lines) that load config, resolve templates, evaluate constraints, route delegation, merge domains, and drive the session lifecycle. All testable with a mock adapter, no platform dependency.
 
 **Architecture:** Config-first design. YAML agent/profile/domain files are loaded, validated against JSON Schema, and composed into a running session via the `AOSEngine` class. The engine consumes an `AOSAdapter` interface (4 layers) but the runtime itself has no platform-specific code. Tests use a `MockAdapter`.
 
 **Tech Stack:** TypeScript, Bun (runtime + test runner), `js-yaml` (YAML parsing). JSON Schema validation via Ajv deferred to a follow-up task — Phase 1 uses manual field-presence validation.
 
-**Spec:** `docs/specs/2026-03-23-aos-framework-design.md` (Sections 3, 4, 5, 6)
+**Spec:** `docs/specs/2026-03-23-aos-harness-design.md` (Sections 3, 4, 5, 6)
 
 ---
 
 ## File Structure
 
 ```
-aos-framework/
+aos-harness/
 ├── runtime/
 │   ├── src/
 │   │   ├── types.ts                    # All shared interfaces and type definitions
@@ -66,7 +66,7 @@ aos-framework/
 - [ ] **Step 1: Initialize the runtime package**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 mkdir -p runtime/src runtime/tests runtime/fixtures
 ```
 
@@ -76,7 +76,7 @@ Create `runtime/package.json`:
 
 ```json
 {
-  "name": "@aos-framework/runtime",
+  "name": "@aos-harness/runtime",
   "version": "0.1.0",
   "type": "module",
   "main": "src/engine.ts",
@@ -124,13 +124,13 @@ Create `runtime/tsconfig.json`:
 
 - [ ] **Step 4: Install dependencies**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun install`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun install`
 Expected: Lock file created, node_modules populated.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 git init
 git add runtime/package.json runtime/tsconfig.json runtime/bun.lock
 git commit -m "chore: scaffold runtime package with bun, typescript, js-yaml, ajv"
@@ -209,7 +209,7 @@ describe("AuthMode", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test tests/types.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test tests/types.test.ts`
 Expected: FAIL — cannot find module `../src/types`
 
 - [ ] **Step 3: Implement types.ts**
@@ -217,7 +217,7 @@ Expected: FAIL — cannot find module `../src/types`
 Create `runtime/src/types.ts`:
 
 ```typescript
-// ── AOS Framework Runtime Types ─────────────────────────────────
+// ── AOS Harness Runtime Types ─────────────────────────────────
 
 // ── Auth & Cost ─────────────────────────────────────────────────
 
@@ -583,18 +583,18 @@ export function isMetered(auth: AuthMode): boolean {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test tests/types.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test tests/types.test.ts`
 Expected: 4 tests PASS
 
 - [ ] **Step 5: Type check**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun x tsc --noEmit`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun x tsc --noEmit`
 Expected: No errors
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 git add runtime/src/types.ts runtime/tests/types.test.ts
 git commit -m "feat(runtime): add types module with all shared interfaces and type helpers"
 ```
@@ -678,7 +678,7 @@ describe("resolveTemplate", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test tests/template-resolver.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test tests/template-resolver.test.ts`
 Expected: FAIL — cannot find module
 
 - [ ] **Step 3: Implement template-resolver.ts**
@@ -706,7 +706,7 @@ export function resolveTemplate(
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test tests/template-resolver.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test tests/template-resolver.test.ts`
 Expected: 9 tests PASS
 
 - [ ] **Step 5: Commit**
@@ -834,7 +834,7 @@ describe("mergeDomainOverlay", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test tests/domain-merger.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test tests/domain-merger.test.ts`
 Expected: FAIL — cannot find module
 
 - [ ] **Step 3: Implement domain-merger.ts**
@@ -928,7 +928,7 @@ export function applyDomain(
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test tests/domain-merger.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test tests/domain-merger.test.ts`
 Expected: 8 tests PASS
 
 - [ ] **Step 5: Commit**
@@ -1103,7 +1103,7 @@ describe("ConstraintEngine", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test tests/constraint-engine.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test tests/constraint-engine.test.ts`
 Expected: FAIL — cannot find module
 
 - [ ] **Step 3: Implement constraint-engine.ts**
@@ -1274,7 +1274,7 @@ export class ConstraintEngine {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test tests/constraint-engine.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test tests/constraint-engine.test.ts`
 Expected: 13 tests PASS
 
 - [ ] **Step 5: Commit**
@@ -1412,7 +1412,7 @@ describe("DelegationRouter", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test tests/delegation-router.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test tests/delegation-router.test.ts`
 Expected: FAIL — cannot find module
 
 - [ ] **Step 3: Implement delegation-router.ts**
@@ -1618,7 +1618,7 @@ export class DelegationRouter {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test tests/delegation-router.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test tests/delegation-router.test.ts`
 Expected: 10 tests PASS
 
 - [ ] **Step 5: Commit**
@@ -1793,10 +1793,10 @@ Create `runtime/fixtures/briefs/test-brief/brief.md`:
 # Brief: Test Decision
 
 ## Situation
-We are testing the AOS Framework constraint engine.
+We are testing the AOS Harness constraint engine.
 
 ## Key Question
-Does the framework correctly validate and load configuration?
+Does the harness correctly validate and load configuration?
 ```
 
 - [ ] **Step 2: Write failing tests**
@@ -1886,7 +1886,7 @@ describe("validateBrief", () => {
 
 - [ ] **Step 3: Run tests to verify they fail**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test tests/config-loader.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test tests/config-loader.test.ts`
 Expected: FAIL — cannot find module
 
 - [ ] **Step 4: Implement config-loader.ts**
@@ -2048,7 +2048,7 @@ export function validateBrief(
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test tests/config-loader.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test tests/config-loader.test.ts`
 Expected: 6 tests PASS
 
 - [ ] **Step 6: Commit**
@@ -2453,7 +2453,7 @@ describe("AOSEngine", () => {
 
 - [ ] **Step 3: Run tests to verify they fail**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test tests/engine.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test tests/engine.test.ts`
 Expected: FAIL — cannot find module `../src/engine`
 
 - [ ] **Step 4: Implement engine.ts**
@@ -2689,12 +2689,12 @@ export class AOSEngine {
 
 - [ ] **Step 5: Run all tests**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test`
 Expected: All tests PASS across all test files
 
 - [ ] **Step 6: Type check the full project**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun x tsc --noEmit`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun x tsc --noEmit`
 Expected: No type errors
 
 - [ ] **Step 7: Commit**
@@ -2710,17 +2710,17 @@ git commit -m "feat(runtime): add AOSEngine with session lifecycle, mock adapter
 
 - [ ] **Step 1: Run full test suite**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test --verbose`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test --verbose`
 Expected: All tests pass. Target: 40+ tests across 7 test files.
 
 - [ ] **Step 2: Type check**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun x tsc --noEmit`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun x tsc --noEmit`
 Expected: Zero errors
 
 - [ ] **Step 3: Verify file structure matches plan**
 
-Run: `find /Users/jkolade/sireskay/github/aos-framework/runtime -type f -not -path '*/node_modules/*' -not -path '*/bun.lock' | sort`
+Run: `find /Users/jkolade/sireskay/github/aos-harness/runtime -type f -not -path '*/node_modules/*' -not -path '*/bun.lock' | sort`
 
 Expected:
 ```

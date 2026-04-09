@@ -1,4 +1,4 @@
-# AOS Framework — Claude Code Adapter
+# AOS Harness — Claude Code Adapter
 
 A code generator that reads AOS core config and produces static `.claude/` artifacts for use with Claude Code's native agent and command system.
 

@@ -1,19 +1,19 @@
-# AOS Framework
+# AOS Harness
 
 **Agentic Orchestration System** — Assemble specialized AI agents into deliberation and execution teams.
 
-[![CI](https://github.com/aos-engineer/aos-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/aos-engineer/aos-framework/actions/workflows/ci.yml)
+[![CI](https://github.com/aos-engineer/aos-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/aos-engineer/aos-harness/actions/workflows/ci.yml)
 
 ---
 
 ## What It Is
 
-AOS Framework is a language-agnostic orchestration system for multi-agent AI workflows. It supports two orchestration patterns:
+AOS Harness is a language-agnostic orchestration system for multi-agent AI workflows. It supports two orchestration patterns:
 
 - **Deliberation** — Agents debate a strategic question, the Arbiter synthesizes ranked recommendations with documented dissent. Output: structured memo.
 - **Execution** — A CTO/CIO/CEO orchestrator delegates production work to agents who produce architecture, task breakdowns, security reviews, and implementation plans. Output: execution package.
 
-The framework ships with:
+The harness ships with:
 
 - 13 agent personas with distinct cognitive biases and reasoning frameworks
 - 6 orchestration profiles (strategic-council, cto-execution, security-review, delivery-ops, architecture-review, incident-response)
@@ -28,8 +28,8 @@ The framework ships with:
 ### Install
 
 ```bash
-git clone https://github.com/aos-engineer/aos-framework.git
-cd aos-framework
+git clone https://github.com/aos-engineer/aos-harness.git
+cd aos-harness
 bun install
 ```
 
@@ -115,7 +115,7 @@ Brief → Requirements (Advocate + Strategist) → Architecture (Architect)
 ## Architecture
 
 ```
-aos-framework/
+aos-harness/
   core/               # Language-agnostic config (YAML + Markdown)
     agents/           # 13 agent personas (orchestrators, perspectives, operational)
     profiles/         # 6 orchestration profiles
@@ -148,7 +148,7 @@ aos-framework/
 
 ## Documentation
 
-- **Specs:** `docs/specs/2026-03-23-aos-framework-design.md` (core framework)
+- **Specs:** `docs/specs/2026-03-23-aos-harness-design.md` (core framework)
 - **Execution Profiles:** `docs/specs/2026-03-24-aos-execution-profiles/` (4-document spec suite)
 - **Getting Started:** `docs/getting-started/README.md`
 - **Creating Agents:** `docs/creating-agents/README.md`

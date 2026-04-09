@@ -16,8 +16,8 @@ import type {
   SkillInput,
   SkillResult,
   ReviewResult,
-} from "@aos-framework/runtime/types";
-import { UnsupportedError } from "@aos-framework/runtime/types";
+} from "@aos-harness/runtime/types";
+import { UnsupportedError } from "@aos-harness/runtime/types";
 
 // ── PiWorkflow ───────────────────────────────────────────────────
 

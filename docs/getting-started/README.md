@@ -1,6 +1,6 @@
-# Getting Started with AOS Framework
+# Getting Started with AOS Harness
 
-The AOS Framework (Agent Orchestration System) is a config-driven runtime for orchestrating multi-agent deliberation sessions. You define agents with distinct cognitive profiles, assemble them into advisory councils via profiles, and the framework manages structured debate with constraint enforcement, bias protection, and transcript recording -- producing a synthesized memo as output.
+The AOS Harness (Agent Orchestration System) is a config-driven runtime for orchestrating multi-agent deliberation sessions. You define agents with distinct cognitive profiles, assemble them into advisory councils via profiles, and the harness manages structured debate with constraint enforcement, bias protection, and transcript recording -- producing a synthesized memo as output.
 
 ## Prerequisites
 
@@ -13,8 +13,8 @@ The AOS Framework (Agent Orchestration System) is a config-driven runtime for or
 1. Clone the repository:
 
 ```bash
-git clone <repository-url> aos-framework
-cd aos-framework
+git clone <repository-url> aos-harness
+cd aos-harness
 ```
 
 2. Install dependencies:

@@ -6,7 +6,7 @@
 import { join, basename } from "node:path";
 import { existsSync, readdirSync } from "node:fs";
 import { c, type ParsedArgs } from "../colors";
-import { getFrameworkRoot, discoverDirs } from "../utils";
+import { getHarnessRoot, discoverDirs } from "../utils";
 
 const HELP = `
 ${c.bold("aos validate")} — Validate all AOS configuration
@@ -47,7 +47,7 @@ export async function validateCommand(args: ParsedArgs): Promise<void> {
     return;
   }
 
-  const root = getFrameworkRoot();
+  const root = getHarnessRoot();
   const coreDir = join(root, "core");
 
   // Import runtime modules

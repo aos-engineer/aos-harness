@@ -148,6 +148,58 @@ describe("AOSEngine", () => {
     expect(responses.length).toBeGreaterThan(0);
   });
 
+  describe("onTranscriptEvent hook", () => {
+    it("calls the hook for each transcript event", async () => {
+      const adapter = new MockAdapter();
+      const events: any[] = [];
+      const engine = new AOSEngine(
+        adapter,
+        join(fixturesDir, "profiles", "test-council"),
+        {
+          agentsDir: join(fixturesDir, "agents"),
+          onTranscriptEvent: (entry) => { events.push(entry); },
+        },
+      );
+      await engine.start(join(fixturesDir, "briefs", "test-brief", "brief.md"));
+      expect(events.length).toBeGreaterThan(0);
+      expect(events[0].type).toBe("session_start");
+    });
+
+    it("does not crash the engine when hook throws synchronously", async () => {
+      const adapter = new MockAdapter();
+      const engine = new AOSEngine(
+        adapter,
+        join(fixturesDir, "profiles", "test-council"),
+        {
+          agentsDir: join(fixturesDir, "agents"),
+          onTranscriptEvent: () => { throw new Error("sync boom"); },
+        },
+      );
+      // Should not throw despite the hook throwing
+      await engine.start(join(fixturesDir, "briefs", "test-brief", "brief.md"));
+      const transcript = engine.getTranscript();
+      expect(transcript.length).toBe(1);
+      expect(transcript[0].type).toBe("session_start");
+    });
+
+    it("swallows async rejections from the hook silently", async () => {
+      const adapter = new MockAdapter();
+      const engine = new AOSEngine(
+        adapter,
+        join(fixturesDir, "profiles", "test-council"),
+        {
+          agentsDir: join(fixturesDir, "agents"),
+          onTranscriptEvent: async () => { throw new Error("async boom"); },
+        },
+      );
+      // Should not throw or cause unhandled rejection
+      await engine.start(join(fixturesDir, "briefs", "test-brief", "brief.md"));
+      const transcript = engine.getTranscript();
+      expect(transcript.length).toBe(1);
+      expect(transcript[0].type).toBe("session_start");
+    });
+  });
+
   describe("workflow integration", () => {
     it("uses deliberation mode when workflow is null/undefined", () => {
       const adapter = new MockAdapter();

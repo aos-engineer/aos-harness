@@ -1,15 +1,15 @@
-# AOS Framework — Design Specification
+# AOS Harness — Design Specification
 
 **Date:** 2026-03-23
 **Status:** Approved (pending spec review)
-**Project:** aos-framework
-**Location:** /Users/jkolade/sireskay/github/aos-framework/
+**Project:** aos-harness
+**Location:** /Users/jkolade/sireskay/github/aos-harness/
 
 ---
 
 ## 1. Vision
 
-AOS Framework is a language-agnostic agentic orchestration system that assembles specialized AI agents into deliberation teams, drives structured multi-perspective debate under time and budget constraints, and synthesizes the results into actionable recommendations.
+AOS Harness is a language-agnostic agentic orchestration system that assembles specialized AI agents into deliberation teams, drives structured multi-perspective debate under time and budget constraints, and synthesizes the results into actionable recommendations.
 
 The framework serves three tiers of users:
 - **Tier 1 (Install & Run)** — New agentic engineers install a pre-built orchestration profile, submit a brief, and get a structured output. They learn by using.
@@ -26,7 +26,7 @@ The framework is the core IP behind AOS.engineer — a platform for training the
 
 The framework follows a config-first design with a minimal shared runtime:
 
-- **Config layer (YAML/Markdown)** — Agent personas, orchestration profiles, domain templates, workflow definitions, input/output specifications. This is what makes the framework language-agnostic.
+- **Config layer (YAML/Markdown)** — Agent personas, orchestration profiles, domain templates, workflow definitions, input/output specifications. This is what makes the harness language-agnostic.
 - **Minimal runtime (~1200 lines TypeScript)** — Handles the things config can't express: constraint evaluation (time/budget/rounds with conflict resolution), delegation routing (broadcast/targeted/tension-pair with bias enforcement), template variable substitution, error handling and recovery, and budget estimation. TypeScript chosen for native Pi CLI compatibility; small enough to port to other languages as needed.
 - **Platform adapters** — Thin implementations that wire the config + runtime to a specific execution environment (Pi CLI, Claude Code, Gemini CLI).
 
@@ -1064,7 +1064,7 @@ Template variables: `{{brief}}`, `{{participants}}`, `{{constraints}}`, `{{outpu
 
 **Context file safety:** The engine does not filter context file contents. Users are responsible for not including secrets in brief context files. A future enhancement could add a `.aosignore` pattern file.
 
-**Authentication & API key management:** Model authentication is managed by the adapter, not the framework core. Adapters support multiple auth modes:
+**Authentication & API key management:** Model authentication is managed by the adapter, not the harness core. Adapters support multiple auth modes:
 
 - **API key (metered):** Pi CLI with direct Anthropic/OpenRouter keys. Per-token billing. Keys referenced via environment variable names in adapter config, never stored directly.
 - **Account subscription (unmetered):** Pi CLI authenticated with Claude Max/Pro. Codex CLI authenticated with ChatGPT Pro. No per-token cost. The adapter reports auth mode via `getAuthMode()` so the engine disables budget constraints automatically.
@@ -1104,7 +1104,7 @@ Schema versioning policy:
 ## 7. Repo Structure
 
 ```
-aos-framework/
+aos-harness/
 │
 ├── core/                                  # Language-agnostic framework core
 │   ├── schema/                            # JSON Schema for validation
@@ -1209,7 +1209,7 @@ aos-framework/
 ### Tier 1: Install & Run
 
 ```bash
-bun add aos-framework
+bun add aos-harness
 aos init --adapter pi
 aos run strategic-council
 # → Select a brief, watch deliberation, get a memo
@@ -1254,7 +1254,7 @@ Deliverables:
 - `adapters/pi/` — Full Pi CLI extension implementing all 4 adapter layers
 - `docs/getting-started/` — Install and run guide
 
-**Success criteria:** An engineer can install the framework, run `aos run strategic-council` in Pi CLI, submit a brief, watch a multi-agent deliberation with real-time streaming and constraint gauges, and receive a structured memo.
+**Success criteria:** An engineer can install the harness, run `aos run strategic-council` in Pi CLI, submit a brief, watch a multi-agent deliberation with real-time streaming and constraint gauges, and receive a structured memo.
 
 ### Phase 2 — More Profiles + Domains + Claude Code
 

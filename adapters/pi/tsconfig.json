@@ -11,7 +11,7 @@
     "resolveJsonModule": true,
     "rootDir": ".",
     "paths": {
-      "@aos-framework/runtime/*": ["../../runtime/src/*"]
+      "@aos-harness/runtime/*": ["../../runtime/src/*"]
     }
   },
   "include": ["src/**/*.ts"]

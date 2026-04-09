@@ -1,4 +1,4 @@
-# AOS Framework Core Config Implementation Plan
+# AOS Harness Core Config Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,14 +8,14 @@
 
 **Tech Stack:** YAML, Markdown, JSON Schema. No runtime code — this is pure configuration that the runtime (Plan 1, complete) consumes.
 
-**Spec:** `docs/specs/2026-03-23-aos-framework-design.md` (Sections 3, 4, 5, 6.12, 6.13, 6.15)
+**Spec:** `docs/specs/2026-03-23-aos-harness-design.md` (Sections 3, 4, 5, 6.12, 6.13, 6.15)
 
 ---
 
 ## File Structure
 
 ```
-aos-framework/
+aos-harness/
 ├── core/
 │   ├── schema/
 │   │   ├── agent.schema.json
@@ -65,7 +65,7 @@ aos-framework/
 - [ ] **Step 1: Create core/schema/ directory**
 
 ```bash
-mkdir -p /Users/jkolade/sireskay/github/aos-framework/core/schema
+mkdir -p /Users/jkolade/sireskay/github/aos-harness/core/schema
 ```
 
 - [ ] **Step 2: Create agent.schema.json**
@@ -440,7 +440,7 @@ The Arbiter is the most important agent — it drives the entire deliberation. I
 - [ ] **Step 1: Create directories**
 
 ```bash
-mkdir -p /Users/jkolade/sireskay/github/aos-framework/core/agents/orchestrators/arbiter
+mkdir -p /Users/jkolade/sireskay/github/aos-harness/core/agents/orchestrators/arbiter
 ```
 
 - [ ] **Step 2: Create agent.yaml**
@@ -490,7 +490,7 @@ Each agent needs a complete `agent.yaml` matching the `aos/agent/v1` schema and 
 - [ ] **Step 1: Create directories**
 
 ```bash
-mkdir -p /Users/jkolade/sireskay/github/aos-framework/core/agents/perspectives/{catalyst,sentinel,architect,provocateur}
+mkdir -p /Users/jkolade/sireskay/github/aos-harness/core/agents/perspectives/{catalyst,sentinel,architect,provocateur}
 ```
 
 - [ ] **Step 2: Create Catalyst**
@@ -564,7 +564,7 @@ git commit -m "feat(core): add core perspective agents — Catalyst, Sentinel, A
 - [ ] **Step 1: Create directories**
 
 ```bash
-mkdir -p /Users/jkolade/sireskay/github/aos-framework/core/agents/perspectives/{navigator,advocate,pathfinder,strategist}
+mkdir -p /Users/jkolade/sireskay/github/aos-harness/core/agents/perspectives/{navigator,advocate,pathfinder,strategist}
 ```
 
 - [ ] **Step 2: Create Navigator**
@@ -614,7 +614,7 @@ git commit -m "feat(core): add extended perspective agents — Navigator, Advoca
 - [ ] **Step 1: Create directories**
 
 ```bash
-mkdir -p /Users/jkolade/sireskay/github/aos-framework/core/agents/operational/{operator,steward,auditor}
+mkdir -p /Users/jkolade/sireskay/github/aos-harness/core/agents/operational/{operator,steward,auditor}
 ```
 
 - [ ] **Step 2: Create Operator**
@@ -656,7 +656,7 @@ git commit -m "feat(core): add operational agents — Operator, Steward, Auditor
 - [ ] **Step 1: Create directory**
 
 ```bash
-mkdir -p /Users/jkolade/sireskay/github/aos-framework/core/profiles/strategic-council
+mkdir -p /Users/jkolade/sireskay/github/aos-harness/core/profiles/strategic-council
 ```
 
 - [ ] **Step 2: Create profile.yaml**
@@ -804,7 +804,7 @@ git commit -m "feat(core): add strategic-council profile — 12-agent deliberati
 - [ ] **Step 1: Create directory**
 
 ```bash
-mkdir -p /Users/jkolade/sireskay/github/aos-framework/core/domains/saas
+mkdir -p /Users/jkolade/sireskay/github/aos-harness/core/domains/saas
 ```
 
 - [ ] **Step 2: Create domain.yaml**
@@ -838,7 +838,7 @@ git commit -m "feat(core): add SaaS domain pack with overlays for 7 agents"
 - [ ] **Step 1: Create directory**
 
 ```bash
-mkdir -p /Users/jkolade/sireskay/github/aos-framework/core/briefs/sample-product-decision
+mkdir -p /Users/jkolade/sireskay/github/aos-harness/core/briefs/sample-product-decision
 ```
 
 - [ ] **Step 2: Create brief.md**
@@ -907,7 +907,7 @@ try {
 console.log('\n' + passed + '/14 configs loaded successfully');
 ```
 
-Then run: `cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun run validate-core.ts`
+Then run: `cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun run validate-core.ts`
 
 Expected: All 14 configs load successfully (12 agents + 1 profile + 1 domain). Delete `validate-core.ts` after.
 
@@ -925,7 +925,7 @@ git commit -m "feat(core): add sample brief with product-overview context file"
 - [ ] **Step 1: Verify all files exist**
 
 ```bash
-find /Users/jkolade/sireskay/github/aos-framework/core -type f | sort
+find /Users/jkolade/sireskay/github/aos-harness/core -type f | sort
 ```
 
 Expected: 30+ files (3 schemas, 24 agent files, 2 profile files, 2 domain files, 2 brief files)
@@ -933,7 +933,7 @@ Expected: 30+ files (3 schemas, 24 agent files, 2 profile files, 2 domain files,
 - [ ] **Step 2: Run the full runtime test suite**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework/runtime && bun test
+cd /Users/jkolade/sireskay/github/aos-harness/runtime && bun test
 ```
 
 Expected: All 65+ tests still pass (no regressions)
@@ -941,7 +941,7 @@ Expected: All 65+ tests still pass (no regressions)
 - [ ] **Step 3: Verify git log**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework && git log --oneline
+cd /Users/jkolade/sireskay/github/aos-harness && git log --oneline
 ```
 
 Expected: 8 new commits on top of the runtime commits

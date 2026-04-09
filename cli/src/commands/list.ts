@@ -5,7 +5,7 @@
 import { join, basename } from "node:path";
 import { existsSync, readdirSync } from "node:fs";
 import { c, type ParsedArgs } from "../colors";
-import { getFrameworkRoot, discoverDirs } from "../utils";
+import { getHarnessRoot, discoverDirs } from "../utils";
 
 const HELP = `
 ${c.bold("aos list")} — List all available agents, profiles, domains, and skills
@@ -24,7 +24,7 @@ export async function listCommand(args: ParsedArgs): Promise<void> {
     return;
   }
 
-  const root = getFrameworkRoot();
+  const root = getHarnessRoot();
   const coreDir = join(root, "core");
 
   const { loadAgent, loadProfile, loadDomain, loadSkill } = await import("../../../runtime/src/config-loader");

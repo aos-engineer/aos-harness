@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * AOS Framework — Claude Code Adapter Generator
+ * AOS Harness — Claude Code Adapter Generator
  *
  * Reads AOS core config (profiles, agents, optional domain overlay)
  * and produces static .claude/-compatible artifacts:
@@ -14,9 +14,9 @@
 
 import { existsSync, mkdirSync, writeFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { loadProfile, loadAgent, loadDomain } from "@aos-framework/runtime/config-loader";
-import { applyDomain } from "@aos-framework/runtime/domain-merger";
-import type { AgentConfig } from "@aos-framework/runtime/types";
+import { loadProfile, loadAgent, loadDomain } from "@aos-harness/runtime/config-loader";
+import { applyDomain } from "@aos-harness/runtime/domain-merger";
+import type { AgentConfig } from "@aos-harness/runtime/types";
 import {
   generateAgentFile,
   generateCommandFile,

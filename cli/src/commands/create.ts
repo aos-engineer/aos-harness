@@ -5,7 +5,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { c, type ParsedArgs } from "../colors";
-import { getFrameworkRoot, toKebabCase } from "../utils";
+import { getHarnessRoot, toKebabCase } from "../utils";
 
 const HELP = `
 ${c.bold("aos create")} — Scaffold new agents, profiles, domains, and skills
@@ -382,7 +382,7 @@ export async function createCommand(args: ParsedArgs): Promise<void> {
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
 
-  const root = getFrameworkRoot();
+  const root = getHarnessRoot();
 
   switch (type) {
     case "agent": {

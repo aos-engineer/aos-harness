@@ -4,7 +4,7 @@ interface Props {
   description?: string;
 }
 
-const { title, description = 'AOS Framework — Agentic Orchestration System for multi-agent AI workflows' } = Astro.props;
+const { title, description = 'AOS Harness — Agentic Orchestration System for multi-agent AI workflows' } = Astro.props;
 
 const currentPath = Astro.url.pathname;
 
@@ -14,7 +14,7 @@ const navLinks = [
   { href: '/skills', label: 'Skills' },
   { href: '/domains', label: 'Domains' },
   { href: '/docs/getting-started', label: 'Docs' },
-  { href: 'https://github.com/aos-engineer/aos-framework', label: 'GitHub', external: true },
+  { href: 'https://github.com/aos-engineer/aos-harness', label: 'GitHub', external: true },
 ];
 ---
 
@@ -70,11 +70,11 @@ const navLinks = [
     <footer class="border-t border-[var(--color-border)] mt-20">
       <div class="mx-auto max-w-[1200px] px-6 py-10 flex flex-col md:flex-row items-center justify-between gap-4">
         <div class="text-[13px] text-[var(--color-text-muted)]">
-          <span class="font-semibold text-[var(--color-text)]">AOS Framework</span> &mdash; Agentic Orchestration System
+          <span class="font-semibold text-[var(--color-text)]">AOS Harness</span> &mdash; Agentic Orchestration System
         </div>
         <div class="flex items-center gap-6 text-[13px] text-[var(--color-text-muted)]">
           <a href="/docs/getting-started" class="hover:text-[var(--color-text)] no-underline text-[var(--color-text-muted)]">Docs</a>
-          <a href="https://github.com/aos-engineer/aos-framework" class="hover:text-[var(--color-text)] no-underline text-[var(--color-text-muted)]" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://github.com/aos-engineer/aos-harness" class="hover:text-[var(--color-text)] no-underline text-[var(--color-text-muted)]" target="_blank" rel="noopener">GitHub</a>
           <span>MIT License</span>
         </div>
       </div>

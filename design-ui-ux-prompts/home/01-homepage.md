@@ -1,6 +1,6 @@
 # Homepage
 
-Landing page for AOS.engineer — introduces the framework, showcases the two orchestration patterns, previews the agent roster, and drives visitors to get started.
+Landing page for AOS.engineer — introduces the harness, showcases the two orchestration patterns, previews the agent roster, and drives visitors to get started.
 
 ## Stitch Prompt
 
@@ -142,12 +142,12 @@ SECTION 7 — CTA
 - Background #ffffff, padding 80px 0
 - Content centered, max-width 600px
 - Heading: "Ready to orchestrate?" — Inter 700, 28px, #1d1d1f, centered
-- Subtitle: "Install the framework. Write a brief. Let 13 agents debate your hardest question." — Inter 400, 15px, #424245, centered, margin-top 12px
+- Subtitle: "Install the harness. Write a brief. Let 13 agents debate your hardest question." — Inter 400, 15px, #424245, centered, margin-top 12px
 - Button: "Get Started" — centered, margin-top 28px, same primary button style
 
 SECTION 8 — Footer
 - Border-top: 1px solid #e8e8ed, padding 32px, text-align center
-- "AOS Framework — Agentic Orchestration System" — Inter 13px, #86868b
+- "AOS Harness — Agentic Orchestration System" — Inter 13px, #86868b
 - "Open source. Config-driven. Multi-platform." — Inter 13px, #86868b, margin-top 4px
 
 === MOBILE LAYOUT (375px) ===
@@ -206,5 +206,5 @@ Featured agents: Arbiter (orchestrator, premium), CTO Orchestrator (orchestrator
 List agents: Catalyst, Sentinel, Architect, Provocateur, Navigator, Advocate
 Platforms: Pi CLI, Claude Code, Gemini CLI
 CTA heading: "Ready to orchestrate?"
-CTA subtitle: "Install the framework. Write a brief. Let 13 agents debate your hardest question."
+CTA subtitle: "Install the harness. Write a brief. Let 13 agents debate your hardest question."
 ```

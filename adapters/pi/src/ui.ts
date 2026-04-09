@@ -5,7 +5,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
-import type { UIAdapter } from "@aos-framework/runtime/types";
+import type { UIAdapter } from "@aos-harness/runtime/types";
 
 // ── Helpers ──────────────────────────────────────────────────────
 

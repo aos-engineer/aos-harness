@@ -1,4 +1,4 @@
-# AOS Framework — Manual Testing Checklist
+# AOS Harness — Manual Testing Checklist
 
 **Date:** 2026-03-24
 **Tester:** _______________
@@ -31,7 +31,7 @@
 
 ## 2. CLI Commands (no API calls)
 
-All commands run from project root: `cd /path/to/aos-framework`
+All commands run from project root: `cd /path/to/aos-harness`
 
 | # | Test | Command | Expected | Severity |
 |---|------|---------|----------|----------|

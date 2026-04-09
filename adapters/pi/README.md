@@ -1,6 +1,6 @@
-# Pi Adapter — AOS Framework
+# Pi Adapter — AOS Harness
 
-This is the Pi CLI adapter for the AOS Framework. It runs the full agent deliberation workflow inside Pi's terminal UI, wiring the framework's agent runtime, event bus, workflow engine, and UI layer into Pi's interactive session model.
+This is the Pi CLI adapter for the AOS Harness. It runs the full agent deliberation workflow inside Pi's terminal UI, wiring the harness's agent runtime, event bus, workflow engine, and UI layer into Pi's interactive session model.
 
 ## Prerequisites
 
@@ -11,7 +11,7 @@ This is the Pi CLI adapter for the AOS Framework. It runs the full agent deliber
 ## Quick Start
 
 ```bash
-cd aos-framework/adapters/pi && bun install
+cd aos-harness/adapters/pi && bun install
 pi -e src/index.ts
 # In the TUI, run:
 /aos-run

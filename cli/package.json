@@ -1,7 +1,7 @@
 {
-  "name": "@aos-framework/cli",
+  "name": "@aos-harness/cli",
   "version": "0.1.0",
-  "description": "CLI tooling for the AOS Framework — install, run, and manage agentic orchestration profiles",
+  "description": "CLI tooling for the AOS Harness — install, run, and manage agentic orchestration profiles",
   "type": "module",
   "bin": {
     "aos": "./src/index.ts"
@@ -12,7 +12,7 @@
   },
   "files": ["src/"],
   "dependencies": {
-    "@aos-framework/runtime": "workspace:*",
+    "@aos-harness/runtime": "workspace:*",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {

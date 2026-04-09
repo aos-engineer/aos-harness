@@ -172,7 +172,7 @@ Category identification: Color dots (6px circles) and accent bars (4px wide stri
 Simple, centered:
 - Border-top: 1px solid #e8e8ed
 - Padding: 32px
-- "AOS Framework — Agentic Orchestration System"
+- "AOS Harness — Agentic Orchestration System"
 - "Open source. Config-driven. Multi-platform."
 - Font: Inter 13px, #86868b
 ```
