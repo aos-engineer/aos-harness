@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { existsSync, rmSync } from "node:fs";
 import { AOSEngine } from "../src/engine";
 import { MockAdapter } from "./mock-adapter";
+import type { TranscriptEntry } from "../src/types";
 
 const fixturesDir = join(import.meta.dir, "..", "fixtures");
 
@@ -241,6 +242,34 @@ describe("AOSEngine", () => {
       });
       expect(result.allowed).toBe(true);
       expect(adapter.calls.some((c) => c.method === "enforceToolAccess")).toBe(true);
+    });
+  });
+
+  describe("AOSEngine — session pause", () => {
+    it("pauseSession returns a checkpoint", async () => {
+      const adapter = new MockAdapter();
+      const events: TranscriptEntry[] = [];
+      const engine = new AOSEngine(adapter, join(fixturesDir, "profiles", "test-council"), {
+        agentsDir: join(fixturesDir, "agents"),
+        onTranscriptEvent: (e) => events.push(e),
+      });
+      const cp = await engine.pauseSession();
+      expect(cp.sessionId).toBeDefined();
+      expect(cp.activeAgents).toBeDefined();
+      expect(events.some((e) => e.type === "session_paused")).toBe(true);
+    });
+
+    it("getCheckpoint returns null before pause", () => {
+      const adapter = new MockAdapter();
+      const engine = new AOSEngine(adapter, join(fixturesDir, "profiles", "test-council"), { agentsDir: join(fixturesDir, "agents") });
+      expect(engine.getCheckpoint()).toBeNull();
+    });
+
+    it("getCheckpoint returns checkpoint after pause", async () => {
+      const adapter = new MockAdapter();
+      const engine = new AOSEngine(adapter, join(fixturesDir, "profiles", "test-council"), { agentsDir: join(fixturesDir, "agents") });
+      await engine.pauseSession();
+      expect(engine.getCheckpoint()).not.toBeNull();
     });
   });
 

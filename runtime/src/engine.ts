@@ -19,9 +19,11 @@ import type {
   ChildAgentConfig,
   ConstraintState,
   DelegationDelegate,
+  SessionCheckpoint,
   SpawnResult,
   TranscriptEntry,
 } from "./types";
+import { SessionCheckpointManager } from "./session-checkpoint";
 import { ChildAgentManager } from "./child-agent-manager";
 import { loadProfile, loadAgent, loadDomain, loadWorkflow, validateBrief } from "./config-loader";
 import { DomainEnforcer } from "./domain-enforcer";
@@ -61,6 +63,8 @@ export class AOSEngine {
   private workflowsDir: string | null = null;
   private onTranscriptEvent?: (entry: TranscriptEntry) => void | Promise<void>;
   private childAgentManager: ChildAgentManager;
+  private checkpointManager: SessionCheckpointManager;
+  private checkpoint: SessionCheckpoint | null = null;
 
   constructor(adapter: AOSAdapter, profilePath: string, opts: EngineOpts) {
     this.adapter = adapter;
@@ -107,6 +111,9 @@ export class AOSEngine {
     this.childAgentManager = new ChildAgentManager(
       this.profile.delegation?.max_delegation_depth ?? 2,
     );
+
+    // Initialize checkpoint manager
+    this.checkpointManager = new SessionCheckpointManager();
 
     // Find speaks-last agent
     for (const p of this.profile.assembly.perspectives) {
@@ -635,6 +642,26 @@ export class AOSEngine {
 
   getChildAgents(parentAgentId: string): AgentHandle[] {
     return this.childAgentManager.getChildren(parentAgentId);
+  }
+
+  async pauseSession(reason?: string): Promise<SessionCheckpoint> {
+    const state = this.constraintEngine.getState();
+    const activeHandles = Array.from(this.handles.values());
+    this.checkpoint = this.checkpointManager.createCheckpoint(
+      this.sessionId, state, activeHandles, this.transcript, this.roundNumber, 50,
+    );
+    this.pushTranscript({
+      type: "session_paused",
+      timestamp: new Date().toISOString(),
+      sessionId: this.sessionId,
+      reason: reason ?? "user_requested",
+      checkpoint: this.checkpoint,
+    });
+    return this.checkpoint;
+  }
+
+  getCheckpoint(): SessionCheckpoint | null {
+    return this.checkpoint;
   }
 
   private generateSessionId(): string {
