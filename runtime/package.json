@@ -19,7 +19,8 @@
     "./workflow-runner": "./src/workflow-runner.ts",
     "./artifact-manager": "./src/artifact-manager.ts",
     "./output-renderer": "./src/output-renderer.ts",
-    "./domain-enforcer": "./src/domain-enforcer.ts"
+    "./domain-enforcer": "./src/domain-enforcer.ts",
+    "./child-agent-manager": "./src/child-agent-manager.ts"
   },
   "files": ["src/", "package.json", "tsconfig.json"],
   "dependencies": {
