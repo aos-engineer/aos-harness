@@ -69,6 +69,49 @@ export interface AgentCapabilities {
   output_types: ("text" | "markdown" | "code" | "diagram" | "structured-data")[];
 }
 
+// ── Domain Enforcement ─────────────────────────────────────────
+
+export interface DomainRule {
+  path: string;
+  read: boolean;
+  write: boolean;
+  delete: boolean;
+}
+
+export interface BlockedTokenSet {
+  tokens: string[];
+  aliases?: Record<string, string[]>;
+}
+
+export interface BashRestrictions {
+  blocked_tokens: BlockedTokenSet[];
+  blocked_patterns: string[];
+}
+
+export interface DomainRules {
+  rules: DomainRule[];
+  tool_allowlist?: string[];
+  tool_denylist?: string[];
+  bash_restrictions?: BashRestrictions;
+}
+
+export interface EnforcementResult {
+  allowed: boolean;
+  reason?: string;
+}
+
+// ── Delegation Config ──────────────────────────────────────────
+
+export type DelegationStyle = "delegate-only" | "delegate-and-execute";
+
+export interface DelegationConfig {
+  can_spawn: boolean;
+  max_children: number;
+  child_model_tier: ModelTier;
+  child_timeout_seconds: number;
+  delegation_style: DelegationStyle;
+}
+
 export interface AgentConfig {
   schema: string;
   id: string;
@@ -84,6 +127,8 @@ export interface AgentConfig {
   model: { tier: ModelTier; thinking: ThinkingMode };
   systemPrompt?: string;
   capabilities?: AgentCapabilities;
+  domain?: DomainRules;
+  delegation?: DelegationConfig;
 }
 
 // ── Profile Config ──────────────────────────────────────────────
@@ -421,7 +466,25 @@ export type TranscriptEventType =
   // Execution events
   | "code_execution"
   | "skill_invocation"
-  | "review_submission";
+  | "review_submission"
+  // Domain enforcement events
+  | "domain_violation"
+  | "domain_access"
+  // Hierarchical delegation events (Phase 2)
+  | "agent_spawned"
+  | "agent_destroyed"
+  | "child_delegation"
+  | "child_response"
+  // Expertise events (Phase 3a)
+  | "expertise_loaded"
+  | "expertise_updated"
+  // File tracking (Phase 2)
+  | "file_changed"
+  // Cost granularity
+  | "token_usage"
+  // Session lifecycle (Phase 3b)
+  | "session_paused"
+  | "session_resumed";
 
 export interface TranscriptEntry {
   type: TranscriptEventType;
