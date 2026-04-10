@@ -146,6 +146,20 @@ aos-harness/
 
 ---
 
+## Enhanced Capabilities
+
+AOS Harness includes advanced features for production orchestration:
+
+| Capability | Description | Guide |
+|---|---|---|
+| [Domain Enforcement](docs/domain-enforcement/README.md) | Structural file/tool permission boundaries per agent | Path matching, tool allowlists, bash restrictions |
+| [Hierarchical Delegation](docs/hierarchical-delegation/README.md) | Agents spawn and manage sub-agents in Lead→Worker chains | Depth limits, domain inheritance |
+| [Persistent Expertise](docs/persistent-expertise/README.md) | Agent knowledge accumulates across sessions | Diff-based updates, pruning, review gates |
+| [Event Summarization](docs/event-summarization/README.md) | Human-readable event summaries via templates and LLM | Template and batched LLM approach |
+| [Session Resumption](docs/session-resumption/README.md) | Pause and resume sessions with full context | Checkpoints, conversation tails |
+
+---
+
 ## Documentation
 
 - **Specs:** `docs/specs/2026-03-23-aos-harness-design.md` (core framework)
@@ -153,6 +167,13 @@ aos-harness/
 - **Getting Started:** `docs/getting-started/README.md`
 - **Creating Agents:** `docs/creating-agents/README.md`
 - **Creating Profiles:** `docs/creating-profiles/README.md`
+- **Creating Workflows:** `docs/creating-workflows/README.md`
+- **Creating Skills:** `docs/creating-skills/README.md`
+- **Domain Enforcement:** `docs/domain-enforcement/README.md`
+- **Hierarchical Delegation:** `docs/hierarchical-delegation/README.md`
+- **Persistent Expertise:** `docs/persistent-expertise/README.md`
+- **Event Summarization:** `docs/event-summarization/README.md`
+- **Session Resumption:** `docs/session-resumption/README.md`
 
 ---
 
