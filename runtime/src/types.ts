@@ -177,6 +177,32 @@ export interface PersistenceAdapter {
   loadExpertise(agentId: string, projectId: string): Promise<string | null>;
 }
 
+// ── Session Checkpoint Types ───────────────────────────────────
+
+export interface AgentCheckpoint {
+  agentId: string;
+  parentAgentId?: string;
+  depth: number;
+  conversationTail: TranscriptEntry[];
+  expertiseSnapshot?: string;
+}
+
+export interface PendingDelegation {
+  target: string | string[];
+  message: string;
+  round: number;
+}
+
+export interface SessionCheckpoint {
+  sessionId: string;
+  constraintState: ConstraintState;
+  activeAgents: AgentCheckpoint[];
+  roundsCompleted: number;
+  pendingDelegations: PendingDelegation[];
+  transcriptReplayDepth: number;
+  createdAt: string;
+}
+
 export interface AgentConfig {
   schema: string;
   id: string;

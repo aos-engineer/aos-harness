@@ -561,6 +561,33 @@ describe("ExpertiseConfig, ExpertiseFile, ExpertiseDiff types", () => {
   });
 });
 
+describe("Session checkpoint types", () => {
+  it("AgentCheckpoint compiles", () => {
+    const cp: import("../src/types").AgentCheckpoint = {
+      agentId: "architect", depth: 0,
+      conversationTail: [{ type: "response", timestamp: "t1", agentId: "architect", content: "test" }],
+    };
+    expect(cp.conversationTail).toHaveLength(1);
+  });
+  it("SessionCheckpoint compiles", () => {
+    const cp: import("../src/types").SessionCheckpoint = {
+      sessionId: "s1",
+      constraintState: {
+        elapsed_minutes: 5, budget_spent: 0.5, rounds_completed: 3,
+        past_min_time: true, past_min_budget: true, past_min_rounds: true, past_all_minimums: true,
+        approaching_max_time: false, approaching_max_budget: false, approaching_max_rounds: false,
+        approaching_any_maximum: false, hit_maximum: false, hit_reason: "none",
+        can_end: true, bias_ratio: 1.2, most_addressed: [], least_addressed: [],
+        bias_blocked: false, metered: true,
+      },
+      activeAgents: [{ agentId: "a1", depth: 0, conversationTail: [] }],
+      roundsCompleted: 3, pendingDelegations: [],
+      transcriptReplayDepth: 50, createdAt: "2026-04-10",
+    };
+    expect(cp.activeAgents).toHaveLength(1);
+  });
+});
+
 describe("MockAdapter execution methods", () => {
   it("executeCode records call and returns default result", async () => {
     const adapter = new MockAdapter();
