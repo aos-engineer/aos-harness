@@ -212,6 +212,26 @@ describe("AOSEngine", () => {
     });
   });
 
+  describe("AOSEngine — hierarchical delegation", () => {
+    it("returns error when parent has no delegation config", async () => {
+      const adapter = new MockAdapter();
+      const engine = new AOSEngine(adapter, join(fixturesDir, "profiles", "test-council"), {
+        agentsDir: join(fixturesDir, "agents"),
+        onTranscriptEvent: () => {},
+      });
+      const result = await engine.spawnChildAgent("arbiter", { name: "w1", role: "worker" });
+      expect(result.success).toBe(false);
+    });
+
+    it("getChildAgents returns empty for agents without children", () => {
+      const adapter = new MockAdapter();
+      const engine = new AOSEngine(adapter, join(fixturesDir, "profiles", "test-council"), {
+        agentsDir: join(fixturesDir, "agents"),
+      });
+      expect(engine.getChildAgents("arbiter")).toEqual([]);
+    });
+  });
+
   describe("MockAdapter — enforceToolAccess", () => {
     it("records enforceToolAccess calls", async () => {
       const adapter = new MockAdapter();
