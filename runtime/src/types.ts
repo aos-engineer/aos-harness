@@ -112,6 +112,38 @@ export interface DelegationConfig {
   delegation_style: DelegationStyle;
 }
 
+// ── Child Agent Types ──────────────────────────────────────────
+
+export interface ChildAgentConfig {
+  name: string;
+  role: string;
+  modelTier?: ModelTier;
+  systemPrompt?: string;
+  domainRules?: DomainRules;
+  timeout?: number;
+}
+
+export type SpawnResult =
+  | { success: true; childAgentId: string }
+  | { success: false; error: "depth_limit_exceeded"; currentDepth: number; maxDepth: number; suggestion: "execute_directly" }
+  | { success: false; error: "max_children_exceeded"; active: number; max: number }
+  | { success: false; error: "child_not_found"; childAgentId: string }
+  | { success: false; error: "child_timeout"; childAgentId: string; elapsed_seconds: number; partial_response?: string };
+
+export interface TokenUsage {
+  tokensIn: number;
+  tokensOut: number;
+  cost: number;
+  model: string;
+}
+
+export interface FileChangeEvent {
+  agentId: string;
+  path: string;
+  operation: "created" | "modified" | "deleted";
+  diffSnippet?: string;
+}
+
 export interface AgentConfig {
   schema: string;
   id: string;
@@ -181,6 +213,7 @@ export interface ProfileConfig {
     opening_rounds: number;
     tension_pairs: [string, string][];
     bias_limit: number;
+    max_delegation_depth?: number;
   };
   constraints: ProfileConstraints;
   error_handling: ErrorHandling;
@@ -311,6 +344,8 @@ export interface AgentHandle {
   id: string;
   agentId: string;
   sessionId: string;
+  parentAgentId?: string;
+  depth?: number;
 }
 
 export interface MessageOpts {
@@ -505,6 +540,8 @@ export interface AgentRuntimeAdapter {
   getAuthMode(): AuthMode;
   getModelCost(tier: ModelTier): ModelCost;
   abort(): void;
+  spawnSubAgent(parentId: string, config: ChildAgentConfig, sessionId: string): Promise<AgentHandle>;
+  destroySubAgent(parentId: string, childId: string): Promise<void>;
 }
 
 export interface EventBusAdapter {

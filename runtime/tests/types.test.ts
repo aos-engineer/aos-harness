@@ -395,6 +395,26 @@ describe("Domain & Delegation types", () => {
   });
 });
 
+describe("Hierarchical delegation types", () => {
+  it("ChildAgentConfig compiles", () => {
+    const config: import("../src/types").ChildAgentConfig = {
+      name: "backend-dev", role: "test", modelTier: "economy",
+      systemPrompt: "You are a dev.", timeout: 120,
+    };
+    expect(config.name).toBe("backend-dev");
+  });
+  it("SpawnResult compiles with success and errors", () => {
+    const ok: import("../src/types").SpawnResult = { success: true, childAgentId: "c1" };
+    const err: import("../src/types").SpawnResult = { success: false, error: "depth_limit_exceeded", currentDepth: 2, maxDepth: 2, suggestion: "execute_directly" };
+    expect(ok.success).toBe(true);
+    expect(err.success).toBe(false);
+  });
+  it("AgentHandle accepts parentAgentId and depth", () => {
+    const h: import("../src/types").AgentHandle = { id: "h1", agentId: "c1", sessionId: "s1", parentAgentId: "p1", depth: 1 };
+    expect(h.depth).toBe(1);
+  });
+});
+
 describe("MockAdapter execution methods", () => {
   it("executeCode records call and returns default result", async () => {
     const adapter = new MockAdapter();
