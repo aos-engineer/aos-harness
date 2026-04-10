@@ -356,6 +356,45 @@ describe("TranscriptEventType", () => {
   });
 });
 
+describe("Domain & Delegation types", () => {
+  it("DomainRules compiles with valid structure", () => {
+    const rules: import("../src/types").DomainRules = {
+      rules: [
+        { path: "apps/web/**", read: true, write: true, delete: false },
+        { path: "**/*.env*", read: false, write: false, delete: false },
+      ],
+      tool_allowlist: ["read", "write", "edit"],
+      tool_denylist: ["bash"],
+      bash_restrictions: {
+        blocked_tokens: [
+          { tokens: ["rm", "recursive"], aliases: { recursive: ["-r", "-R", "--recursive"] } },
+        ],
+        blocked_patterns: ["curl.*-X DELETE"],
+      },
+    };
+    expect(rules.rules).toHaveLength(2);
+    expect(rules.tool_denylist).toContain("bash");
+  });
+
+  it("DelegationConfig compiles with valid structure", () => {
+    const config: import("../src/types").DelegationConfig = {
+      can_spawn: true,
+      max_children: 3,
+      child_model_tier: "economy",
+      child_timeout_seconds: 120,
+      delegation_style: "delegate-only",
+    };
+    expect(config.can_spawn).toBe(true);
+  });
+
+  it("EnforcementResult compiles with allowed and denied", () => {
+    const allowed: import("../src/types").EnforcementResult = { allowed: true };
+    const denied: import("../src/types").EnforcementResult = { allowed: false, reason: "blocked" };
+    expect(allowed.allowed).toBe(true);
+    expect(denied.reason).toBe("blocked");
+  });
+});
+
 describe("MockAdapter execution methods", () => {
   it("executeCode records call and returns default result", async () => {
     const adapter = new MockAdapter();
