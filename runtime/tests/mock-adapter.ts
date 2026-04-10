@@ -10,6 +10,7 @@ import type {
   AgentResponse,
   ArtifactManifest,
   AuthMode,
+  ChildAgentConfig,
   ContextUsage,
   EnforcementResult,
   ExecuteCodeOpts,
@@ -115,6 +116,21 @@ export class MockAdapter implements AOSAdapter {
 
   abort(): void {
     this.record("abort");
+  }
+
+  async spawnSubAgent(parentId: string, config: ChildAgentConfig, sessionId: string): Promise<AgentHandle> {
+    this.record("spawnSubAgent", parentId, config.name, sessionId);
+    return {
+      id: `handle-${this.nextId++}`,
+      agentId: config.name,
+      sessionId,
+      parentAgentId: parentId,
+      depth: 1,
+    };
+  }
+
+  async destroySubAgent(parentId: string, childId: string): Promise<void> {
+    this.record("destroySubAgent", parentId, childId);
   }
 
   // ── EventBusAdapter ─────────────────────────────────────────────
