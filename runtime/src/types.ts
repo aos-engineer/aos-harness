@@ -549,6 +549,7 @@ export interface WorkflowAdapter {
   createArtifact(artifact: ArtifactManifest, content: string): Promise<void>;
   loadArtifact(artifactId: string, sessionDir: string): Promise<LoadedArtifact>;
   submitForReview(artifact: LoadedArtifact, reviewer: AgentHandle, reviewPrompt?: string): Promise<ReviewResult>;
+  enforceToolAccess(agentId: string, toolCall: { tool: string; path?: string; command?: string }): Promise<EnforcementResult>;
 }
 
 export type AOSAdapter = AgentRuntimeAdapter & EventBusAdapter & UIAdapter & WorkflowAdapter;

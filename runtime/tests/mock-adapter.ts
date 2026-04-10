@@ -11,6 +11,7 @@ import type {
   ArtifactManifest,
   AuthMode,
   ContextUsage,
+  EnforcementResult,
   ExecuteCodeOpts,
   ExecutionResult,
   LoadedArtifact,
@@ -39,6 +40,7 @@ export class MockAdapter implements AOSAdapter {
   responseCost = 0.012;
   responseTokensIn = 500;
   responseTokensOut = 300;
+  domainEnforcerOverride?: (agentId: string, toolCall: { tool: string; path?: string; command?: string }) => EnforcementResult;
 
   // ── Internal tracking ───────────────────────────────────────────
   calls: MockCall[] = [];
@@ -331,5 +333,16 @@ export class MockAdapter implements AOSAdapter {
       status: "approved",
       reviewer: reviewer.agentId,
     };
+  }
+
+  async enforceToolAccess(
+    agentId: string,
+    toolCall: { tool: string; path?: string; command?: string },
+  ): Promise<EnforcementResult> {
+    this.record("enforceToolAccess", agentId, toolCall);
+    if (this.domainEnforcerOverride) {
+      return this.domainEnforcerOverride(agentId, toolCall);
+    }
+    return { allowed: true };
   }
 }

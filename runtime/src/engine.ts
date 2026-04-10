@@ -21,6 +21,7 @@ import type {
   TranscriptEntry,
 } from "./types";
 import { loadProfile, loadAgent, loadDomain, loadWorkflow, validateBrief } from "./config-loader";
+import { DomainEnforcer } from "./domain-enforcer";
 import { ConstraintEngine } from "./constraint-engine";
 import { DelegationRouter } from "./delegation-router";
 import type { DelegationTarget } from "./delegation-router";
@@ -51,6 +52,7 @@ export class AOSEngine {
   private sessionId: string;
   private speaksLastAgent: string | null = null;
   private domainId: string | null = null;
+  private domainEnforcers: Map<string, DomainEnforcer> = new Map();
   private workflowMode: boolean = false;
   private workflowConfig: WorkflowConfig | null = null;
   private workflowsDir: string | null = null;
@@ -88,6 +90,13 @@ export class AOSEngine {
     // Store agents by ID
     for (const config of agentConfigs) {
       this.agents.set(config.id, config);
+    }
+
+    // Initialize domain enforcers for agents that have domain rules
+    for (const [agentId, agentConfig] of this.agents) {
+      if (agentConfig.domain) {
+        this.domainEnforcers.set(agentId, new DomainEnforcer(agentConfig.domain));
+      }
     }
 
     // Find speaks-last agent
@@ -544,6 +553,10 @@ export class AOSEngine {
 
   getTranscript(): TranscriptEntry[] {
     return [...this.transcript];
+  }
+
+  getDomainEnforcer(agentId: string): DomainEnforcer | null {
+    return this.domainEnforcers.get(agentId) ?? null;
   }
 
   /** Push an external transcript entry (e.g., steer events from the adapter). */

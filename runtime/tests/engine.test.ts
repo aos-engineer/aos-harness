@@ -200,6 +200,30 @@ describe("AOSEngine", () => {
     });
   });
 
+  describe("AOSEngine — domain enforcement", () => {
+    it("returns null enforcer for agents without domain rules", async () => {
+      const adapter = new MockAdapter();
+      const engine = new AOSEngine(adapter, join(fixturesDir, "profiles", "test-council"), {
+        agentsDir: join(fixturesDir, "agents"),
+        onTranscriptEvent: () => {},
+      });
+      const enforcer = engine.getDomainEnforcer("arbiter");
+      expect(enforcer).toBeNull();
+    });
+  });
+
+  describe("MockAdapter — enforceToolAccess", () => {
+    it("records enforceToolAccess calls", async () => {
+      const adapter = new MockAdapter();
+      const result = await adapter.enforceToolAccess("arbiter", {
+        tool: "write",
+        path: "apps/web/page.tsx",
+      });
+      expect(result.allowed).toBe(true);
+      expect(adapter.calls.some((c) => c.method === "enforceToolAccess")).toBe(true);
+    });
+  });
+
   describe("workflow integration", () => {
     it("uses deliberation mode when workflow is null/undefined", () => {
       const adapter = new MockAdapter();
