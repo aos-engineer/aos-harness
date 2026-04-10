@@ -144,6 +144,39 @@ export interface FileChangeEvent {
   diffSnippet?: string;
 }
 
+// ── Expertise Types ────────────────────────────────────────────
+
+export interface ExpertiseConfig {
+  enabled: boolean;
+  max_lines: number;
+  structure: string[];
+  read_on: "session_start";
+  update_on: "session_end";
+  scope: "per-project" | "global";
+  mode: "read-write" | "read-only";
+  auto_commit: "true" | "review";
+}
+
+export interface ExpertiseFile {
+  last_updated: string;
+  session_count: number;
+  knowledge: Record<string, string[]>;
+}
+
+export interface ExpertiseDiff {
+  agentId: string;
+  projectId: string;
+  additions: Record<string, string[]>;
+  removals: Record<string, string[]>;
+}
+
+// ── Persistence Adapter (Optional Mixin) ───────────────────────
+
+export interface PersistenceAdapter {
+  persistExpertise(agentId: string, projectId: string, content: string): Promise<void>;
+  loadExpertise(agentId: string, projectId: string): Promise<string | null>;
+}
+
 export interface AgentConfig {
   schema: string;
   id: string;
@@ -161,6 +194,7 @@ export interface AgentConfig {
   capabilities?: AgentCapabilities;
   domain?: DomainRules;
   delegation?: DelegationConfig;
+  expertiseConfig?: ExpertiseConfig;
 }
 
 // ── Profile Config ──────────────────────────────────────────────
