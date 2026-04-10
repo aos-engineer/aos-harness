@@ -19,6 +19,7 @@ import type {
   MessageOpts,
   ModelCost,
   ModelTier,
+  PersistenceAdapter,
   ReviewResult,
   SkillInput,
   SkillResult,
@@ -34,7 +35,7 @@ export interface MockCall {
   timestamp: number;
 }
 
-export class MockAdapter implements AOSAdapter {
+export class MockAdapter implements AOSAdapter, PersistenceAdapter {
   // ── Configurable state ──────────────────────────────────────────
   authMode: AuthMode = { type: "api_key", metered: true };
   agentResponses: Map<string, string> = new Map();
@@ -47,6 +48,7 @@ export class MockAdapter implements AOSAdapter {
   calls: MockCall[] = [];
   private nextId = 1;
   private eventHandlers: Map<string, Function[]> = new Map();
+  private expertiseStore: Map<string, string> = new Map();
 
   private record(method: string, ...args: unknown[]): void {
     this.calls.push({ method, args, timestamp: Date.now() });
@@ -360,5 +362,17 @@ export class MockAdapter implements AOSAdapter {
       return this.domainEnforcerOverride(agentId, toolCall);
     }
     return { allowed: true };
+  }
+
+  // ── PersistenceAdapter ──────────────────────────────────────────
+
+  async persistExpertise(agentId: string, projectId: string, content: string): Promise<void> {
+    this.record("persistExpertise", agentId, projectId);
+    this.expertiseStore.set(`${agentId}:${projectId}`, content);
+  }
+
+  async loadExpertise(agentId: string, projectId: string): Promise<string | null> {
+    this.record("loadExpertise", agentId, projectId);
+    return this.expertiseStore.get(`${agentId}:${projectId}`) ?? null;
   }
 }
