@@ -22,7 +22,8 @@
     "./domain-enforcer": "./src/domain-enforcer.ts",
     "./child-agent-manager": "./src/child-agent-manager.ts",
     "./expertise-manager": "./src/expertise-manager.ts",
-    "./event-summarizer": "./src/event-summarizer.ts"
+    "./event-summarizer": "./src/event-summarizer.ts",
+    "./session-checkpoint": "./src/session-checkpoint.ts"
   },
   "files": ["src/", "package.json", "tsconfig.json"],
   "dependencies": {
