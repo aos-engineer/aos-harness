@@ -6,7 +6,7 @@ Use this prompt in any AI conversation to turn a raw idea, event, or initiative 
 
 ## The Prompt
 
-> I'm going to describe something I need to think through — it could be a strategic decision, a product feature, an operational initiative, a technical architecture decision, or an event/initiative I'm planning. Your job is to turn my description into a well-structured AOS brief that I can feed into my Agent OS framework for multi-agent deliberation or execution.
+> I'm going to describe something I need to think through — it could be a strategic decision, a product feature, an operational initiative, a technical architecture decision, or an event/initiative I'm planning. Your job is to turn my description into a well-structured AOS brief that I can feed into my AOS Harness for multi-agent deliberation or execution.
 >
 > **Output the brief in this exact format:**
 >

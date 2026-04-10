@@ -336,7 +336,7 @@ A profile with 50 perspectives would spawn 50 simultaneous subprocesses. A 100MB
 ### L8. No HTTPS/TLS Enforcement for API Communications
 
 **Files:** All source files.
-**Description:** The framework delegates API communication to the `pi` subprocess and does not enforce or verify TLS. While this is likely handled by the underlying SDK, there is no explicit check or configuration for secure communication.
+**Description:** The harness delegates API communication to the `pi` subprocess and does not enforce or verify TLS. While this is likely handled by the underlying SDK, there is no explicit check or configuration for secure communication.
 
 **Recommended fix:** Document the TLS requirement and verify that the `pi` binary enforces it.
 
