@@ -338,3 +338,55 @@ This means the same agent definition can participate in both advisory deliberati
 | `{{role_override}}` | Production role from the profile's `role_override` field, or empty if not set |
 
 See [Creating Profiles](../creating-profiles/README.md) for how `role_override` is configured at the profile level.
+
+## Domain Enforcement
+
+Domain enforcement gives each agent a structural boundary: which file paths it can read, write, or delete, and which tools it is permitted or forbidden to call. These rules are evaluated by the runtime before any tool call executes, not by the agent itself.
+
+```yaml
+domain:
+  rules:
+    - path: "src/**"
+      read: true
+      write: true
+      delete: false
+  tool_allowlist: ["read", "write", "edit"]
+  tool_denylist: ["bash"]
+```
+
+See [Domain Enforcement](../domain-enforcement/README.md) for path matching rules, bash restrictions, and profile overrides.
+
+## Hierarchical Delegation
+
+Agents with delegation authority can spawn sub-agents to handle scoped sub-tasks, enabling Lead→Worker chains where a lead agent decomposes work and coordinates results. The `delegation` field on the agent definition controls what that agent is permitted to spawn.
+
+```yaml
+delegation:
+  can_spawn: true
+  max_children: 3
+  child_model_tier: economy
+  child_timeout_seconds: 120
+  delegation_style: delegate-only
+```
+
+See [Hierarchical Delegation](../hierarchical-delegation/README.md) for depth limits, delegation tools, and domain inheritance.
+
+## Persistent Expertise
+
+An agent's expertise can accumulate across sessions rather than resetting each time. The runtime reads the expertise file at session start and writes a diff-based update at session end, so the agent's knowledge compounds over time without unbounded growth.
+
+```yaml
+expertiseConfig:
+  enabled: true
+  max_lines: 5000
+  structure: [architecture_patterns, failure_modes]
+  read_on: session_start
+  update_on: session_end
+  scope: per-project
+  mode: read-write
+  auto_commit: review
+```
+
+Note: This is separate from the `expertise` field above, which defines scratch-pad paths. `expertiseConfig` controls the persistent learning system.
+
+See [Persistent Expertise](../persistent-expertise/README.md) for update mechanics, pruning, and review mode.

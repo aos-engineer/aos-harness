@@ -38,6 +38,7 @@ delegation:
     - [catalyst, sentinel]
     - [architect, pathfinder]
   bias_limit: 5                   # Max times one agent can be addressed before bias triggers
+  max_delegation_depth: 2        # Maximum child agent depth (default: 2)
 
 constraints:
   time:
@@ -149,6 +150,10 @@ The `bias_limit` prevents the Arbiter from over-consulting specific agents. When
 - Low values (3-4): Force even distribution, good for fairness
 - Medium values (5-6): Allow some focusing while maintaining balance
 - High values (7+): Allow deep dives on specific agents, risk perspective imbalance
+
+### Max Delegation Depth
+
+`max_delegation_depth` controls how deep hierarchical delegation can go. A depth of 2 means the profile's agents can spawn child agents, but those children cannot spawn further children. Setting this to 1 disables all sub-agent spawning regardless of individual agent `delegation` settings. Controls how deep hierarchical delegation can go. See [Hierarchical Delegation](../hierarchical-delegation/README.md).
 
 ### Opening Rounds
 
