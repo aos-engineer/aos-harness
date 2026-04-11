@@ -6,7 +6,7 @@ export class ExpertiseManager {
     if (!content || content.trim() === "") {
       return { last_updated: "", session_count: 0, knowledge: {} };
     }
-    const parsed = yaml.load(content) as Record<string, unknown>;
+    const parsed = yaml.load(content, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown>;
     return {
       last_updated: (parsed.last_updated as string) ?? "",
       session_count: (parsed.session_count as number) ?? 0,
