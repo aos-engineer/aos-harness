@@ -2,18 +2,20 @@
  * aos init — Initialize AOS configuration in the current project.
  */
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { c, type ParsedArgs } from "../colors";
+import { getHarnessRoot, getPackageCoreDir } from "../utils";
 
 const HELP = `
 ${c.bold("aos init")} — Initialize AOS in the current project
 
 ${c.bold("USAGE")}
-  aos init [--adapter <adapter>]
+  aos init [--adapter <adapter>] [--force]
 
 ${c.bold("OPTIONS")}
   --adapter <name>    Adapter to use: pi (default), claude-code, gemini
+  --force             Reinitialize even if AOS is already set up (overwrites existing core configs)
 
 ${c.bold("DESCRIPTION")}
   Creates an .aos/ configuration directory in the current project with
@@ -60,10 +62,18 @@ export async function initCommand(args: ParsedArgs): Promise<void> {
   const aosDir = join(cwd, ".aos");
   const configPath = join(aosDir, "config.yaml");
 
-  if (existsSync(configPath)) {
+  const force = !!args.flags.force;
+
+  if (existsSync(join(cwd, "core", "agents")) && !force) {
+    console.error(c.yellow("AOS project already exists in this directory."));
+    console.log(c.dim(`  Use "aos init --force" to reinitialize (overwrites existing core configs).`));
+    process.exit(1);
+  }
+
+  if (existsSync(configPath) && !force) {
     console.log(c.yellow("AOS is already initialized in this project."));
     console.log(c.dim(`  Config: ${configPath}`));
-    console.log(c.dim(`  To reinitialize, remove the .aos/ directory first.`));
+    console.log(c.dim(`  Use "aos init --force" to reinitialize.`));
     return;
   }
 
@@ -72,6 +82,19 @@ export async function initCommand(args: ParsedArgs): Promise<void> {
 
   // Write config
   writeFileSync(configPath, generateConfig(adapter), "utf-8");
+
+  // Copy core configs if not already present (or --force)
+  const destCore = join(cwd, "core");
+  if (!existsSync(destCore) || force) {
+    const sourceCore = getPackageCoreDir() ?? join(getHarnessRoot(), "core");
+    if (existsSync(join(sourceCore, "agents"))) {
+      cpSync(sourceCore, destCore, { recursive: true });
+      console.log(c.green("  Copied core configs (agents, profiles, domains, workflows, skills)"));
+    } else {
+      console.log(c.yellow("  Warning: Could not find core configs to copy."));
+      console.log(c.dim(`  You may need to manually copy the core/ directory from the AOS Harness repository.`));
+    }
+  }
 
   console.log(`
 ${c.green("AOS initialized successfully!")}
