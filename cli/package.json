@@ -1,16 +1,39 @@
 {
-  "name": "@aos-harness/cli",
+  "name": "aos-harness",
   "version": "0.1.0",
-  "description": "CLI tooling for the AOS Harness — install, run, and manage agentic orchestration profiles",
+  "description": "Agentic Orchestration System — assemble AI agents into deliberation and execution teams",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aos-engineer/aos-harness.git"
+  },
+  "homepage": "https://aos.engineer",
+  "keywords": [
+    "ai",
+    "agents",
+    "orchestration",
+    "multi-agent",
+    "deliberation",
+    "execution",
+    "llm",
+    "bun"
+  ],
   "type": "module",
   "bin": {
     "aos": "./src/index.ts"
   },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "files": [
+    "src/",
+    "core/",
+    "README.md"
+  ],
   "scripts": {
     "dev": "bun run src/index.ts",
     "test": "bun run src/index.ts validate"
   },
-  "files": ["src/"],
   "dependencies": {
     "@aos-harness/runtime": "workspace:*",
     "js-yaml": "^4.1.0"

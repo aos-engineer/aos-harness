@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "type": "module",
   "main": "src/engine.ts",
+  "engines": {
+    "bun": ">=1.0.0"
+  },
   "scripts": {
     "test": "bun test",
     "test:watch": "bun test --watch",
@@ -25,7 +28,7 @@
     "./event-summarizer": "./src/event-summarizer.ts",
     "./session-checkpoint": "./src/session-checkpoint.ts"
   },
-  "files": ["src/", "package.json", "tsconfig.json"],
+  "files": ["src/", "README.md"],
   "dependencies": {
     "js-yaml": "^4.1.0"
   },
