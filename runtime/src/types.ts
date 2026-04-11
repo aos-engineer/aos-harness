@@ -579,7 +579,17 @@ export type TranscriptEventType =
   | "token_usage"
   // Session lifecycle (Phase 3b)
   | "session_paused"
-  | "session_resumed";
+  | "session_resumed"
+  // Memory events
+  | "memory_wake"
+  | "memory_wake_truncated"
+  | "recall_requested"
+  | "memory_recall"
+  | "memory_recall_denied"
+  | "memory_committed"
+  | "memory_commit_failed"
+  | "memory_provider_restart"
+  | "memory_fallback_written";
 
 export interface TranscriptEntry {
   type: TranscriptEventType;
