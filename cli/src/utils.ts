@@ -101,11 +101,16 @@ export function detectProject(startDir: string): string | null {
  * or import.meta.url — this is a deliberate Bun dependency.
  */
 export function getPackageCoreDir(): string | null {
-  // cli/src/utils.ts -> cli/src -> cli -> look for core/
-  const packageRoot = resolve(import.meta.dir, "../..");
-  const coreDir = join(packageRoot, "core");
-  if (existsSync(join(coreDir, "agents"))) {
-    return coreDir;
+  // When installed via npm: src/utils.ts → src/ → package root (1 level up)
+  // When in monorepo dev:   cli/src/utils.ts → cli/src → cli → root (2 levels up)
+  const candidates = [
+    resolve(import.meta.dir, "..", "core"),    // npm install: package-root/core
+    resolve(import.meta.dir, "../..", "core"), // monorepo dev: harness-root/core
+  ];
+  for (const coreDir of candidates) {
+    if (existsSync(join(coreDir, "agents"))) {
+      return coreDir;
+    }
   }
   return null;
 }
