@@ -5,9 +5,10 @@
   "type": "object",
   "required": ["platform"],
   "properties": {
-    "platform": { "enum": ["pi", "claude-code", "gemini", "custom"] },
-    "model_map": {
+    "platform": { "enum": ["pi", "claude-code", "gemini", "codex", "custom"] },
+    "model_overrides": {
       "type": "object",
+      "description": "Optional per-tier model ID overrides. Falls back to discoverModels() / defaultModelMap() if not set.",
       "properties": {
         "economy": { "type": "string" },
         "standard": { "type": "string" },
