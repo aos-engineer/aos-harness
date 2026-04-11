@@ -68,8 +68,8 @@ for (const dir of agentDirs) {
   });
 }
 
-check(`Expected 13 agents, found ${agents.length}`, () => {
-  if (agents.length !== 13) throw new Error(`Expected 13, got ${agents.length}`);
+check(`Expected 14 agents, found ${agents.length}`, () => {
+  if (agents.length !== 14) throw new Error(`Expected 14, got ${agents.length}`);
 });
 
 // ── 2. Load profile ──────────────────────────────────────────────
