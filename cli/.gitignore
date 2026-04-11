@@ -1,2 +1,3 @@
-# Bundled core configs (copied during publish, not committed)
+# Bundled during publish (copied from monorepo root, not committed)
 core/
+adapters/

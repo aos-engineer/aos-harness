@@ -28,6 +28,7 @@
   "files": [
     "src/",
     "core/",
+    "adapters/",
     "README.md"
   ],
   "scripts": {

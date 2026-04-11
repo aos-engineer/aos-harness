@@ -118,6 +118,23 @@ export function detectProject(startDir: string): string | null {
  * NOTE: import.meta.dir is Bun-specific. Do not refactor to __dirname
  * or import.meta.url — this is a deliberate Bun dependency.
  */
+/**
+ * Resolve an adapter directory from the installed package or monorepo.
+ * Checks both npm install layout and monorepo dev layout.
+ */
+export function getAdapterDir(adapterName: string): string | null {
+  const candidates = [
+    resolve(import.meta.dir, "..", "adapters", adapterName),    // npm: package-root/adapters/
+    resolve(import.meta.dir, "../..", "adapters", adapterName), // monorepo: harness-root/adapters/
+  ];
+  for (const dir of candidates) {
+    if (existsSync(join(dir, "src", "index.ts"))) {
+      return dir;
+    }
+  }
+  return null;
+}
+
 export function getPackageCoreDir(): string | null {
   // When installed via npm: src/utils.ts → src/ → package root (1 level up)
   // When in monorepo dev:   cli/src/utils.ts → cli/src → cli → root (2 levels up)

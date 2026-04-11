@@ -5,7 +5,7 @@
 import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { c, type ParsedArgs } from "../colors";
-import { getHarnessRoot, discoverDirs, promptSelect } from "../utils";
+import { getHarnessRoot, discoverDirs, promptSelect, getAdapterDir } from "../utils";
 import type { TranscriptEntry } from "@aos-harness/runtime/types";
 
 function createEventBuffer(platformUrl: string, sessionId: string) {
@@ -318,13 +318,18 @@ ${c.bold(`AOS ${sessionType} Session`)}
     }
   }
 
-  const adapterDir = join(root, "adapters", adapter === "claude-code" ? "claude-code" : adapter);
+  const adapterName = adapter === "claude-code" ? "claude-code" : adapter;
+  // Resolve adapter from: 1) project dir, 2) installed package, 3) monorepo
+  const resolvedAdapterDir = existsSync(join(root, "adapters", adapterName, "src", "index.ts"))
+    ? join(root, "adapters", adapterName)
+    : getAdapterDir(adapterName);
 
   if (adapter === "pi") {
-    const adapterEntry = join(adapterDir, "src", "index.ts");
-    if (!existsSync(adapterEntry)) {
-      console.error(c.red(`Pi adapter not found at: ${adapterEntry}`));
-      console.error(c.yellow("Make sure the Pi adapter is installed: cd adapters/pi && bun install"));
+    const adapterEntry = resolvedAdapterDir ? join(resolvedAdapterDir, "src", "index.ts") : null;
+    if (!adapterEntry || !existsSync(adapterEntry)) {
+      console.error(c.red(`Pi adapter not found.`));
+      console.error(c.yellow("Make sure Pi CLI is installed: https://github.com/pi-agi/pi"));
+      console.error(c.dim("The adapter should be bundled with aos-harness. Try reinstalling: bun add -g aos-harness"));
       process.exit(1);
     }
 
