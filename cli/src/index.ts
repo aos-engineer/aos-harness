@@ -1,4 +1,10 @@
 #!/usr/bin/env bun
+// Runtime guard — must be before any other imports
+if (typeof Bun === "undefined") {
+  console.error("AOS Harness requires Bun 1.0+. Install at https://bun.sh");
+  process.exit(1);
+}
+
 /**
  * AOS Harness CLI — entry point.
  * Usage: aos <command> [options]
@@ -80,9 +86,28 @@ async function main(): Promise<void> {
     case "list":
       await listCommand(parsed);
       break;
-    case "":
-      printHelp();
+    case "": {
+      const { detectProject } = await import("./utils");
+      const projectDir = detectProject(process.cwd());
+      if (!projectDir) {
+        console.log(`\n${c.bold("AOS Harness")} ${c.dim("v0.1.0")}\n`);
+        console.log(`  No AOS project detected in this directory.`);
+        console.log(`  Would you like to initialize one? ${c.dim("(Y/n)")}\n`);
+        process.stdout.write("  > ");
+        const reader = Bun.stdin.stream().getReader();
+        const { value } = await reader.read();
+        reader.releaseLock();
+        const input = value ? new TextDecoder().decode(value).trim().toLowerCase() : "y";
+        if (input === "" || input === "y" || input === "yes") {
+          await initCommand({ command: "init", subcommand: "", flags: {}, positional: [] } as any);
+        } else {
+          printHelp();
+        }
+      } else {
+        printHelp();
+      }
       break;
+    }
     default:
       console.error(c.red(`Unknown command: "${parsed.command}". Run "aos --help" for available commands.`));
       process.exit(1);
