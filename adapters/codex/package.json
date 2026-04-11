@@ -1,0 +1,15 @@
+{
+  "name": "@aos-harness/codex-adapter",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "files": ["src/"],
+  "dependencies": {
+    "@aos-harness/runtime": "workspace:*",
+    "@aos-harness/adapter-shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.8.0"
+  }
+}
