@@ -9,7 +9,7 @@
  */
 
 import { $ } from "bun";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { copyCore, cleanCore } from "./copy-core";
 
@@ -56,6 +56,7 @@ async function main() {
 
   // 3. Read package versions
   const runtimePkg = readPkg("runtime");
+  const sharedPkg = readPkg("adapters/shared");
   const cliPkg = readPkg("cli");
   if (!runtimePkg || !cliPkg) {
     console.error("✗ Could not read package.json for runtime or cli");
@@ -63,9 +64,11 @@ async function main() {
   }
 
   const runtimeVersion = runtimePkg.version as string;
+  const sharedVersion = sharedPkg?.version as string ?? runtimeVersion;
   const cliVersion = cliPkg.version as string;
   console.log(`▸ Packages to publish:\n`);
   console.log(`  ${runtimePkg.name}@${runtimeVersion}  (runtime/)`);
+  if (sharedPkg) console.log(`  ${sharedPkg.name}@${sharedVersion}  (adapters/shared/)`);
   console.log(`  ${cliPkg.name}@${cliVersion}  (cli/)\n`);
 
   if (runtimeVersion !== cliVersion) {
@@ -93,7 +96,43 @@ async function main() {
     console.log(`  ✓ Published ${runtimePkg.name}@${runtimeVersion}\n`);
   }
 
-  // 5. Publish CLI with core bundling and workspace resolution
+  // 5. Publish adapter-shared (dependency of all adapters)
+  if (sharedPkg) {
+    const sharedCwd = resolve(root, "adapters/shared");
+    const originalSharedPkg = readPkgRaw("adapters/shared");
+
+    try {
+      // Pin workspace dependency
+      const resolvedShared = originalSharedPkg.replace(
+        `"@aos-harness/runtime": "workspace:*"`,
+        `"@aos-harness/runtime": "${runtimeVersion}"`,
+      );
+      writePkg("adapters/shared", resolvedShared);
+
+      if (!confirm) {
+        console.log(`  [dry-run] bun publish --dry-run  (${sharedPkg.name})`);
+        const result = await $`bun publish --dry-run`.cwd(sharedCwd).quiet().nothrow();
+        if (result.exitCode !== 0) {
+          console.log(`    ⚠ dry-run issue: ${result.stderr.toString().trim()}`);
+        } else {
+          console.log(`    ✓ would publish ${sharedPkg.name}@${sharedVersion}`);
+        }
+      } else {
+        console.log(`  Publishing ${sharedPkg.name}@${sharedVersion}...`);
+        const result = await $`bun publish --access public`.cwd(sharedCwd).nothrow();
+        if (result.exitCode !== 0) {
+          console.error(`  ✗ Failed to publish ${sharedPkg.name}`);
+          throw new Error(`Publish failed for ${sharedPkg.name}`);
+        }
+        console.log(`  ✓ Published ${sharedPkg.name}@${sharedVersion}\n`);
+      }
+    } finally {
+      writePkg("adapters/shared", originalSharedPkg);
+      console.log("  Restored adapters/shared/package.json");
+    }
+  }
+
+  // 6. Publish CLI with core bundling and workspace resolution
   const cliCwd = resolve(root, "cli");
   const originalPkgJson = readPkgRaw("cli");
 
@@ -102,12 +141,26 @@ async function main() {
     console.log("  Bundling core configs...");
     copyCore();
 
-    // Replace workspace:* with pinned version
+    // Replace workspace:* with pinned version in CLI package
     const resolved = originalPkgJson.replace(
       `"@aos-harness/runtime": "workspace:*"`,
       `"@aos-harness/runtime": "${runtimeVersion}"`,
     );
     writePkg("cli", resolved);
+
+    // Also resolve workspace:* in bundled adapter package.json files
+    const bundledAdapters = ["pi", "claude-code", "gemini", "codex", "shared"];
+    for (const adapterName of bundledAdapters) {
+      const adapterPkgPath = resolve(root, "cli", "adapters", adapterName, "package.json");
+      if (existsSync(adapterPkgPath)) {
+        const adapterPkgRaw = readFileSync(adapterPkgPath, "utf-8");
+        const resolvedAdapter = adapterPkgRaw
+          .replace(`"@aos-harness/runtime": "workspace:*"`, `"@aos-harness/runtime": "${runtimeVersion}"`)
+          .replace(`"@aos-harness/adapter-shared": "workspace:*"`, `"@aos-harness/adapter-shared": "${sharedVersion}"`);
+        writeFileSync(adapterPkgPath, resolvedAdapter, "utf-8");
+      }
+    }
+    console.log(`  Pinned workspace:* references to ${runtimeVersion}`);
     console.log(`  Pinned @aos-harness/runtime to ${runtimeVersion}`);
 
     if (!confirm) {
