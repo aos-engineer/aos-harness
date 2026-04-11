@@ -338,6 +338,15 @@ describe("TranscriptEventType", () => {
     expect(executionEvents).toHaveLength(3);
   });
 
+  it("includes memory event types", () => {
+    const memoryEvents: TranscriptEventType[] = [
+      "memory_wake", "memory_wake_truncated", "memory_recall_requested",
+      "memory_recall", "memory_recall_denied", "memory_committed",
+      "memory_commit_failed", "memory_provider_restart", "memory_fallback_written",
+    ];
+    expect(memoryEvents).toHaveLength(9);
+  });
+
   it("includes all original event types", () => {
     const originalEvents: TranscriptEventType[] = [
       "session_start",

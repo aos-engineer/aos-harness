@@ -583,7 +583,7 @@ export type TranscriptEventType =
   // Memory events
   | "memory_wake"
   | "memory_wake_truncated"
-  | "recall_requested"
+  | "memory_recall_requested"
   | "memory_recall"
   | "memory_recall_denied"
   | "memory_committed"

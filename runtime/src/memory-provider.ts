@@ -63,6 +63,11 @@ export interface MempalaceConfig {
   maxDrawerTokens: number;
 }
 
+/**
+ * Memory-specific expertise config (camelCase convention).
+ * Separate from ExpertiseConfig in types.ts which uses snake_case
+ * for direct YAML mapping and includes fields not relevant to memory.
+ */
 export interface ExpertiseMemoryConfig {
   maxLines: number;
   scope: "per-project" | "global";
