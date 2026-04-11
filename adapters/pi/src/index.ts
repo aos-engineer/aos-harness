@@ -216,9 +216,9 @@ export default function (pi: ExtensionAPI) {
     const autoProfile = process.env.AOS_PROFILE;
     const autoBrief = process.env.AOS_BRIEF;
     if (autoProfile && autoBrief && projectRoot) {
-      // Defer to let Pi finish initialization
+      // Defer to let Pi finish initialization, then send the command as user message
       setTimeout(() => {
-        pi.runCommand("aos-run", "");
+        pi.sendUserMessage("/aos-run");
       }, 500);
     }
   });
