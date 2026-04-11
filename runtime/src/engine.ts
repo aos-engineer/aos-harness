@@ -177,6 +177,7 @@ export class AOSEngine {
         onTranscriptEvent: (e) => this.pushTranscript(e),
         delegationDelegate: this.createDelegationDelegate(),
         profileConfig: this.profile,
+        agents: this.agents,    // pass agent configs for executeWithTools resolution
       });
 
       const results = await runner.execute();

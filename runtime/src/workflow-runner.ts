@@ -8,7 +8,7 @@
  * that interprets step actions and orchestrates the flow, not the executor.
  */
 
-import type { AOSAdapter, ExecuteCodeOpts, TranscriptEntry, ProfileConfig, DelegationDelegate } from "./types";
+import type { AOSAdapter, AgentConfig, ExecuteCodeOpts, TranscriptEntry, ProfileConfig, DelegationDelegate } from "./types";
 import { UnsupportedError } from "./types";
 import { ArtifactManager } from "./artifact-manager";
 import { resolveTemplate } from "./template-resolver";
@@ -28,6 +28,7 @@ export interface WorkflowStep {
   input?: string[];
   output?: string;
   review_gate?: boolean;
+  max_retries?: number;    // max retry loops for execute-with-tools steps
 }
 
 export interface WorkflowGate {
@@ -62,12 +63,14 @@ export class WorkflowRunner {
   private gatesPassed: string[] = [];
   private profileConfig?: ProfileConfig;
   private delegationDelegate?: DelegationDelegate;
+  private agents?: Map<string, AgentConfig>;
 
   constructor(config: WorkflowConfig, adapter: AOSAdapter, opts?: {
     sessionDir?: string;
     onTranscriptEvent?: (event: TranscriptEntry) => void;
     profileConfig?: ProfileConfig;
     delegationDelegate?: DelegationDelegate;
+    agents?: Map<string, AgentConfig>;
   }) {
     this.config = config;
     this.adapter = adapter;
@@ -83,6 +86,9 @@ export class WorkflowRunner {
     }
     if (opts?.delegationDelegate) {
       this.delegationDelegate = opts.delegationDelegate;
+    }
+    if (opts?.agents) {
+      this.agents = opts.agents;
     }
   }
 
@@ -522,9 +528,14 @@ export class WorkflowRunner {
     let executionResult: unknown = null;
 
     try {
-      // Create a temporary handle for execution
-      const handle = await this.adapter.spawnAgent(
-        {
+      // Resolve agent config: use real agent if specified, else generic stub
+      const specifiedAgent = step.agents?.[0];
+      let agentConfig: AgentConfig;
+
+      if (specifiedAgent && this.agents?.has(specifiedAgent)) {
+        agentConfig = this.agents.get(specifiedAgent)!;
+      } else {
+        agentConfig = {
           schema: "aos/agent/v1",
           id: `${step.id}-executor`,
           name: step.name ?? step.id,
@@ -549,7 +560,12 @@ export class WorkflowRunner {
           skills: [],
           expertise: [],
           model: { tier: "standard", thinking: "off" },
-        },
+        };
+      }
+
+      // Create a temporary handle for execution
+      const handle = await this.adapter.spawnAgent(
+        agentConfig,
         this.config.id,
       );
 

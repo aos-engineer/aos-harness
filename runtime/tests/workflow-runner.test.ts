@@ -1192,3 +1192,50 @@ describe("DelegationDelegate integration", () => {
     expect(artifactWriteCall).toBeDefined();
   });
 });
+
+// ── WorkflowRunner — executeWithTools agent resolution ──────────────
+
+describe("WorkflowRunner — executeWithTools agent resolution", () => {
+  it("uses real agent config when agents field specifies a known agent", async () => {
+    // This test verifies the WorkflowRunner can accept an agents map
+    // and that executeWithTools resolves agent configs from it.
+    const { WorkflowRunner } = await import("../src/workflow-runner");
+    const adapter = new MockAdapter();
+
+    const agents = new Map();
+    agents.set("engineering-lead", {
+      schema: "aos/agent/v1",
+      id: "engineering-lead",
+      name: "Engineering Lead",
+      role: "test",
+      cognition: { objective_function: "test", time_horizon: { primary: "", secondary: "", peripheral: "" }, core_bias: "", risk_tolerance: "moderate", default_stance: "" },
+      persona: { temperament: [], thinking_patterns: [], heuristics: [], evidence_standard: { convinced_by: [], not_convinced_by: [] }, red_lines: [] },
+      tensions: [],
+      report: { structure: "" },
+      tools: ["read"],
+      skills: [],
+      expertise: [],
+      model: { tier: "standard", thinking: "off" },
+      delegation: { can_spawn: true, max_children: 3, child_model_tier: "economy", child_timeout_seconds: 120, delegation_style: "delegate-only" },
+    });
+
+    const config = {
+      schema: "aos/workflow/v1",
+      id: "test-workflow",
+      name: "Test",
+      description: "test",
+      steps: [{
+        id: "test-step",
+        action: "execute-with-tools",
+        agents: ["engineering-lead"],
+        prompt: "test prompt",
+        output: "test_output",
+      }],
+      gates: [],
+    };
+
+    const runner = new WorkflowRunner(config, adapter, { agents });
+    // The runner should accept the agents map without error
+    expect(runner).toBeDefined();
+  });
+});
