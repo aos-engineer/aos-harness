@@ -251,7 +251,7 @@ describe("AOSEngine", () => {
       const events: TranscriptEntry[] = [];
       const engine = new AOSEngine(adapter, join(fixturesDir, "profiles", "test-council"), {
         agentsDir: join(fixturesDir, "agents"),
-        onTranscriptEvent: (e) => events.push(e),
+        onTranscriptEvent: (e) => { events.push(e); },
       });
       const cp = await engine.pauseSession();
       expect(cp.sessionId).toBeDefined();
