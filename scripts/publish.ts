@@ -2,31 +2,34 @@
 /**
  * AOS Harness — Monorepo Publish Script
  *
- * Runs tests, validates configs, and publishes all packages.
+ * Publishes @aos-harness/runtime and aos-harness (CLI) to npm.
+ * Handles core/ bundling and workspace:* resolution with try/finally safety.
+ *
  * Dry-run by default. Pass --confirm to actually publish.
  */
 
 import { $ } from "bun";
-import { readFileSync } from "fs";
-import { resolve } from "path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { copyCore, cleanCore } from "./copy-core";
 
 const root = resolve(import.meta.dir, "..");
 const confirm = process.argv.includes("--confirm");
 
-const packages = [
-  "runtime",
-  "cli",
-  "adapters/pi",
-  "adapters/claude-code",
-  "adapters/gemini",
-];
-
-function readPkg(dir: string) {
+function readPkg(dir: string): Record<string, unknown> | null {
   try {
     return JSON.parse(readFileSync(resolve(root, dir, "package.json"), "utf-8"));
   } catch {
     return null;
   }
+}
+
+function readPkgRaw(dir: string): string {
+  return readFileSync(resolve(root, dir, "package.json"), "utf-8");
+}
+
+function writePkg(dir: string, content: string): void {
+  writeFileSync(resolve(root, dir, "package.json"), content, "utf-8");
 }
 
 async function main() {
@@ -51,47 +54,84 @@ async function main() {
   }
   console.log("✓ Integration validation passed\n");
 
-  // 3. List packages and versions
-  console.log("▸ Packages to publish:\n");
-  const publishable: { name: string; version: string; dir: string }[] = [];
-
-  for (const dir of packages) {
-    const pkg = readPkg(dir);
-    if (!pkg) {
-      console.log(`  ⊘ ${dir} — not found, skipping`);
-      continue;
-    }
-    console.log(`  ${pkg.name}@${pkg.version}  (${dir}/)`);
-    publishable.push({ name: pkg.name, version: pkg.version, dir });
+  // 3. Read package versions
+  const runtimePkg = readPkg("runtime");
+  const cliPkg = readPkg("cli");
+  if (!runtimePkg || !cliPkg) {
+    console.error("✗ Could not read package.json for runtime or cli");
+    process.exit(1);
   }
 
-  console.log(`\n  Total: ${publishable.length} packages\n`);
+  const runtimeVersion = runtimePkg.version as string;
+  const cliVersion = cliPkg.version as string;
+  console.log(`▸ Packages to publish:\n`);
+  console.log(`  ${runtimePkg.name}@${runtimeVersion}  (runtime/)`);
+  console.log(`  ${cliPkg.name}@${cliVersion}  (cli/)\n`);
 
-  // 4. Publish
+  if (runtimeVersion !== cliVersion) {
+    console.error(`✗ Version mismatch: runtime=${runtimeVersion}, cli=${cliVersion}`);
+    process.exit(1);
+  }
+
+  // 4. Publish runtime first
+  const runtimeCwd = resolve(root, "runtime");
   if (!confirm) {
-    console.log("⚑ Dry-run mode. Pass --confirm to publish for real.\n");
-    for (const pkg of publishable) {
-      const cwd = resolve(root, pkg.dir);
-      console.log(`  [dry-run] bun publish --dry-run  (${pkg.name})`);
-      const result = await $`bun publish --dry-run`.cwd(cwd).quiet().nothrow();
+    console.log(`  [dry-run] bun publish --dry-run  (${runtimePkg.name})`);
+    const result = await $`bun publish --dry-run`.cwd(runtimeCwd).quiet().nothrow();
+    if (result.exitCode !== 0) {
+      console.log(`    ⚠ dry-run issue: ${result.stderr.toString().trim()}`);
+    } else {
+      console.log(`    ✓ would publish ${runtimePkg.name}@${runtimeVersion}`);
+    }
+  } else {
+    console.log(`  Publishing ${runtimePkg.name}@${runtimeVersion}...`);
+    const result = await $`bun publish --access public`.cwd(runtimeCwd).nothrow();
+    if (result.exitCode !== 0) {
+      console.error(`  ✗ Failed to publish ${runtimePkg.name}`);
+      process.exit(1);
+    }
+    console.log(`  ✓ Published ${runtimePkg.name}@${runtimeVersion}\n`);
+  }
+
+  // 5. Publish CLI with core bundling and workspace resolution
+  const cliCwd = resolve(root, "cli");
+  const originalPkgJson = readPkgRaw("cli");
+
+  try {
+    // Copy core/ into cli/core/
+    console.log("  Bundling core configs...");
+    copyCore();
+
+    // Replace workspace:* with pinned version
+    const resolved = originalPkgJson.replace(
+      `"@aos-harness/runtime": "workspace:*"`,
+      `"@aos-harness/runtime": "${runtimeVersion}"`,
+    );
+    writePkg("cli", resolved);
+    console.log(`  Pinned @aos-harness/runtime to ${runtimeVersion}`);
+
+    if (!confirm) {
+      console.log(`  [dry-run] bun publish --dry-run  (${cliPkg.name})`);
+      const result = await $`bun publish --dry-run`.cwd(cliCwd).quiet().nothrow();
       if (result.exitCode !== 0) {
         console.log(`    ⚠ dry-run issue: ${result.stderr.toString().trim()}`);
       } else {
-        console.log(`    ✓ would publish ${pkg.name}@${pkg.version}`);
+        console.log(`    ✓ would publish ${cliPkg.name}@${cliVersion}`);
       }
-    }
-  } else {
-    console.log("Publishing for real...\n");
-    for (const pkg of publishable) {
-      const cwd = resolve(root, pkg.dir);
-      console.log(`  Publishing ${pkg.name}@${pkg.version}...`);
-      const result = await $`bun publish --access public`.cwd(cwd).nothrow();
+    } else {
+      console.log(`  Publishing ${cliPkg.name}@${cliVersion}...`);
+      const result = await $`bun publish --access public`.cwd(cliCwd).nothrow();
       if (result.exitCode !== 0) {
-        console.error(`  ✗ Failed to publish ${pkg.name}`);
-        process.exit(1);
+        console.error(`  ✗ Failed to publish ${cliPkg.name}`);
+        throw new Error(`Publish failed for ${cliPkg.name}`);
       }
-      console.log(`  ✓ Published ${pkg.name}@${pkg.version}`);
+      console.log(`  ✓ Published ${cliPkg.name}@${cliVersion}`);
     }
+  } finally {
+    // Always restore original package.json and clean core/
+    writePkg("cli", originalPkgJson);
+    console.log("  Restored cli/package.json");
+    cleanCore();
   }
 
   console.log("\nDone.");
