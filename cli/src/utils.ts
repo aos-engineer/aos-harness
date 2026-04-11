@@ -8,10 +8,28 @@ import { existsSync, readdirSync } from "node:fs";
 
 /**
  * Resolve the AOS harness root directory.
- * Walks up from the CLI source to find the harness root (where core/, runtime/, adapters/ live).
+ *
+ * Resolution order:
+ * 1. Walk up from cwd looking for a directory with core/agents/ (user's project)
+ * 2. Fall back to the package install location (monorepo dev or npm install)
+ *
+ * This ensures commands like `aos list` find the user's project configs
+ * after `aos init`, not the package's internal directory.
  */
 export function getHarnessRoot(): string {
-  // cli/src/utils.ts -> cli/src -> cli -> harness root
+  // 1. Walk up from cwd looking for a project with core/
+  let dir = process.cwd();
+  const fsRoot = resolve("/");
+  while (dir !== fsRoot) {
+    if (existsSync(join(dir, "core", "agents"))) {
+      return dir;
+    }
+    const parent = resolve(dir, "..");
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  // 2. Fall back to package location (monorepo: cli/ -> root)
   return resolve(import.meta.dir, "../..");
 }
 
