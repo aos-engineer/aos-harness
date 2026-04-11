@@ -1,6 +1,6 @@
 {
   "name": "@aos-harness/runtime",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "type": "module",
   "main": "src/engine.ts",
   "engines": {

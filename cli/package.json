@@ -1,6 +1,6 @@
 {
   "name": "aos-harness",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Agentic Orchestration System — assemble AI agents into deliberation and execution teams",
   "license": "MIT",
   "repository": {
@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@aos-harness/runtime": "workspace:*",
+    "@aos-harness/adapter-shared": "workspace:*",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {

@@ -141,11 +141,10 @@ async function main() {
     console.log("  Bundling core configs...");
     copyCore();
 
-    // Replace workspace:* with pinned version in CLI package
-    const resolved = originalPkgJson.replace(
-      `"@aos-harness/runtime": "workspace:*"`,
-      `"@aos-harness/runtime": "${runtimeVersion}"`,
-    );
+    // Replace workspace:* with pinned versions in CLI package
+    const resolved = originalPkgJson
+      .replace(`"@aos-harness/runtime": "workspace:*"`, `"@aos-harness/runtime": "${runtimeVersion}"`)
+      .replace(`"@aos-harness/adapter-shared": "workspace:*"`, `"@aos-harness/adapter-shared": "${sharedVersion}"`);
     writePkg("cli", resolved);
 
     // Also resolve workspace:* in bundled adapter package.json files
