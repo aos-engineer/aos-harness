@@ -18,20 +18,38 @@ Two packages published to npm:
 ## Install Experience
 
 ```bash
-# Global install
+# Global install (package name: aos-harness, binary name: aos)
 bun add -g aos-harness
 aos init
 
-# One-shot via bunx
-bunx aos-harness init
+# One-shot via bunx (uses package name to install, binary name to execute)
+bunx aos-harness init    # installs aos-harness, runs the "aos" binary with "init" arg
 
 # Programmatic use (adapter/plugin developers)
 bun add @aos-harness/runtime
 ```
 
+**Naming convention:** The npm package name is `aos-harness`. The binary name is `aos` (defined by `"bin": { "aos": "./src/index.ts" }`). Users install `aos-harness` but run `aos`. `bunx aos-harness <args>` works because bunx installs the package and invokes its bin entry.
+
+**Binary name collision check:** Verify that `aos` is not already claimed as a bin name on npm by another package before publishing. Bin name collisions cause install warnings on global install.
+
 ## Runtime Requirement
 
-Bun 1.0+ is the only supported runtime. Enforced via `"engines": { "bun": ">=1.0.0" }` in both packages. The CLI shebang remains `#!/usr/bin/env bun`. TypeScript source files are shipped as-is — Bun runs `.ts` natively, so no compilation step is needed.
+Bun 1.0+ is the only supported runtime. The CLI shebang remains `#!/usr/bin/env bun`. TypeScript source files are shipped as-is — Bun runs `.ts` natively, so no compilation step is needed.
+
+**Enforcement:** `"engines": { "bun": ">=1.0.0" }` is set in both packages, but this is advisory only — neither npm nor bun blocks installation when engines don't match. A Node.js user can `npm install -g aos-harness`, get raw `.ts` files, and hit a confusing failure.
+
+**Runtime guard:** The first lines of `cli/src/index.ts` (after the shebang) must check for the `Bun` global. If absent, print a clear message and exit:
+
+```typescript
+#!/usr/bin/env bun
+if (typeof Bun === "undefined") {
+  console.error("AOS Harness requires Bun 1.0+. Install at https://bun.sh");
+  process.exit(1);
+}
+```
+
+This catches Node.js users immediately with an actionable error instead of a cryptic TypeScript parse failure.
 
 ## Package Contents
 
@@ -123,11 +141,12 @@ Key changes from current state:
 {
   "name": "@aos-harness/runtime",
   "version": "0.1.0",
-  "engines": { "bun": ">=1.0.0" }
+  "engines": { "bun": ">=1.0.0" },
+  "files": ["src/", "package.json", "README.md"]
 }
 ```
 
-Only addition is the `engines` field. Everything else stays as-is.
+Additions: `engines` field and explicit `files` array. The `files` field ensures only source and metadata are published — test files (`tests/`), fixtures (`fixtures/`), and dev configs (`tsconfig.json`) are excluded from the npm tarball.
 
 ### Root package.json
 
@@ -137,19 +156,29 @@ Stays `"private": true`. Never published.
 
 **Problem:** The `core/` directory lives at the monorepo root. The CLI package needs it included when published to npm.
 
-**Solution:** `prepublishOnly` script copies `../core` into `cli/core/` before publish. `cli/.gitignore` excludes `core/` so the copy isn't committed to git.
+**Solution:** The publish script (`scripts/publish.ts`) handles copying `core/` into `cli/core/` before publish and cleaning it up after. No shell commands in package.json — all file operations use a cross-platform TypeScript helper (`scripts/copy-core.ts`) that uses Node.js `fs` APIs (which Bun supports), ensuring Windows contributors and CI environments work correctly.
 
-**prepublishOnly script** (in cli/package.json):
+**`scripts/copy-core.ts`** — Recursively copies `core/` into `cli/core/` using `fs.cpSync` (Node 16.7+ / Bun 1.0+). Also provides a `clean()` export to remove `cli/core/` after publishing.
 
-```json
-{
-  "scripts": {
-    "prepublishOnly": "cp -r ../core ./core"
-  }
+```typescript
+import { cpSync, rmSync, existsSync } from "node:fs";
+import { resolve } from "node:path";
+
+const root = resolve(import.meta.dir, "..");
+const src = resolve(root, "core");
+const dest = resolve(root, "cli", "core");
+
+export function copyCore() {
+  if (existsSync(dest)) rmSync(dest, { recursive: true });
+  cpSync(src, dest, { recursive: true });
+}
+
+export function cleanCore() {
+  if (existsSync(dest)) rmSync(dest, { recursive: true });
 }
 ```
 
-**Cleanup:** The publish script (scripts/publish.ts) removes `cli/core/` after publishing.
+The publish script imports and calls these functions — no `cp -r` shell dependency.
 
 **Git ignore:** Add `core/` to `cli/.gitignore` so the prepublish copy is never committed. The canonical `core/` stays at the monorepo root.
 
@@ -160,12 +189,13 @@ Stays `"private": true`. Never published.
 **Solution:** The publish script (`scripts/publish.ts`) replaces `workspace:*` with the pinned version before publishing, then restores it afterward.
 
 **Flow:**
-1. Read `cli/package.json`
+1. Read `cli/package.json` and save original content
 2. Replace `"@aos-harness/runtime": "workspace:*"` with `"@aos-harness/runtime": "0.1.0"`
-3. Copy `core/` into `cli/core/`
-4. Run `bun publish --access public` in `cli/`
-5. Restore `workspace:*` in `cli/package.json`
-6. Remove `cli/core/`
+3. Copy `core/` into `cli/core/` via `scripts/copy-core.ts`
+4. Run `bun publish --access public` in `cli/` **inside a try/finally block**
+5. **Finally (always runs, even on publish failure):** Restore original `cli/package.json` and remove `cli/core/`
+
+The try/finally ensures that if the publish step fails mid-way, `package.json` is never left in a modified state with a pinned version instead of `workspace:*`.
 
 ## First-Run Wizard
 
@@ -200,11 +230,26 @@ $ bunx aos-harness
 2. No command, no project detected? Prompt for init.
 3. No command, project exists? Print help.
 
+### aos init — Existing Project Guard
+
+When `aos init` is run explicitly in a directory that already has an AOS project (detected by `core/agents/` existing), it must refuse:
+
+```
+$ aos init
+
+  AOS project already exists in this directory.
+  Use "aos init --force" to reinitialize (overwrites existing core configs).
+```
+
+The `--force` flag overwrites `core/` with fresh configs from the package. Without `--force`, init exits with code 1. This protects against accidental config loss.
+
 **Config resolution change:** `aos init` currently copies configs from the repo's `core/` directory (found via `getHarnessRoot()`). After npm install, `core/` lives inside the installed package. The `init` command resolves `core/` from `import.meta.dir` (the package's install location) as a fallback when the working directory doesn't contain a `core/` directory.
 
 Resolution order:
 1. Working directory `core/` (development — monorepo)
 2. Package directory `core/` (production — npm install)
+
+**Note:** `import.meta.dir` is a Bun-specific API that returns the directory of the current module as a string. This is intentional given the Bun-only stance. Do not refactor to `__dirname` (CJS) or `import.meta.url` (Node ESM) — those are Node.js patterns. Future contributors should be aware this is a deliberate Bun dependency, not an oversight.
 
 ## Publishing Workflow
 
@@ -229,11 +274,11 @@ bun run scripts/publish.ts --confirm
 2. Run integration validation
 3. Publish `@aos-harness/runtime` with `bun publish --access public`
 4. For `aos-harness` (CLI):
-   a. Copy `../core` into `cli/core/`
-   b. Replace `workspace:*` with pinned version in `cli/package.json`
-   c. `bun publish --access public`
-   d. Restore `workspace:*` in `cli/package.json`
-   e. Remove `cli/core/`
+   a. Save original `cli/package.json` content
+   b. Copy `core/` into `cli/core/` via `copyCore()` from `scripts/copy-core.ts`
+   c. Replace `workspace:*` with pinned version in `cli/package.json`
+   d. **try:** `bun publish --access public`
+   e. **finally:** Restore original `cli/package.json`, call `cleanCore()` to remove `cli/core/`
 
 ### Version strategy
 
