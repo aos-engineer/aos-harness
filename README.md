@@ -18,7 +18,7 @@ The harness ships with:
 - 13 agent personas with distinct cognitive biases and reasoning frameworks
 - 6 orchestration profiles (strategic-council, cto-execution, security-review, delivery-ops, architecture-review, incident-response)
 - 5 domain packs (SaaS, healthcare, fintech, platform-engineering, personal-decisions)
-- 3 skill definitions (code-review, security-scan, task-decomposition)
+- 5 skill definitions (code-review, security-scan, task-decomposition, mempalace-read-write, mempalace-admin)
 - Platform adapters for Pi CLI, Claude Code, and extensible to any runtime
 
 ---
@@ -129,14 +129,14 @@ aos-harness/
     agents/           # 13 agent personas (orchestrators, perspectives, operational)
     profiles/         # 6 orchestration profiles
     domains/          # 5 domain knowledge packs
-    skills/           # 3 skill definitions (aos/skill/v1)
+    skills/           # 5 skill definitions (aos/skill/v1)
     workflows/        # 7 workflow definitions
     schema/           # JSON Schema for validation
     briefs/           # Sample briefs
   runtime/            # Minimal TypeScript engine (~2000 lines)
     src/              # Engine, constraint engine, delegation router, artifact manager,
                       # workflow runner, template resolver, config loader, output renderer
-    tests/            # 194 tests across 12 files
+    tests/            # 393 tests across 25 files
   adapters/           # Platform-specific implementations
     pi/               # Pi CLI adapter (primary — full 4-layer implementation)
     claude-code/      # Claude Code adapter (static artifact generator)
@@ -164,7 +164,7 @@ AOS Harness includes advanced features for production orchestration:
 | [Dev Execution](docs/dev-execution/README.md) | Brief to working code in one session | Planning + hierarchical implementation |
 | [Domain Enforcement](docs/domain-enforcement/README.md) | Structural file/tool permission boundaries per agent | Path matching, tool allowlists, bash restrictions |
 | [Hierarchical Delegation](docs/hierarchical-delegation/README.md) | Agents spawn and manage sub-agents in Lead→Worker chains | Depth limits, domain inheritance |
-| [Persistent Expertise](docs/persistent-expertise/README.md) | Agent knowledge accumulates across sessions | Diff-based updates, pruning, review gates |
+| [Memory System](docs/persistent-expertise/README.md) | Pluggable memory with MemPalace and expertise fallback | Orchestrator-gated recall, session curation, MCP integration |
 | [Event Summarization](docs/event-summarization/README.md) | Human-readable event summaries via templates and LLM | Template and batched LLM approach |
 | [Session Resumption](docs/session-resumption/README.md) | Pause and resume sessions with full context | Checkpoints, conversation tails |
 
@@ -181,7 +181,7 @@ AOS Harness includes advanced features for production orchestration:
 - **Creating Skills:** `docs/creating-skills/README.md`
 - **Domain Enforcement:** `docs/domain-enforcement/README.md`
 - **Hierarchical Delegation:** `docs/hierarchical-delegation/README.md`
-- **Persistent Expertise:** `docs/persistent-expertise/README.md`
+- **Memory System:** `docs/persistent-expertise/README.md`
 - **Event Summarization:** `docs/event-summarization/README.md`
 - **Session Resumption:** `docs/session-resumption/README.md`
 

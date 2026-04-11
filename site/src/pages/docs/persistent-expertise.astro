@@ -2,17 +2,18 @@
 import Base from '../../layouts/Base.astro';
 
 const sidebarLinks = [
-  { id: 'enabling-expertise', label: 'Enabling Expertise' },
-  { id: 'expertise-files', label: 'Expertise File Structure' },
-  { id: 'how-updates-work', label: 'How Updates Work' },
-  { id: 'auto-commit', label: 'Auto-Commit vs Review Mode' },
-  { id: 'pruning', label: 'Pruning Strategy' },
-  { id: 'prompt-injection', label: 'Prompt Injection' },
+  { id: 'providers', label: 'Providers' },
+  { id: 'configuration', label: 'Configuration' },
+  { id: 'mempalace-setup', label: 'Setting Up MemPalace' },
+  { id: 'how-memory-works', label: 'How Memory Works' },
+  { id: 'agent-access-tiers', label: 'Agent Access Tiers' },
+  { id: 'crash-recovery', label: 'Crash Recovery' },
+  { id: 'expertise-fallback', label: 'Expertise Fallback' },
   { id: 'troubleshooting', label: 'Troubleshooting' },
 ];
 ---
 
-<Base title="Persistent Expertise">
+<Base title="Memory System">
   <div class="mx-auto max-w-[1200px] px-6 py-10">
     <div class="flex gap-12">
 
@@ -52,227 +53,105 @@ const sidebarLinks = [
         <div class="text-[13px] text-[var(--color-text-muted)] mb-6">
           <a href="/docs/getting-started" class="text-[var(--color-signal)] no-underline hover:underline">Docs</a>
           <span class="mx-1.5">&gt;</span>
-          <span>Persistent Expertise</span>
+          <span>Memory System</span>
         </div>
 
         <!-- Page Header -->
-        <h1 class="text-4xl md:text-[48px] font-extrabold text-[var(--color-text)] leading-tight tracking-tight">Persistent Expertise</h1>
-        <p class="text-[15px] text-[var(--color-text-secondary)] mt-2 mb-12">Agent knowledge that accumulates across sessions</p>
+        <h1 class="text-4xl md:text-[48px] font-extrabold text-[var(--color-text)] leading-tight tracking-tight">Memory System</h1>
+        <p class="text-[15px] text-[var(--color-text-secondary)] mt-2 mb-12">Pluggable memory with MemPalace and expertise fallback. Orchestrator-gated recall and session curation.</p>
 
-        <!-- Enabling Expertise -->
-        <section id="enabling-expertise" class="mb-12">
+        <!-- Providers -->
+        <section id="providers" class="mb-12">
           <div class="border-t border-[var(--color-border)] pt-12 mb-6">
-            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Enabling Expertise</h2>
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Providers</h2>
           </div>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
-            Agents accumulate domain-specific knowledge across sessions via structured YAML files. An Architect remembers your codebase patterns. A Sentinel retains threat models. Knowledge is loaded at session start and updated at session end.
-          </p>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
-            This is distinct from the scratch pad <code>expertise</code> field (which gives agents a read/write notes file). <code>expertiseConfig</code> controls a structured learning system that persists categorical knowledge and injects it into the agent's system prompt every time it runs.
+            AOS supports multiple memory backends through the <code>MemoryProvider</code> interface:
           </p>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Add an <code>expertiseConfig</code> block to the agent's <code>agent.yaml</code>:</p>
-          <pre><code>{`expertiseConfig:
-  enabled: true
-  max_lines: 5000               # Cap total entries across all categories
-  structure:                    # Knowledge categories this agent tracks
-    - architecture_patterns
-    - recurring_failure_modes
-    - domain_heuristics
-  read_on: session_start        # When to load expertise
-  update_on: session_end        # When to persist updates
-  scope: per-project            # per-project | global
-  mode: read-write              # read-write | read-only (for compliance knowledge)
-  auto_commit: review           # "true" | review`}</code></pre>
 
-          <h3 class="text-lg font-semibold text-[var(--color-text)] mt-8 mb-4">Field Reference</h3>
           <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden mb-6">
             <div class="overflow-x-auto">
               <table class="w-full text-left">
                 <thead>
                   <tr class="bg-[var(--color-bg)]">
-                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Field</th>
-                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Values</th>
-                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Description</th>
+                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Provider</th>
+                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Backend</th>
+                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Recall Quality</th>
+                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Dependencies</th>
                   </tr>
                 </thead>
                 <tbody class="text-[14px] text-[var(--color-text-secondary)]">
                   <tr class="border-b border-[var(--color-border)]">
-                    <td class="px-4 py-3"><code>enabled</code></td>
-                    <td class="px-4 py-3"><code>true</code> / <code>false</code></td>
-                    <td class="px-4 py-3">Activates the persistent learning system</td>
-                  </tr>
-                  <tr class="border-b border-[var(--color-border)]">
-                    <td class="px-4 py-3"><code>max_lines</code></td>
-                    <td class="px-4 py-3">integer</td>
-                    <td class="px-4 py-3">Total entry cap across all categories</td>
-                  </tr>
-                  <tr class="border-b border-[var(--color-border)]">
-                    <td class="px-4 py-3"><code>structure</code></td>
-                    <td class="px-4 py-3">list of strings</td>
-                    <td class="px-4 py-3">Knowledge categories the agent tracks</td>
-                  </tr>
-                  <tr class="border-b border-[var(--color-border)]">
-                    <td class="px-4 py-3"><code>read_on</code></td>
-                    <td class="px-4 py-3"><code>session_start</code></td>
-                    <td class="px-4 py-3">When expertise is loaded into the prompt</td>
-                  </tr>
-                  <tr class="border-b border-[var(--color-border)]">
-                    <td class="px-4 py-3"><code>update_on</code></td>
-                    <td class="px-4 py-3"><code>session_end</code></td>
-                    <td class="px-4 py-3">When the diff is applied or staged</td>
-                  </tr>
-                  <tr class="border-b border-[var(--color-border)]">
-                    <td class="px-4 py-3"><code>scope</code></td>
-                    <td class="px-4 py-3"><code>per-project</code> / <code>global</code></td>
-                    <td class="px-4 py-3">Whether knowledge is project-specific or shared across projects</td>
-                  </tr>
-                  <tr class="border-b border-[var(--color-border)]">
-                    <td class="px-4 py-3"><code>mode</code></td>
-                    <td class="px-4 py-3"><code>read-write</code> / <code>read-only</code></td>
-                    <td class="px-4 py-3"><code>read-only</code> for agents that consume compliance knowledge without modifying it</td>
+                    <td class="px-4 py-3"><strong class="text-[var(--color-text)]">MemPalace</strong> (recommended)</td>
+                    <td class="px-4 py-3">ChromaDB via MCP</td>
+                    <td class="px-4 py-3">Semantic search, 96.6% recall</td>
+                    <td class="px-4 py-3"><code>pip install mempalace</code></td>
                   </tr>
                   <tr>
-                    <td class="px-4 py-3"><code>auto_commit</code></td>
-                    <td class="px-4 py-3"><code>"true"</code> / <code>review</code></td>
-                    <td class="px-4 py-3">Whether updates are applied immediately or staged for CLI confirmation</td>
+                    <td class="px-4 py-3"><strong class="text-[var(--color-text)]">Basic Expertise</strong> (fallback)</td>
+                    <td class="px-4 py-3">In-memory with YAML persistence</td>
+                    <td class="px-4 py-3">Fuzzy matching</td>
+                    <td class="px-4 py-3">None</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
 
-          <div class="bg-[var(--color-bg)] border-l-4 border-[var(--color-signal)] rounded-r-lg px-5 py-4">
-            <p class="text-[12px] font-semibold uppercase text-[var(--color-signal)] mb-1">Note</p>
-            <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed"><code>expertiseConfig</code> is separate from the existing <code>expertise</code> field. The <code>expertise</code> field defines scratch pad file paths. <code>expertiseConfig</code> controls the persistent learning system.</p>
-          </div>
-        </section>
-
-        <!-- Expertise File Structure -->
-        <section id="expertise-files" class="mb-12">
-          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
-            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Expertise File Structure</h2>
-          </div>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
-            The harness writes one expertise file per agent per project, keyed by a hash of the project root:
-          </p>
-          <pre><code>{`# .aos/expertise/architect-{project-hash}.yaml
-last_updated: "2026-04-10T14:30:00Z"
-session_count: 4
-knowledge:
-  architecture_patterns:
-    - "Service layer uses repository pattern with Drizzle ORM"
-    - "Auth flows through middleware chain, not per-route"
-  recurring_failure_modes:
-    - "WebSocket reconnection drops events during API restart"
-  domain_heuristics:
-    - "Team prefers explicit error types over generic throws"`}</code></pre>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6">
-            Each top-level key under <code>knowledge</code> corresponds to a category declared in the agent's <code>structure</code> list. The harness ignores any category present in the file but absent from the current <code>structure</code> &mdash; it will not be injected, but it is not deleted either.
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">
+            MemPalace is the recommended provider. The expertise fallback works without any external dependencies but provides lower recall quality.
           </p>
         </section>
 
-        <!-- How Updates Work -->
-        <section id="how-updates-work" class="mb-12">
+        <!-- Configuration -->
+        <section id="configuration" class="mb-12">
           <div class="border-t border-[var(--color-border)] pt-12 mb-6">
-            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">How Updates Work</h2>
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Configuration</h2>
           </div>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
-            Updates are <strong class="text-[var(--color-text)]">diff-based, not full rewrites</strong>. At session end, an economy-tier model reviews the session transcript and produces a structured diff:
+            Memory is configured per-project in <code>.aos/memory.yaml</code>, generated automatically by <code>aos init</code>:
           </p>
-          <pre><code>{`{
-  "additions": {
-    "architecture_patterns": [
-      "API gateway pattern added in v2.3 for rate limiting"
-    ]
-  },
-  "removals": {
-    "recurring_failure_modes": [
-      "WebSocket reconnection drops events during API restart"
-    ]
-  }
-}`}</code></pre>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6">
-            Only the changes in the diff are applied to the YAML file. This limits the blast radius of bad summarization &mdash; a poor session cannot overwrite years of accumulated knowledge. Duplicate entries are automatically filtered before writes.
-          </p>
+          <pre><code>{`api_version: aos/memory/v1
+
+provider: mempalace           # "mempalace" or "expertise"
+
+mempalace:
+  palace_path: ~/.mempalace/palace
+  project_wing: my-project    # Wing name (one per project)
+  wake_layers: [L0, L1]
+  auto_hall: true
+  max_wake_tokens: 1200       # Hard cap on wake context tokens
+  max_drawer_tokens: 500      # Per-memory size limit
+
+expertise:
+  max_lines: 200
+  scope: per-project
+
+orchestrator:
+  remember_prompt: session_end # When orchestrator curates memories
+  recall_gate: true            # Orchestrator must approve recall requests
+  max_recall_per_session: 10   # Cap mid-session searches`}</code></pre>
         </section>
 
-        <!-- Auto-Commit vs Review Mode -->
-        <section id="auto-commit" class="mb-12">
+        <!-- Setting Up MemPalace -->
+        <section id="mempalace-setup" class="mb-12">
           <div class="border-t border-[var(--color-border)] pt-12 mb-6">
-            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Auto-Commit vs Review Mode</h2>
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Setting Up MemPalace</h2>
           </div>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
-            The <code>auto_commit</code> field controls when the diff is merged into the expertise file.
-          </p>
+          <pre><code>{`# Install MemPalace
+pip install mempalace
 
-          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-3"><code>auto_commit: "true"</code></h3>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
-            The diff is applied immediately after the session ends. The expertise file is updated without human intervention. Use this for agents where accumulated knowledge is low-stakes or easily correctable &mdash; such as an Architect accumulating codebase patterns, or a Catalyst tracking commercial signals.
-          </p>
+# Initialize your palace
+mempalace init ~/projects/myapp
 
-          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-3"><code>auto_commit: review</code></h3>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
-            The diff is written to a pending file alongside the expertise file:
-          </p>
-          <pre><code>{`.aos/expertise/sentinel-{project-hash}.yaml
-.aos/expertise/sentinel-{project-hash}.pending.yaml`}</code></pre>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-4 mb-4">
-            The pending diff is not merged until a human confirms it via the CLI. The agent continues to load only the committed expertise file at session start &mdash; pending changes are never injected until approved.
-          </p>
-          <pre><code>{`# Review pending expertise updates
-bun run cli/src/index.ts expertise review sentinel
+# Mine existing conversations or code
+mempalace mine ~/projects/myapp
 
-# Approve a pending update
-bun run cli/src/index.ts expertise approve sentinel
+# Configure AOS to use MemPalace
+# Edit .aos/memory.yaml and set provider: mempalace`}</code></pre>
 
-# Discard a pending update
-bun run cli/src/index.ts expertise discard sentinel`}</code></pre>
-
-          <div class="mt-6 bg-[var(--color-bg)] border-l-4 border-[var(--color-signal)] rounded-r-lg px-5 py-4">
-            <p class="text-[12px] font-semibold uppercase text-[var(--color-signal)] mb-1">Recommendation</p>
-            <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">Review mode is recommended for Sentinel, Steward, and any agent responsible for compliance or security knowledge. A bad auto-committed update to a Sentinel's threat model could cause the agent to miss real risks in future sessions.</p>
-          </div>
-        </section>
-
-        <!-- Pruning Strategy -->
-        <section id="pruning" class="mb-12">
-          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
-            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Pruning Strategy</h2>
-          </div>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
-            When the total number of entries across all categories exceeds <code>max_lines</code>, the harness removes the oldest entries first (age-based FIFO). Entries are pruned proportionally across categories &mdash; no single category monopolizes the budget by growing without bound.
-          </p>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
-            Example: with <code>max_lines: 100</code> and three categories at 40&thinsp;/&thinsp;40&thinsp;/&thinsp;40 entries (120 total), 20 entries are removed. Each category loses approximately 7 entries (the oldest in each).
-          </p>
-          <div class="bg-[var(--color-bg)] border-l-4 border-[var(--color-signal)] rounded-r-lg px-5 py-4">
-            <p class="text-[12px] font-semibold uppercase text-[var(--color-signal)] mb-1">Planned Enhancement</p>
-            <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">Value-based pruning &mdash; where the harness scores entries by relevance before removing them &mdash; is a planned future enhancement.</p>
-          </div>
-        </section>
-
-        <!-- Prompt Injection -->
-        <section id="prompt-injection" class="mb-12">
-          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
-            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Prompt Injection</h2>
-          </div>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
-            At session start, the expertise file is loaded and injected as a <code>## Prior Knowledge</code> section in the agent's system prompt, immediately following the agent's standard content:
-          </p>
-          <pre><code>{`## Prior Knowledge
-_From 4 previous session(s), last updated 2026-04-10T14:30:00Z_
-
-### architecture patterns
-- Service layer uses repository pattern with Drizzle ORM
-- Auth flows through middleware chain, not per-route
-
-### recurring failure modes
-- WebSocket reconnection drops events during API restart
-
-### domain heuristics
-- Team prefers explicit error types over generic throws`}</code></pre>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">
-            The injection uses the <code>{"{{prior_knowledge}}"}</code> template variable in <code>prompt.md</code>. If the expertise file does not exist or is empty, the block is omitted entirely &mdash; the agent receives no prior knowledge section on its first session.
+            MemPalace stores memories using a spatial metaphor:
           </p>
 
           <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden">
@@ -280,19 +159,179 @@ _From 4 previous session(s), last updated 2026-04-10T14:30:00Z_
               <table class="w-full text-left">
                 <thead>
                   <tr class="bg-[var(--color-bg)]">
-                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Variable</th>
-                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Description</th>
+                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Concept</th>
+                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">AOS Mapping</th>
+                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Purpose</th>
                   </tr>
                 </thead>
                 <tbody class="text-[14px] text-[var(--color-text-secondary)]">
+                  <tr class="border-b border-[var(--color-border)]">
+                    <td class="px-4 py-3"><strong class="text-[var(--color-text)]">Wing</strong></td>
+                    <td class="px-4 py-3">Project</td>
+                    <td class="px-4 py-3">Isolates memory per project</td>
+                  </tr>
+                  <tr class="border-b border-[var(--color-border)]">
+                    <td class="px-4 py-3"><strong class="text-[var(--color-text)]">Room</strong></td>
+                    <td class="px-4 py-3">Agent</td>
+                    <td class="px-4 py-3">Per-agent knowledge within a project</td>
+                  </tr>
+                  <tr class="border-b border-[var(--color-border)]">
+                    <td class="px-4 py-3"><strong class="text-[var(--color-text)]">Hall</strong></td>
+                    <td class="px-4 py-3">Memory type</td>
+                    <td class="px-4 py-3">facts, events, discoveries, preferences, advice</td>
+                  </tr>
                   <tr>
-                    <td class="px-4 py-3"><code>{"{{prior_knowledge}}"}</code></td>
-                    <td class="px-4 py-3">Rendered Prior Knowledge block, or empty string if no expertise exists</td>
+                    <td class="px-4 py-3"><strong class="text-[var(--color-text)]">Drawer</strong></td>
+                    <td class="px-4 py-3">Individual memory</td>
+                    <td class="px-4 py-3">Verbatim content stored in ChromaDB</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
+        </section>
+
+        <!-- How Memory Works -->
+        <section id="how-memory-works" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">How Memory Works</h2>
+          </div>
+
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-3">Session Start (Wake)</h3>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
+            The runtime loads wake context from the active memory provider:
+          </p>
+          <ul class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-8 list-disc pl-5 space-y-1">
+            <li><strong class="text-[var(--color-text)]">L0 (Identity):</strong> ~100 tokens &mdash; who is this AI?</li>
+            <li><strong class="text-[var(--color-text)]">L1 (Essentials):</strong> Critical facts from past sessions, capped at <code>max_wake_tokens</code></li>
+          </ul>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-8">
+            Wake context is injected into each agent's system prompt before the session begins.
+          </p>
+
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-3">Mid-Session (Orchestrator-Gated Recall)</h3>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
+            Perspective agents can request memory searches using the <code>aos_request_recall</code> tool:
+          </p>
+          <pre><code>{`Agent: "I need to recall what we decided about auth in previous sessions"
+→ aos_request_recall(query: "auth decisions", reason: "Need prior context")
+→ Orchestrator approves or denies
+→ If approved: results injected into requesting agent's context`}</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-4 mb-8">
+            The orchestrator controls all mid-session recall. This prevents noisy searches and token runaway. The <code>max_recall_per_session</code> cap provides a hard limit.
+          </p>
+
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-3">Session End (Memory Curation)</h3>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
+            The orchestrator receives a curation prompt and decides what to commit to long-term memory using <code>aos_remember</code>:
+          </p>
+          <ul class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4 list-disc pl-5 space-y-1">
+            <li>Store decisions, conclusions, and rationale &mdash; not the debate</li>
+            <li>Store discoveries and insights valuable for future sessions</li>
+            <li>Store verbatim &mdash; do not summarize or paraphrase</li>
+            <li>Tag each memory with the producing agent</li>
+            <li>Skip procedural noise (constraint checks, routing, bias tracking)</li>
+          </ul>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">
+            Each memory is capped at <code>max_drawer_tokens</code> (default 500) to keep recall quality high.
+          </p>
+        </section>
+
+        <!-- Agent Access Tiers -->
+        <section id="agent-access-tiers" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Agent Access Tiers</h2>
+          </div>
+
+          <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden mb-6">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left">
+                <thead>
+                  <tr class="bg-[var(--color-bg)]">
+                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Agent Type</th>
+                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Memory Tools</th>
+                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Direct MemPalace Access</th>
+                  </tr>
+                </thead>
+                <tbody class="text-[14px] text-[var(--color-text-secondary)]">
+                  <tr class="border-b border-[var(--color-border)]">
+                    <td class="px-4 py-3"><strong class="text-[var(--color-text)]">Orchestrator</strong></td>
+                    <td class="px-4 py-3"><code>aos_remember</code>, <code>aos_recall</code></td>
+                    <td class="px-4 py-3">No (uses runtime tools)</td>
+                  </tr>
+                  <tr class="border-b border-[var(--color-border)]">
+                    <td class="px-4 py-3"><strong class="text-[var(--color-text)]">Perspective agents</strong></td>
+                    <td class="px-4 py-3"><code>aos_request_recall</code></td>
+                    <td class="px-4 py-3">No</td>
+                  </tr>
+                  <tr class="border-b border-[var(--color-border)]">
+                    <td class="px-4 py-3"><strong class="text-[var(--color-text)]">Operational agents</strong></td>
+                    <td class="px-4 py-3">Runtime tools</td>
+                    <td class="px-4 py-3">Read + Write (8 MCP tools)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-4 py-3"><strong class="text-[var(--color-text)]">Auditor</strong></td>
+                    <td class="px-4 py-3">Runtime tools</td>
+                    <td class="px-4 py-3">Full admin (all 19 MCP tools)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">
+            Operational agents (Operator, Steward, Auditor) can access MemPalace tools directly via the <code>mempalace-read-write</code> skill. The <code>mempalace-admin</code> skill grants full access and is restricted to the Auditor by default.
+          </p>
+        </section>
+
+        <!-- Crash Recovery -->
+        <section id="crash-recovery" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Crash Recovery</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
+            If the MemPalace MCP server fails during a session:
+          </p>
+          <ol class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4 list-decimal pl-5 space-y-2">
+            <li><strong class="text-[var(--color-text)]">Health check</strong> before session-end writes detects the failure</li>
+            <li><strong class="text-[var(--color-text)]">Auto-restart</strong> attempts one MCP server respawn</li>
+            <li><strong class="text-[var(--color-text)]">JSON fallback</strong> &mdash; if restart fails, memories are saved to <code>.aos/sessions/{"{sessionId}"}/memory-fallback.jsonl</code></li>
+            <li>On next session start, fallback files are detected and can be imported</li>
+          </ol>
+        </section>
+
+        <!-- Expertise Fallback -->
+        <section id="expertise-fallback" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Expertise Fallback</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
+            When MemPalace is not installed, AOS falls back to the Basic Expertise provider. This uses fuzzy matching (Levenshtein distance + token overlap) for recall &mdash; functional but significantly lower quality than MemPalace's semantic search.
+          </p>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
+            The expertise fallback stores memories in-memory during sessions. For persistent storage across sessions, it uses the existing <code>ExpertiseManager</code> with structured YAML files.
+          </p>
+
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-3">Expertise Configuration</h3>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
+            Agents can also use the original <code>expertiseConfig</code> block for structured per-agent knowledge:
+          </p>
+          <pre><code>{`expertiseConfig:
+  enabled: true
+  max_lines: 5000
+  structure:
+    - architecture_patterns
+    - recurring_failure_modes
+    - domain_heuristics
+  read_on: session_start
+  update_on: session_end
+  scope: per-project
+  mode: read-write
+  auto_commit: review`}</code></pre>
+
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6">
+            This system runs independently of the <code>MemoryProvider</code> &mdash; it's a structured learning system that persists categorical knowledge to YAML files. The two systems complement each other: <code>MemoryProvider</code> handles free-form recall via semantic search, while <code>expertiseConfig</code> handles structured, categorized knowledge.
+          </p>
         </section>
 
         <!-- Troubleshooting -->
@@ -301,29 +340,29 @@ _From 4 previous session(s), last updated 2026-04-10T14:30:00Z_
             <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Troubleshooting</h2>
           </div>
 
-          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-2">First session &mdash; agent starts with no knowledge.</h3>
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-2">MemPalace not found at runtime</h3>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
-            This is expected. The expertise file does not exist yet. The agent runs without a Prior Knowledge block. At session end, the first diff is generated and either committed or staged for review depending on <code>auto_commit</code>.
+            AOS logs a warning and falls back to the expertise provider. Install MemPalace with <code>pip install mempalace</code> and run <code>mempalace init</code>.
           </p>
 
-          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-2">Expertise file is growing too large.</h3>
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-2">Wake context too large</h3>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
-            Reduce <code>max_lines</code> or narrow the <code>structure</code> list to fewer, more focused categories. Removing a category from <code>structure</code> stops new entries from being added and stops the category from being injected, but does not delete existing entries from the YAML file.
+            Reduce <code>max_wake_tokens</code> in <code>memory.yaml</code>. The provider truncates L1 by dropping lowest-relevance entries.
           </p>
 
-          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-2">A bad update was applied in <code>auto_commit: "true"</code> mode.</h3>
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-2">Recall returning irrelevant results</h3>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
-            Open <code>.aos/expertise/{"{agent-id}"}-{"{project-hash}"}.yaml</code> and manually remove the incorrect entries. The file is plain YAML and is safe to edit by hand. The harness will read your edited version at the next session start.
+            Ensure your palace is mined (<code>mempalace mine &lt;dir&gt;</code>). Check that <code>project_wing</code> in <code>memory.yaml</code> matches the wing name in your palace.
           </p>
 
-          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-2">Pending reviews are accumulating.</h3>
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-2">Session memories not persisting</h3>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
-            Run <code>bun run cli/src/index.ts expertise review {"{agent-id}"}</code> to inspect each pending diff. Approve what is correct and discard what is not. Pending diffs do not expire, but they also do not affect the agent until approved.
+            Check the transcript for <code>memory_commit_failed</code> events. If the MCP server crashed, look for <code>memory-fallback.jsonl</code> in the session directory.
           </p>
 
-          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-2">Agent with <code>mode: read-only</code> is not learning.</h3>
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-2">Agent recall requests being denied</h3>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">
-            This is correct behavior. <code>read-only</code> agents load expertise but cannot update it. Knowledge for read-only agents must be seeded or maintained by an external process or by another agent with write access to the same file.
+            The orchestrator gates all recall. Set <code>recall_gate: false</code> in <code>memory.yaml</code> to disable gating (not recommended for production).
           </p>
         </section>
 
