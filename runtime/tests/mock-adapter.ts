@@ -10,13 +10,16 @@ import type {
   AgentResponse,
   ArtifactManifest,
   AuthMode,
+  ChildAgentConfig,
   ContextUsage,
+  EnforcementResult,
   ExecuteCodeOpts,
   ExecutionResult,
   LoadedArtifact,
   MessageOpts,
   ModelCost,
   ModelTier,
+  PersistenceAdapter,
   ReviewResult,
   SkillInput,
   SkillResult,
@@ -32,18 +35,20 @@ export interface MockCall {
   timestamp: number;
 }
 
-export class MockAdapter implements AOSAdapter {
+export class MockAdapter implements AOSAdapter, PersistenceAdapter {
   // ── Configurable state ──────────────────────────────────────────
   authMode: AuthMode = { type: "api_key", metered: true };
   agentResponses: Map<string, string> = new Map();
   responseCost = 0.012;
   responseTokensIn = 500;
   responseTokensOut = 300;
+  domainEnforcerOverride?: (agentId: string, toolCall: { tool: string; path?: string; command?: string }) => EnforcementResult;
 
   // ── Internal tracking ───────────────────────────────────────────
   calls: MockCall[] = [];
   private nextId = 1;
   private eventHandlers: Map<string, Function[]> = new Map();
+  private expertiseStore: Map<string, string> = new Map();
 
   private record(method: string, ...args: unknown[]): void {
     this.calls.push({ method, args, timestamp: Date.now() });
@@ -113,6 +118,21 @@ export class MockAdapter implements AOSAdapter {
 
   abort(): void {
     this.record("abort");
+  }
+
+  async spawnSubAgent(parentId: string, config: ChildAgentConfig, sessionId: string): Promise<AgentHandle> {
+    this.record("spawnSubAgent", parentId, config.name, sessionId);
+    return {
+      id: `handle-${this.nextId++}`,
+      agentId: config.name,
+      sessionId,
+      parentAgentId: parentId,
+      depth: 1,
+    };
+  }
+
+  async destroySubAgent(parentId: string, childId: string): Promise<void> {
+    this.record("destroySubAgent", parentId, childId);
   }
 
   // ── EventBusAdapter ─────────────────────────────────────────────
@@ -331,5 +351,28 @@ export class MockAdapter implements AOSAdapter {
       status: "approved",
       reviewer: reviewer.agentId,
     };
+  }
+
+  async enforceToolAccess(
+    agentId: string,
+    toolCall: { tool: string; path?: string; command?: string },
+  ): Promise<EnforcementResult> {
+    this.record("enforceToolAccess", agentId, toolCall);
+    if (this.domainEnforcerOverride) {
+      return this.domainEnforcerOverride(agentId, toolCall);
+    }
+    return { allowed: true };
+  }
+
+  // ── PersistenceAdapter ──────────────────────────────────────────
+
+  async persistExpertise(agentId: string, projectId: string, content: string): Promise<void> {
+    this.record("persistExpertise", agentId, projectId);
+    this.expertiseStore.set(`${agentId}:${projectId}`, content);
+  }
+
+  async loadExpertise(agentId: string, projectId: string): Promise<string | null> {
+    this.record("loadExpertise", agentId, projectId);
+    return this.expertiseStore.get(`${agentId}:${projectId}`) ?? null;
   }
 }

@@ -69,6 +69,140 @@ export interface AgentCapabilities {
   output_types: ("text" | "markdown" | "code" | "diagram" | "structured-data")[];
 }
 
+// ── Domain Enforcement ─────────────────────────────────────────
+
+export interface DomainRule {
+  path: string;
+  read: boolean;
+  write: boolean;
+  delete: boolean;
+}
+
+export interface BlockedTokenSet {
+  tokens: string[];
+  aliases?: Record<string, string[]>;
+}
+
+export interface BashRestrictions {
+  blocked_tokens: BlockedTokenSet[];
+  blocked_patterns: string[];
+}
+
+export interface DomainRules {
+  rules: DomainRule[];
+  tool_allowlist?: string[];
+  tool_denylist?: string[];
+  bash_restrictions?: BashRestrictions;
+}
+
+export interface EnforcementResult {
+  allowed: boolean;
+  reason?: string;
+}
+
+// ── Delegation Config ──────────────────────────────────────────
+
+export type DelegationStyle = "delegate-only" | "delegate-and-execute";
+
+export interface DelegationConfig {
+  can_spawn: boolean;
+  max_children: number;
+  child_model_tier: ModelTier;
+  child_timeout_seconds: number;
+  delegation_style: DelegationStyle;
+}
+
+// ── Child Agent Types ──────────────────────────────────────────
+
+export interface ChildAgentConfig {
+  name: string;
+  role: string;
+  modelTier?: ModelTier;
+  systemPrompt?: string;
+  domainRules?: DomainRules;
+  timeout?: number;
+}
+
+export type SpawnResult =
+  | { success: true; childAgentId: string }
+  | { success: false; error: "depth_limit_exceeded"; currentDepth: number; maxDepth: number; suggestion: "execute_directly" }
+  | { success: false; error: "max_children_exceeded"; active: number; max: number }
+  | { success: false; error: "child_not_found"; childAgentId: string }
+  | { success: false; error: "child_timeout"; childAgentId: string; elapsed_seconds: number; partial_response?: string };
+
+export interface TokenUsage {
+  tokensIn: number;
+  tokensOut: number;
+  cost: number;
+  model: string;
+}
+
+export interface FileChangeEvent {
+  agentId: string;
+  path: string;
+  operation: "created" | "modified" | "deleted";
+  diffSnippet?: string;
+}
+
+// ── Expertise Types ────────────────────────────────────────────
+
+export interface ExpertiseConfig {
+  enabled: boolean;
+  max_lines: number;
+  structure: string[];
+  read_on: "session_start";
+  update_on: "session_end";
+  scope: "per-project" | "global";
+  mode: "read-write" | "read-only";
+  auto_commit: "true" | "review";
+}
+
+export interface ExpertiseFile {
+  last_updated: string;
+  session_count: number;
+  knowledge: Record<string, string[]>;
+}
+
+export interface ExpertiseDiff {
+  agentId: string;
+  projectId: string;
+  additions: Record<string, string[]>;
+  removals: Record<string, string[]>;
+}
+
+// ── Persistence Adapter (Optional Mixin) ───────────────────────
+
+export interface PersistenceAdapter {
+  persistExpertise(agentId: string, projectId: string, content: string): Promise<void>;
+  loadExpertise(agentId: string, projectId: string): Promise<string | null>;
+}
+
+// ── Session Checkpoint Types ───────────────────────────────────
+
+export interface AgentCheckpoint {
+  agentId: string;
+  parentAgentId?: string;
+  depth: number;
+  conversationTail: TranscriptEntry[];
+  expertiseSnapshot?: string;
+}
+
+export interface PendingDelegation {
+  target: string | string[];
+  message: string;
+  round: number;
+}
+
+export interface SessionCheckpoint {
+  sessionId: string;
+  constraintState: ConstraintState;
+  activeAgents: AgentCheckpoint[];
+  roundsCompleted: number;
+  pendingDelegations: PendingDelegation[];
+  transcriptReplayDepth: number;
+  createdAt: string;
+}
+
 export interface AgentConfig {
   schema: string;
   id: string;
@@ -84,6 +218,9 @@ export interface AgentConfig {
   model: { tier: ModelTier; thinking: ThinkingMode };
   systemPrompt?: string;
   capabilities?: AgentCapabilities;
+  domain?: DomainRules;
+  delegation?: DelegationConfig;
+  expertiseConfig?: ExpertiseConfig;
 }
 
 // ── Profile Config ──────────────────────────────────────────────
@@ -136,6 +273,7 @@ export interface ProfileConfig {
     opening_rounds: number;
     tension_pairs: [string, string][];
     bias_limit: number;
+    max_delegation_depth?: number;
   };
   constraints: ProfileConstraints;
   error_handling: ErrorHandling;
@@ -266,6 +404,8 @@ export interface AgentHandle {
   id: string;
   agentId: string;
   sessionId: string;
+  parentAgentId?: string;
+  depth?: number;
 }
 
 export interface MessageOpts {
@@ -421,7 +561,25 @@ export type TranscriptEventType =
   // Execution events
   | "code_execution"
   | "skill_invocation"
-  | "review_submission";
+  | "review_submission"
+  // Domain enforcement events
+  | "domain_violation"
+  | "domain_access"
+  // Hierarchical delegation events (Phase 2)
+  | "agent_spawned"
+  | "agent_destroyed"
+  | "child_delegation"
+  | "child_response"
+  // Expertise events (Phase 3a)
+  | "expertise_loaded"
+  | "expertise_updated"
+  // File tracking (Phase 2)
+  | "file_changed"
+  // Cost granularity
+  | "token_usage"
+  // Session lifecycle (Phase 3b)
+  | "session_paused"
+  | "session_resumed";
 
 export interface TranscriptEntry {
   type: TranscriptEventType;
@@ -442,6 +600,8 @@ export interface AgentRuntimeAdapter {
   getAuthMode(): AuthMode;
   getModelCost(tier: ModelTier): ModelCost;
   abort(): void;
+  spawnSubAgent(parentId: string, config: ChildAgentConfig, sessionId: string): Promise<AgentHandle>;
+  destroySubAgent(parentId: string, childId: string): Promise<void>;
 }
 
 export interface EventBusAdapter {
@@ -486,6 +646,7 @@ export interface WorkflowAdapter {
   createArtifact(artifact: ArtifactManifest, content: string): Promise<void>;
   loadArtifact(artifactId: string, sessionDir: string): Promise<LoadedArtifact>;
   submitForReview(artifact: LoadedArtifact, reviewer: AgentHandle, reviewPrompt?: string): Promise<ReviewResult>;
+  enforceToolAccess(agentId: string, toolCall: { tool: string; path?: string; command?: string }): Promise<EnforcementResult>;
 }
 
 export type AOSAdapter = AgentRuntimeAdapter & EventBusAdapter & UIAdapter & WorkflowAdapter;

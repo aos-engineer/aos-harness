@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { existsSync, rmSync } from "node:fs";
 import { AOSEngine } from "../src/engine";
 import { MockAdapter } from "./mock-adapter";
+import type { TranscriptEntry } from "../src/types";
 
 const fixturesDir = join(import.meta.dir, "..", "fixtures");
 
@@ -197,6 +198,78 @@ describe("AOSEngine", () => {
       const transcript = engine.getTranscript();
       expect(transcript.length).toBe(1);
       expect(transcript[0].type).toBe("session_start");
+    });
+  });
+
+  describe("AOSEngine — domain enforcement", () => {
+    it("returns null enforcer for agents without domain rules", async () => {
+      const adapter = new MockAdapter();
+      const engine = new AOSEngine(adapter, join(fixturesDir, "profiles", "test-council"), {
+        agentsDir: join(fixturesDir, "agents"),
+        onTranscriptEvent: () => {},
+      });
+      const enforcer = engine.getDomainEnforcer("arbiter");
+      expect(enforcer).toBeNull();
+    });
+  });
+
+  describe("AOSEngine — hierarchical delegation", () => {
+    it("returns error when parent has no delegation config", async () => {
+      const adapter = new MockAdapter();
+      const engine = new AOSEngine(adapter, join(fixturesDir, "profiles", "test-council"), {
+        agentsDir: join(fixturesDir, "agents"),
+        onTranscriptEvent: () => {},
+      });
+      const result = await engine.spawnChildAgent("arbiter", { name: "w1", role: "worker" });
+      expect(result.success).toBe(false);
+    });
+
+    it("getChildAgents returns empty for agents without children", () => {
+      const adapter = new MockAdapter();
+      const engine = new AOSEngine(adapter, join(fixturesDir, "profiles", "test-council"), {
+        agentsDir: join(fixturesDir, "agents"),
+      });
+      expect(engine.getChildAgents("arbiter")).toEqual([]);
+    });
+  });
+
+  describe("MockAdapter — enforceToolAccess", () => {
+    it("records enforceToolAccess calls", async () => {
+      const adapter = new MockAdapter();
+      const result = await adapter.enforceToolAccess("arbiter", {
+        tool: "write",
+        path: "apps/web/page.tsx",
+      });
+      expect(result.allowed).toBe(true);
+      expect(adapter.calls.some((c) => c.method === "enforceToolAccess")).toBe(true);
+    });
+  });
+
+  describe("AOSEngine — session pause", () => {
+    it("pauseSession returns a checkpoint", async () => {
+      const adapter = new MockAdapter();
+      const events: TranscriptEntry[] = [];
+      const engine = new AOSEngine(adapter, join(fixturesDir, "profiles", "test-council"), {
+        agentsDir: join(fixturesDir, "agents"),
+        onTranscriptEvent: (e) => events.push(e),
+      });
+      const cp = await engine.pauseSession();
+      expect(cp.sessionId).toBeDefined();
+      expect(cp.activeAgents).toBeDefined();
+      expect(events.some((e) => e.type === "session_paused")).toBe(true);
+    });
+
+    it("getCheckpoint returns null before pause", () => {
+      const adapter = new MockAdapter();
+      const engine = new AOSEngine(adapter, join(fixturesDir, "profiles", "test-council"), { agentsDir: join(fixturesDir, "agents") });
+      expect(engine.getCheckpoint()).toBeNull();
+    });
+
+    it("getCheckpoint returns checkpoint after pause", async () => {
+      const adapter = new MockAdapter();
+      const engine = new AOSEngine(adapter, join(fixturesDir, "profiles", "test-council"), { agentsDir: join(fixturesDir, "agents") });
+      await engine.pauseSession();
+      expect(engine.getCheckpoint()).not.toBeNull();
     });
   });
 

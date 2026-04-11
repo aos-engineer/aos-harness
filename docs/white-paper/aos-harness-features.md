@@ -41,9 +41,9 @@
 
 ## 1. Executive Summary
 
-The Agentic Orchestration System (AOS) Framework is a language-agnostic, config-first orchestration system that assembles specialized AI agents into teams capable of two distinct operational modes: **strategic deliberation** (multi-perspective debate producing ranked recommendations) and **artifact-driven execution** (structured workflows producing implementation-ready deliverables).
+The Agentic Orchestration System (AOS) Harness is a language-agnostic, config-first orchestration system that assembles specialized AI agents into teams capable of two distinct operational modes: **strategic deliberation** (multi-perspective debate producing ranked recommendations) and **artifact-driven execution** (structured workflows producing implementation-ready deliverables).
 
-The framework addresses a fundamental limitation in current AI tooling: single-agent systems lack the cognitive diversity required for robust decision-making and complex multi-phase execution. AOS solves this by modeling a team of 13 AI agents — each with engineered cognitive biases, distinct reasoning frameworks, and defined interpersonal tensions — orchestrated under configurable time, budget, and round constraints.
+The harness addresses a fundamental limitation in current AI tooling: single-agent systems lack the cognitive diversity required for robust decision-making and complex multi-phase execution. AOS solves this by modeling a team of 13 AI agents — each with engineered cognitive biases, distinct reasoning frameworks, and defined interpersonal tensions — orchestrated under configurable time, budget, and round constraints.
 
 ### Key Differentiators
 
@@ -53,7 +53,7 @@ The framework addresses a fundamental limitation in current AI tooling: single-a
 - **Artifact-Driven Workflows:** Execution profiles produce versioned, reviewable work products that chain between steps, enabling complex multi-phase deliverables.
 - **Platform Agnosticism:** A 4-layer adapter contract decouples the orchestration logic from any specific AI runtime, enabling deployment across Pi CLI, Claude Code, Gemini, and future platforms.
 
-### Framework at a Glance
+### Harness at a Glance
 
 | Dimension | Value |
 |-----------|-------|
@@ -81,7 +81,7 @@ This design enables non-programmers to customize agent behavior, create new prof
 
 ### 2.2 Three-Tier User Model
 
-The framework serves three tiers of sophistication:
+The harness serves three tiers of sophistication:
 
 | Tier | User | Action | Outcome |
 |------|------|--------|---------|
@@ -91,7 +91,7 @@ The framework serves three tiers of sophistication:
 
 ### 2.3 Separation of Concerns
 
-The framework enforces clean boundaries between:
+The harness enforces clean boundaries between:
 
 - **What agents think** (persona YAML + prompt Markdown)
 - **How sessions run** (profile YAML + constraint engine)
@@ -217,7 +217,7 @@ capabilities:                  # Execution profile capabilities
 
 ### 4.2 Agent Roster
 
-The framework ships with 13 agents across three categories:
+The harness ships with 13 agents across three categories:
 
 #### Orchestrators (2 agents)
 

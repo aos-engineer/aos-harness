@@ -1,0 +1,333 @@
+---
+import Base from '../../layouts/Base.astro';
+
+const sidebarLinks = [
+  { id: 'enabling-expertise', label: 'Enabling Expertise' },
+  { id: 'expertise-files', label: 'Expertise File Structure' },
+  { id: 'how-updates-work', label: 'How Updates Work' },
+  { id: 'auto-commit', label: 'Auto-Commit vs Review Mode' },
+  { id: 'pruning', label: 'Pruning Strategy' },
+  { id: 'prompt-injection', label: 'Prompt Injection' },
+  { id: 'troubleshooting', label: 'Troubleshooting' },
+];
+---
+
+<Base title="Persistent Expertise">
+  <div class="mx-auto max-w-[1200px] px-6 py-10">
+    <div class="flex gap-12">
+
+      <!-- Sidebar -->
+      <aside class="hidden lg:block w-[220px] shrink-0">
+        <div class="sticky top-[80px]">
+          <p class="text-[12px] font-medium uppercase tracking-wider text-[var(--color-text-muted)] mb-4">On this page</p>
+          <nav class="flex flex-col gap-1">
+            {sidebarLinks.map(link => (
+              <a
+                href={`#${link.id}`}
+                class="text-[14px] leading-[2] text-[var(--color-text-muted)] hover:text-[var(--color-text)] no-underline transition-colors border-l-2 border-transparent hover:border-[var(--color-signal)] pl-3"
+              >
+                {link.label}
+              </a>
+            ))}
+          </nav>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="min-w-0 max-w-[720px]">
+
+        <!-- Mobile pill nav -->
+        <div class="lg:hidden flex gap-2 overflow-x-auto pb-4 mb-6 -mx-1 px-1">
+          {sidebarLinks.map(link => (
+            <a
+              href={`#${link.id}`}
+              class="shrink-0 text-[13px] font-medium text-[var(--color-text-muted)] px-3 py-1.5 rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-text)] hover:text-white hover:border-transparent no-underline transition-all"
+            >
+              {link.label}
+            </a>
+          ))}
+        </div>
+
+        <!-- Breadcrumb -->
+        <div class="text-[13px] text-[var(--color-text-muted)] mb-6">
+          <a href="/docs/getting-started" class="text-[var(--color-signal)] no-underline hover:underline">Docs</a>
+          <span class="mx-1.5">&gt;</span>
+          <span>Persistent Expertise</span>
+        </div>
+
+        <!-- Page Header -->
+        <h1 class="text-4xl md:text-[48px] font-extrabold text-[var(--color-text)] leading-tight tracking-tight">Persistent Expertise</h1>
+        <p class="text-[15px] text-[var(--color-text-secondary)] mt-2 mb-12">Agent knowledge that accumulates across sessions</p>
+
+        <!-- Enabling Expertise -->
+        <section id="enabling-expertise" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Enabling Expertise</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
+            Agents accumulate domain-specific knowledge across sessions via structured YAML files. An Architect remembers your codebase patterns. A Sentinel retains threat models. Knowledge is loaded at session start and updated at session end.
+          </p>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
+            This is distinct from the scratch pad <code>expertise</code> field (which gives agents a read/write notes file). <code>expertiseConfig</code> controls a structured learning system that persists categorical knowledge and injects it into the agent's system prompt every time it runs.
+          </p>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Add an <code>expertiseConfig</code> block to the agent's <code>agent.yaml</code>:</p>
+          <pre><code>{`expertiseConfig:
+  enabled: true
+  max_lines: 5000               # Cap total entries across all categories
+  structure:                    # Knowledge categories this agent tracks
+    - architecture_patterns
+    - recurring_failure_modes
+    - domain_heuristics
+  read_on: session_start        # When to load expertise
+  update_on: session_end        # When to persist updates
+  scope: per-project            # per-project | global
+  mode: read-write              # read-write | read-only (for compliance knowledge)
+  auto_commit: review           # "true" | review`}</code></pre>
+
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mt-8 mb-4">Field Reference</h3>
+          <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden mb-6">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left">
+                <thead>
+                  <tr class="bg-[var(--color-bg)]">
+                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Field</th>
+                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Values</th>
+                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Description</th>
+                  </tr>
+                </thead>
+                <tbody class="text-[14px] text-[var(--color-text-secondary)]">
+                  <tr class="border-b border-[var(--color-border)]">
+                    <td class="px-4 py-3"><code>enabled</code></td>
+                    <td class="px-4 py-3"><code>true</code> / <code>false</code></td>
+                    <td class="px-4 py-3">Activates the persistent learning system</td>
+                  </tr>
+                  <tr class="border-b border-[var(--color-border)]">
+                    <td class="px-4 py-3"><code>max_lines</code></td>
+                    <td class="px-4 py-3">integer</td>
+                    <td class="px-4 py-3">Total entry cap across all categories</td>
+                  </tr>
+                  <tr class="border-b border-[var(--color-border)]">
+                    <td class="px-4 py-3"><code>structure</code></td>
+                    <td class="px-4 py-3">list of strings</td>
+                    <td class="px-4 py-3">Knowledge categories the agent tracks</td>
+                  </tr>
+                  <tr class="border-b border-[var(--color-border)]">
+                    <td class="px-4 py-3"><code>read_on</code></td>
+                    <td class="px-4 py-3"><code>session_start</code></td>
+                    <td class="px-4 py-3">When expertise is loaded into the prompt</td>
+                  </tr>
+                  <tr class="border-b border-[var(--color-border)]">
+                    <td class="px-4 py-3"><code>update_on</code></td>
+                    <td class="px-4 py-3"><code>session_end</code></td>
+                    <td class="px-4 py-3">When the diff is applied or staged</td>
+                  </tr>
+                  <tr class="border-b border-[var(--color-border)]">
+                    <td class="px-4 py-3"><code>scope</code></td>
+                    <td class="px-4 py-3"><code>per-project</code> / <code>global</code></td>
+                    <td class="px-4 py-3">Whether knowledge is project-specific or shared across projects</td>
+                  </tr>
+                  <tr class="border-b border-[var(--color-border)]">
+                    <td class="px-4 py-3"><code>mode</code></td>
+                    <td class="px-4 py-3"><code>read-write</code> / <code>read-only</code></td>
+                    <td class="px-4 py-3"><code>read-only</code> for agents that consume compliance knowledge without modifying it</td>
+                  </tr>
+                  <tr>
+                    <td class="px-4 py-3"><code>auto_commit</code></td>
+                    <td class="px-4 py-3"><code>"true"</code> / <code>review</code></td>
+                    <td class="px-4 py-3">Whether updates are applied immediately or staged for CLI confirmation</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="bg-[var(--color-bg)] border-l-4 border-[var(--color-signal)] rounded-r-lg px-5 py-4">
+            <p class="text-[12px] font-semibold uppercase text-[var(--color-signal)] mb-1">Note</p>
+            <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed"><code>expertiseConfig</code> is separate from the existing <code>expertise</code> field. The <code>expertise</code> field defines scratch pad file paths. <code>expertiseConfig</code> controls the persistent learning system.</p>
+          </div>
+        </section>
+
+        <!-- Expertise File Structure -->
+        <section id="expertise-files" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Expertise File Structure</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
+            The harness writes one expertise file per agent per project, keyed by a hash of the project root:
+          </p>
+          <pre><code>{`# .aos/expertise/architect-{project-hash}.yaml
+last_updated: "2026-04-10T14:30:00Z"
+session_count: 4
+knowledge:
+  architecture_patterns:
+    - "Service layer uses repository pattern with Drizzle ORM"
+    - "Auth flows through middleware chain, not per-route"
+  recurring_failure_modes:
+    - "WebSocket reconnection drops events during API restart"
+  domain_heuristics:
+    - "Team prefers explicit error types over generic throws"`}</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6">
+            Each top-level key under <code>knowledge</code> corresponds to a category declared in the agent's <code>structure</code> list. The harness ignores any category present in the file but absent from the current <code>structure</code> &mdash; it will not be injected, but it is not deleted either.
+          </p>
+        </section>
+
+        <!-- How Updates Work -->
+        <section id="how-updates-work" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">How Updates Work</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
+            Updates are <strong class="text-[var(--color-text)]">diff-based, not full rewrites</strong>. At session end, an economy-tier model reviews the session transcript and produces a structured diff:
+          </p>
+          <pre><code>{`{
+  "additions": {
+    "architecture_patterns": [
+      "API gateway pattern added in v2.3 for rate limiting"
+    ]
+  },
+  "removals": {
+    "recurring_failure_modes": [
+      "WebSocket reconnection drops events during API restart"
+    ]
+  }
+}`}</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6">
+            Only the changes in the diff are applied to the YAML file. This limits the blast radius of bad summarization &mdash; a poor session cannot overwrite years of accumulated knowledge. Duplicate entries are automatically filtered before writes.
+          </p>
+        </section>
+
+        <!-- Auto-Commit vs Review Mode -->
+        <section id="auto-commit" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Auto-Commit vs Review Mode</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
+            The <code>auto_commit</code> field controls when the diff is merged into the expertise file.
+          </p>
+
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-3"><code>auto_commit: "true"</code></h3>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
+            The diff is applied immediately after the session ends. The expertise file is updated without human intervention. Use this for agents where accumulated knowledge is low-stakes or easily correctable &mdash; such as an Architect accumulating codebase patterns, or a Catalyst tracking commercial signals.
+          </p>
+
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-3"><code>auto_commit: review</code></h3>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
+            The diff is written to a pending file alongside the expertise file:
+          </p>
+          <pre><code>{`.aos/expertise/sentinel-{project-hash}.yaml
+.aos/expertise/sentinel-{project-hash}.pending.yaml`}</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-4 mb-4">
+            The pending diff is not merged until a human confirms it via the CLI. The agent continues to load only the committed expertise file at session start &mdash; pending changes are never injected until approved.
+          </p>
+          <pre><code>{`# Review pending expertise updates
+bun run cli/src/index.ts expertise review sentinel
+
+# Approve a pending update
+bun run cli/src/index.ts expertise approve sentinel
+
+# Discard a pending update
+bun run cli/src/index.ts expertise discard sentinel`}</code></pre>
+
+          <div class="mt-6 bg-[var(--color-bg)] border-l-4 border-[var(--color-signal)] rounded-r-lg px-5 py-4">
+            <p class="text-[12px] font-semibold uppercase text-[var(--color-signal)] mb-1">Recommendation</p>
+            <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">Review mode is recommended for Sentinel, Steward, and any agent responsible for compliance or security knowledge. A bad auto-committed update to a Sentinel's threat model could cause the agent to miss real risks in future sessions.</p>
+          </div>
+        </section>
+
+        <!-- Pruning Strategy -->
+        <section id="pruning" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Pruning Strategy</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
+            When the total number of entries across all categories exceeds <code>max_lines</code>, the harness removes the oldest entries first (age-based FIFO). Entries are pruned proportionally across categories &mdash; no single category monopolizes the budget by growing without bound.
+          </p>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
+            Example: with <code>max_lines: 100</code> and three categories at 40&thinsp;/&thinsp;40&thinsp;/&thinsp;40 entries (120 total), 20 entries are removed. Each category loses approximately 7 entries (the oldest in each).
+          </p>
+          <div class="bg-[var(--color-bg)] border-l-4 border-[var(--color-signal)] rounded-r-lg px-5 py-4">
+            <p class="text-[12px] font-semibold uppercase text-[var(--color-signal)] mb-1">Planned Enhancement</p>
+            <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">Value-based pruning &mdash; where the harness scores entries by relevance before removing them &mdash; is a planned future enhancement.</p>
+          </div>
+        </section>
+
+        <!-- Prompt Injection -->
+        <section id="prompt-injection" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Prompt Injection</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
+            At session start, the expertise file is loaded and injected as a <code>## Prior Knowledge</code> section in the agent's system prompt, immediately following the agent's standard content:
+          </p>
+          <pre><code>{`## Prior Knowledge
+_From 4 previous session(s), last updated 2026-04-10T14:30:00Z_
+
+### architecture patterns
+- Service layer uses repository pattern with Drizzle ORM
+- Auth flows through middleware chain, not per-route
+
+### recurring failure modes
+- WebSocket reconnection drops events during API restart
+
+### domain heuristics
+- Team prefers explicit error types over generic throws`}</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">
+            The injection uses the <code>{"{{prior_knowledge}}"}</code> template variable in <code>prompt.md</code>. If the expertise file does not exist or is empty, the block is omitted entirely &mdash; the agent receives no prior knowledge section on its first session.
+          </p>
+
+          <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left">
+                <thead>
+                  <tr class="bg-[var(--color-bg)]">
+                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Variable</th>
+                    <th class="text-[13px] font-semibold text-[var(--color-text)] uppercase px-4 py-3 border-b border-[var(--color-border)]">Description</th>
+                  </tr>
+                </thead>
+                <tbody class="text-[14px] text-[var(--color-text-secondary)]">
+                  <tr>
+                    <td class="px-4 py-3"><code>{"{{prior_knowledge}}"}</code></td>
+                    <td class="px-4 py-3">Rendered Prior Knowledge block, or empty string if no expertise exists</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Troubleshooting -->
+        <section id="troubleshooting" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Troubleshooting</h2>
+          </div>
+
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-2">First session &mdash; agent starts with no knowledge.</h3>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
+            This is expected. The expertise file does not exist yet. The agent runs without a Prior Knowledge block. At session end, the first diff is generated and either committed or staged for review depending on <code>auto_commit</code>.
+          </p>
+
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-2">Expertise file is growing too large.</h3>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
+            Reduce <code>max_lines</code> or narrow the <code>structure</code> list to fewer, more focused categories. Removing a category from <code>structure</code> stops new entries from being added and stops the category from being injected, but does not delete existing entries from the YAML file.
+          </p>
+
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-2">A bad update was applied in <code>auto_commit: "true"</code> mode.</h3>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
+            Open <code>.aos/expertise/{"{agent-id}"}-{"{project-hash}"}.yaml</code> and manually remove the incorrect entries. The file is plain YAML and is safe to edit by hand. The harness will read your edited version at the next session start.
+          </p>
+
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-2">Pending reviews are accumulating.</h3>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
+            Run <code>bun run cli/src/index.ts expertise review {"{agent-id}"}</code> to inspect each pending diff. Approve what is correct and discard what is not. Pending diffs do not expire, but they also do not affect the agent until approved.
+          </p>
+
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-2">Agent with <code>mode: read-only</code> is not learning.</h3>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">
+            This is correct behavior. <code>read-only</code> agents load expertise but cannot update it. Knowledge for read-only agents must be seeded or maintained by an external process or by another agent with write access to the same file.
+          </p>
+        </section>
+
+      </main>
+    </div>
+  </div>
+</Base>

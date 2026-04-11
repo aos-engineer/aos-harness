@@ -19,6 +19,10 @@ import {
   type ReviewIssue,
   type AssemblyMember,
   type TranscriptEventType,
+  type ExpertiseConfig,
+  type ExpertiseFile,
+  type ExpertiseDiff,
+  type PersistenceAdapter,
   isConstraintConflict,
   isMetered,
   createDefaultConstraintState,
@@ -353,6 +357,234 @@ describe("TranscriptEventType", () => {
       "session_end",
     ];
     expect(originalEvents).toHaveLength(15);
+  });
+});
+
+describe("Domain & Delegation types", () => {
+  it("DomainRules compiles with valid structure", () => {
+    const rules: import("../src/types").DomainRules = {
+      rules: [
+        { path: "apps/web/**", read: true, write: true, delete: false },
+        { path: "**/*.env*", read: false, write: false, delete: false },
+      ],
+      tool_allowlist: ["read", "write", "edit"],
+      tool_denylist: ["bash"],
+      bash_restrictions: {
+        blocked_tokens: [
+          { tokens: ["rm", "recursive"], aliases: { recursive: ["-r", "-R", "--recursive"] } },
+        ],
+        blocked_patterns: ["curl.*-X DELETE"],
+      },
+    };
+    expect(rules.rules).toHaveLength(2);
+    expect(rules.tool_denylist).toContain("bash");
+  });
+
+  it("DelegationConfig compiles with valid structure", () => {
+    const config: import("../src/types").DelegationConfig = {
+      can_spawn: true,
+      max_children: 3,
+      child_model_tier: "economy",
+      child_timeout_seconds: 120,
+      delegation_style: "delegate-only",
+    };
+    expect(config.can_spawn).toBe(true);
+  });
+
+  it("EnforcementResult compiles with allowed and denied", () => {
+    const allowed: import("../src/types").EnforcementResult = { allowed: true };
+    const denied: import("../src/types").EnforcementResult = { allowed: false, reason: "blocked" };
+    expect(allowed.allowed).toBe(true);
+    expect(denied.reason).toBe("blocked");
+  });
+});
+
+describe("Hierarchical delegation types", () => {
+  it("ChildAgentConfig compiles", () => {
+    const config: import("../src/types").ChildAgentConfig = {
+      name: "backend-dev", role: "test", modelTier: "economy",
+      systemPrompt: "You are a dev.", timeout: 120,
+    };
+    expect(config.name).toBe("backend-dev");
+  });
+  it("SpawnResult compiles with success and errors", () => {
+    const ok: import("../src/types").SpawnResult = { success: true, childAgentId: "c1" };
+    const err: import("../src/types").SpawnResult = { success: false, error: "depth_limit_exceeded", currentDepth: 2, maxDepth: 2, suggestion: "execute_directly" };
+    expect(ok.success).toBe(true);
+    expect(err.success).toBe(false);
+  });
+  it("AgentHandle accepts parentAgentId and depth", () => {
+    const h: import("../src/types").AgentHandle = { id: "h1", agentId: "c1", sessionId: "s1", parentAgentId: "p1", depth: 1 };
+    expect(h.depth).toBe(1);
+  });
+});
+
+describe("ExpertiseConfig, ExpertiseFile, ExpertiseDiff types", () => {
+  it("ExpertiseConfig compiles with all required fields", () => {
+    const config: ExpertiseConfig = {
+      enabled: true,
+      max_lines: 200,
+      structure: ["decisions", "patterns", "gotchas"],
+      read_on: "session_start",
+      update_on: "session_end",
+      scope: "per-project",
+      mode: "read-write",
+      auto_commit: "review",
+    };
+    expect(config.enabled).toBe(true);
+    expect(config.max_lines).toBe(200);
+    expect(config.scope).toBe("per-project");
+    expect(config.mode).toBe("read-write");
+    expect(config.auto_commit).toBe("review");
+  });
+
+  it("ExpertiseConfig supports global scope and read-only mode", () => {
+    const config: ExpertiseConfig = {
+      enabled: false,
+      max_lines: 100,
+      structure: ["summary"],
+      read_on: "session_start",
+      update_on: "session_end",
+      scope: "global",
+      mode: "read-only",
+      auto_commit: "true",
+    };
+    expect(config.scope).toBe("global");
+    expect(config.mode).toBe("read-only");
+    expect(config.auto_commit).toBe("true");
+  });
+
+  it("ExpertiseFile compiles with correct shape", () => {
+    const file: ExpertiseFile = {
+      last_updated: "2026-04-10T00:00:00.000Z",
+      session_count: 5,
+      knowledge: {
+        decisions: ["Use YAML for expertise files", "Prune oldest entries first"],
+        patterns: ["Always validate before writing"],
+      },
+    };
+    expect(file.session_count).toBe(5);
+    expect(file.knowledge["decisions"]).toHaveLength(2);
+    expect(file.knowledge["patterns"]).toHaveLength(1);
+  });
+
+  it("ExpertiseFile can have empty knowledge", () => {
+    const file: ExpertiseFile = {
+      last_updated: "",
+      session_count: 0,
+      knowledge: {},
+    };
+    expect(file.session_count).toBe(0);
+    expect(Object.keys(file.knowledge)).toHaveLength(0);
+  });
+
+  it("ExpertiseDiff compiles with additions and removals", () => {
+    const diff: ExpertiseDiff = {
+      agentId: "architect",
+      projectId: "aos-harness",
+      additions: {
+        decisions: ["New decision added this session"],
+        gotchas: ["Watch out for YAML multiline strings"],
+      },
+      removals: {
+        patterns: ["Old stale pattern"],
+      },
+    };
+    expect(diff.agentId).toBe("architect");
+    expect(diff.projectId).toBe("aos-harness");
+    expect(diff.additions["decisions"]).toHaveLength(1);
+    expect(diff.removals["patterns"]).toHaveLength(1);
+  });
+
+  it("ExpertiseDiff can have empty additions and removals", () => {
+    const diff: ExpertiseDiff = {
+      agentId: "sentinel",
+      projectId: "test-project",
+      additions: {},
+      removals: {},
+    };
+    expect(Object.keys(diff.additions)).toHaveLength(0);
+    expect(Object.keys(diff.removals)).toHaveLength(0);
+  });
+
+  it("AgentConfig accepts optional expertiseConfig", () => {
+    const config: AgentConfig = {
+      schema: "aos/agent/v1",
+      id: "test",
+      name: "Test",
+      role: "tester",
+      cognition: {
+        objective_function: "test",
+        time_horizon: { primary: "short", secondary: "medium", peripheral: "long" },
+        core_bias: "none",
+        risk_tolerance: "moderate" as const,
+        default_stance: "neutral",
+      },
+      persona: {
+        temperament: [],
+        thinking_patterns: [],
+        heuristics: [],
+        evidence_standard: { convinced_by: [], not_convinced_by: [] },
+        red_lines: [],
+      },
+      tensions: [],
+      report: { structure: "freeform" },
+      tools: null,
+      skills: [],
+      expertise: [],
+      model: { tier: "standard" as const, thinking: "on" as const },
+      expertiseConfig: {
+        enabled: true,
+        max_lines: 150,
+        structure: ["decisions"],
+        read_on: "session_start",
+        update_on: "session_end",
+        scope: "per-project",
+        mode: "read-write",
+        auto_commit: "review",
+      },
+    };
+    expect(config.expertiseConfig?.enabled).toBe(true);
+    expect(config.expertiseConfig?.max_lines).toBe(150);
+  });
+
+  it("PersistenceAdapter type is structurally correct", () => {
+    // Type check: verify PersistenceAdapter shape by implementing it inline
+    const adapter: PersistenceAdapter = {
+      async persistExpertise(agentId: string, projectId: string, content: string): Promise<void> {},
+      async loadExpertise(agentId: string, projectId: string): Promise<string | null> {
+        return null;
+      },
+    };
+    expect(typeof adapter.persistExpertise).toBe("function");
+    expect(typeof adapter.loadExpertise).toBe("function");
+  });
+});
+
+describe("Session checkpoint types", () => {
+  it("AgentCheckpoint compiles", () => {
+    const cp: import("../src/types").AgentCheckpoint = {
+      agentId: "architect", depth: 0,
+      conversationTail: [{ type: "response", timestamp: "t1", agentId: "architect", content: "test" }],
+    };
+    expect(cp.conversationTail).toHaveLength(1);
+  });
+  it("SessionCheckpoint compiles", () => {
+    const cp: import("../src/types").SessionCheckpoint = {
+      sessionId: "s1",
+      constraintState: {
+        elapsed_minutes: 5, budget_spent: 0.5, rounds_completed: 3,
+        past_min_time: true, past_min_budget: true, past_min_rounds: true, past_all_minimums: true,
+        approaching_max_time: false, approaching_max_budget: false, approaching_max_rounds: false,
+        approaching_any_maximum: false, hit_maximum: false, hit_reason: "none",
+        can_end: true, bias_ratio: 1.2, most_addressed: [], least_addressed: [],
+        bias_blocked: false, metered: true,
+      },
+      activeAgents: [{ agentId: "a1", depth: 0, conversationTail: [] }],
+      roundsCompleted: 3, pendingDelegations: [],
+      transcriptReplayDepth: 50, createdAt: "2026-04-10",
+    };
+    expect(cp.activeAgents).toHaveLength(1);
   });
 });
 

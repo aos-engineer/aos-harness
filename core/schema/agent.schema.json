@@ -137,6 +137,74 @@
         }
       },
       "additionalProperties": false
+    },
+    "domain": {
+      "type": "object",
+      "description": "Structural file/tool permission boundaries enforced at the L4 adapter layer.",
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "read", "write", "delete"],
+            "properties": {
+              "path": { "type": "string", "description": "Glob pattern for file path matching" },
+              "read": { "type": "boolean" },
+              "write": { "type": "boolean" },
+              "delete": { "type": "boolean" }
+            }
+          }
+        },
+        "tool_allowlist": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tools this agent is allowed to use. If omitted, all tools allowed."
+        },
+        "tool_denylist": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tools explicitly blocked. Takes precedence over allowlist."
+        },
+        "bash_restrictions": {
+          "type": "object",
+          "properties": {
+            "blocked_tokens": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["tokens"],
+                "properties": {
+                  "tokens": { "type": "array", "items": { "type": "string" } },
+                  "aliases": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            },
+            "blocked_patterns": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      },
+      "required": ["rules"]
+    },
+    "delegation": {
+      "type": "object",
+      "description": "Controls whether this agent can spawn and manage sub-agents.",
+      "required": ["can_spawn", "max_children", "child_model_tier", "child_timeout_seconds", "delegation_style"],
+      "properties": {
+        "can_spawn": { "type": "boolean" },
+        "max_children": { "type": "integer", "minimum": 0 },
+        "child_model_tier": { "enum": ["economy", "standard", "premium"] },
+        "child_timeout_seconds": { "type": "integer", "minimum": 1 },
+        "delegation_style": { "enum": ["delegate-only", "delegate-and-execute"] }
+      }
     }
   }
 }

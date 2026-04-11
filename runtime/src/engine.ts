@@ -16,11 +16,17 @@ import type {
   AgentConfig,
   AgentHandle,
   AgentResponse,
+  ChildAgentConfig,
   ConstraintState,
   DelegationDelegate,
+  SessionCheckpoint,
+  SpawnResult,
   TranscriptEntry,
 } from "./types";
+import { SessionCheckpointManager } from "./session-checkpoint";
+import { ChildAgentManager } from "./child-agent-manager";
 import { loadProfile, loadAgent, loadDomain, loadWorkflow, validateBrief } from "./config-loader";
+import { DomainEnforcer } from "./domain-enforcer";
 import { ConstraintEngine } from "./constraint-engine";
 import { DelegationRouter } from "./delegation-router";
 import type { DelegationTarget } from "./delegation-router";
@@ -51,10 +57,14 @@ export class AOSEngine {
   private sessionId: string;
   private speaksLastAgent: string | null = null;
   private domainId: string | null = null;
+  private domainEnforcers: Map<string, DomainEnforcer> = new Map();
   private workflowMode: boolean = false;
   private workflowConfig: WorkflowConfig | null = null;
   private workflowsDir: string | null = null;
   private onTranscriptEvent?: (entry: TranscriptEntry) => void | Promise<void>;
+  private childAgentManager: ChildAgentManager;
+  private checkpointManager: SessionCheckpointManager;
+  private checkpoint: SessionCheckpoint | null = null;
 
   constructor(adapter: AOSAdapter, profilePath: string, opts: EngineOpts) {
     this.adapter = adapter;
@@ -89,6 +99,21 @@ export class AOSEngine {
     for (const config of agentConfigs) {
       this.agents.set(config.id, config);
     }
+
+    // Initialize domain enforcers for agents that have domain rules
+    for (const [agentId, agentConfig] of this.agents) {
+      if (agentConfig.domain) {
+        this.domainEnforcers.set(agentId, new DomainEnforcer(agentConfig.domain));
+      }
+    }
+
+    // Initialize child agent manager
+    this.childAgentManager = new ChildAgentManager(
+      this.profile.delegation?.max_delegation_depth ?? 2,
+    );
+
+    // Initialize checkpoint manager
+    this.checkpointManager = new SessionCheckpointManager();
 
     // Find speaks-last agent
     for (const p of this.profile.assembly.perspectives) {
@@ -525,6 +550,120 @@ export class AOSEngine {
     };
   }
 
+  async spawnChildAgent(parentAgentId: string, config: ChildAgentConfig): Promise<SpawnResult> {
+    // Check parent agent has delegation.can_spawn
+    const parentConfig = this.agents.get(parentAgentId);
+    if (!parentConfig?.delegation?.can_spawn) {
+      return { success: false, error: "child_not_found", childAgentId: parentAgentId };
+    }
+
+    const parentHandle = this.handles.get(parentAgentId);
+    const parentDepth = parentHandle?.depth ?? 0;
+
+    // Check depth limit
+    const depthCheck = this.childAgentManager.canSpawnAtDepth(parentDepth);
+    if (!depthCheck.allowed) {
+      return {
+        success: false,
+        error: "depth_limit_exceeded",
+        currentDepth: parentDepth,
+        maxDepth: this.childAgentManager.getMaxDepth(),
+        suggestion: "execute_directly",
+      };
+    }
+
+    // Check max_children
+    const maxChildren = parentConfig.delegation.max_children;
+    const childrenCheck = this.childAgentManager.canSpawn(parentAgentId, maxChildren);
+    if (!childrenCheck.allowed) {
+      return {
+        success: false,
+        error: "max_children_exceeded",
+        active: this.childAgentManager.getChildren(parentAgentId).length,
+        max: maxChildren,
+      };
+    }
+
+    // Narrow domain rules if parent has domain and child config specifies domain
+    let childDomainRules = config.domainRules;
+    if (parentConfig.domain && childDomainRules) {
+      childDomainRules = this.childAgentManager.narrowDomain(parentConfig.domain, childDomainRules);
+    }
+
+    // Call adapter.spawnSubAgent
+    const childHandle = await this.adapter.spawnSubAgent(parentAgentId, config, this.sessionId);
+
+    // Set handle fields
+    childHandle.parentAgentId = parentAgentId;
+    childHandle.depth = parentDepth + 1;
+
+    // Register child
+    this.childAgentManager.registerChild(parentAgentId, childHandle);
+    this.handles.set(childHandle.agentId, childHandle);
+
+    // Build domain enforcer for child if domain rules provided
+    if (childDomainRules) {
+      const { DomainEnforcer } = await import("./domain-enforcer");
+      this.domainEnforcers.set(childHandle.agentId, new DomainEnforcer(childDomainRules));
+    }
+
+    // Emit agent_spawned transcript event
+    this.pushTranscript({
+      type: "agent_spawned",
+      timestamp: new Date().toISOString(),
+      parentAgentId,
+      childAgentId: childHandle.agentId,
+      depth: childHandle.depth,
+      config: { name: config.name, role: config.role },
+    });
+
+    return { success: true, childAgentId: childHandle.agentId };
+  }
+
+  async destroyChildAgent(parentAgentId: string, childAgentId: string): Promise<void> {
+    // Call adapter.destroySubAgent
+    await this.adapter.destroySubAgent(parentAgentId, childAgentId);
+
+    // Remove from childAgentManager
+    this.childAgentManager.removeChild(parentAgentId, childAgentId);
+
+    // Delete handle and domain enforcer
+    this.handles.delete(childAgentId);
+    this.domainEnforcers.delete(childAgentId);
+
+    // Emit agent_destroyed event
+    this.pushTranscript({
+      type: "agent_destroyed",
+      timestamp: new Date().toISOString(),
+      parentAgentId,
+      childAgentId,
+    });
+  }
+
+  getChildAgents(parentAgentId: string): AgentHandle[] {
+    return this.childAgentManager.getChildren(parentAgentId);
+  }
+
+  async pauseSession(reason?: string): Promise<SessionCheckpoint> {
+    const state = this.constraintEngine.getState();
+    const activeHandles = Array.from(this.handles.values());
+    this.checkpoint = this.checkpointManager.createCheckpoint(
+      this.sessionId, state, activeHandles, this.transcript, this.roundNumber, 50,
+    );
+    this.pushTranscript({
+      type: "session_paused",
+      timestamp: new Date().toISOString(),
+      sessionId: this.sessionId,
+      reason: reason ?? "user_requested",
+      checkpoint: this.checkpoint,
+    });
+    return this.checkpoint;
+  }
+
+  getCheckpoint(): SessionCheckpoint | null {
+    return this.checkpoint;
+  }
+
   private generateSessionId(): string {
     return randomUUID().slice(0, 12);
   }
@@ -544,6 +683,10 @@ export class AOSEngine {
 
   getTranscript(): TranscriptEntry[] {
     return [...this.transcript];
+  }
+
+  getDomainEnforcer(agentId: string): DomainEnforcer | null {
+    return this.domainEnforcers.get(agentId) ?? null;
   }
 
   /** Push an external transcript entry (e.g., steer events from the adapter). */
