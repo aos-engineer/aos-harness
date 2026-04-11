@@ -17,6 +17,9 @@ dist/
 # Logs
 *.log
 
+# Worktrees
+.worktrees/
+
 # Environment / secrets
 .env
 .env.*
