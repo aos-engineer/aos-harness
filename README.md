@@ -161,6 +161,7 @@ AOS Harness includes advanced features for production orchestration:
 
 | Capability | Description | Guide |
 |---|---|---|
+| [Dev Execution](docs/dev-execution/README.md) | Brief to working code in one session | Planning + hierarchical implementation |
 | [Domain Enforcement](docs/domain-enforcement/README.md) | Structural file/tool permission boundaries per agent | Path matching, tool allowlists, bash restrictions |
 | [Hierarchical Delegation](docs/hierarchical-delegation/README.md) | Agents spawn and manage sub-agents in Lead→Worker chains | Depth limits, domain inheritance |
 | [Persistent Expertise](docs/persistent-expertise/README.md) | Agent knowledge accumulates across sessions | Diff-based updates, pruning, review gates |
