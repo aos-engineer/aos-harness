@@ -153,6 +153,8 @@ mempalace:
   project_wing: my-project
   wake_layers: [L0, L1]
   auto_hall: true
+  max_wake_tokens: 1200          # Hard cap on L0+L1 wake context (default 1200)
+  max_drawer_tokens: 500         # Per-drawer size limit for aos_remember (default 500)
 
 expertise:
   max_lines: 200
