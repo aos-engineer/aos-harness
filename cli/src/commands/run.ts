@@ -6,7 +6,7 @@ import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { c, type ParsedArgs } from "../colors";
 import { getHarnessRoot, discoverDirs, promptSelect } from "../utils";
-import type { TranscriptEntry } from "../../../runtime/src/types";
+import type { TranscriptEntry } from "@aos-harness/runtime/types";
 
 function createEventBuffer(platformUrl: string, sessionId: string) {
   const buffer: TranscriptEntry[] = [];
@@ -163,7 +163,7 @@ export async function runCommand(args: ParsedArgs): Promise<void> {
     : join(coreDir, "workflows");
 
   // ── Validate brief against profile ───────────────────────────
-  const { loadProfile, loadWorkflow, validateBrief } = await import("../../../runtime/src/config-loader");
+  const { loadProfile, loadWorkflow, validateBrief } = await import("@aos-harness/runtime/config-loader");
   const profile = loadProfile(profileDir);
   const validation = validateBrief(briefPath, profile.input.required_sections);
 

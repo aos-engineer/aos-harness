@@ -27,7 +27,7 @@ export async function listCommand(args: ParsedArgs): Promise<void> {
   const root = getHarnessRoot();
   const coreDir = join(root, "core");
 
-  const { loadAgent, loadProfile, loadDomain, loadSkill } = await import("../../../runtime/src/config-loader");
+  const { loadAgent, loadProfile, loadDomain, loadSkill } = await import("@aos-harness/runtime/config-loader");
 
   // ── Agents ────────────────────────────────────────────────────
 

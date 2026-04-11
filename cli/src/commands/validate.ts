@@ -51,11 +51,11 @@ export async function validateCommand(args: ParsedArgs): Promise<void> {
   const coreDir = join(root, "core");
 
   // Import runtime modules
-  const { loadAgent, loadProfile, loadDomain, loadWorkflow, loadSkill, validateBrief } = await import("../../../runtime/src/config-loader");
-  const { applyDomain } = await import("../../../runtime/src/domain-merger");
-  const { resolveTemplate } = await import("../../../runtime/src/template-resolver");
-  const { ConstraintEngine } = await import("../../../runtime/src/constraint-engine");
-  const { DelegationRouter } = await import("../../../runtime/src/delegation-router");
+  const { loadAgent, loadProfile, loadDomain, loadWorkflow, loadSkill, validateBrief } = await import("@aos-harness/runtime/config-loader");
+  const { applyDomain } = await import("@aos-harness/runtime/domain-merger");
+  const { resolveTemplate } = await import("@aos-harness/runtime/template-resolver");
+  const { ConstraintEngine } = await import("@aos-harness/runtime/constraint-engine");
+  const { DelegationRouter } = await import("@aos-harness/runtime/delegation-router");
 
   const results: CheckResult[] = [];
 
