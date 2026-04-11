@@ -12,7 +12,7 @@ import { Type } from "@sinclair/typebox";
 import { PiAgentRuntime } from "./agent-runtime";
 import { PiEventBus } from "./event-bus";
 import { PiUI } from "./ui";
-import { PiWorkflow } from "./workflow";
+import { BaseWorkflow } from "@aos-harness/adapter-shared";
 import { composeAdapter } from "@aos-harness/adapter-shared";
 
 import { AOSEngine } from "@aos-harness/runtime";
@@ -171,7 +171,7 @@ export default function (pi: ExtensionAPI) {
   const eventBus = new PiEventBus();
   const agentRuntime = new PiAgentRuntime(eventBus);
   const ui = new PiUI(pi);
-  const workflow = new PiWorkflow(agentRuntime);
+  const workflow = new BaseWorkflow(agentRuntime);
 
   let extensionCtx: any = null;
 
