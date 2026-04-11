@@ -1,20 +1,14 @@
 {
   "name": "@aos-harness/claude-code-adapter",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "main": "src/generate.ts",
-  "scripts": {
-    "generate": "bun run src/generate.ts",
-    "typecheck": "bun x tsc --noEmit"
-  },
   "exports": { ".": "./src/index.ts" },
   "files": ["src/"],
   "dependencies": {
     "@aos-harness/runtime": "workspace:*",
-    "js-yaml": "^4.1.0"
+    "@aos-harness/adapter-shared": "workspace:*"
   },
   "devDependencies": {
-    "@types/js-yaml": "^4.0.9",
     "@types/bun": "latest",
     "typescript": "^5.8.0"
   }

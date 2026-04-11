@@ -1,35 +1,17 @@
 // ── Pi Agent Runtime (L1) ────────────────────────────────────────
-// Subprocess management for Pi agents with persistent sessions,
-// JSON event stream parsing, and token usage tracking.
+// Extends BaseAgentRuntime with Pi-specific CLI integration.
 
-import { spawn, type ChildProcess } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { existsSync } from "node:fs";
 import type {
-  AgentRuntimeAdapter,
-  AgentHandle,
-  AgentResponse,
-  AgentConfig,
-  MessageOpts,
   AuthMode,
   ModelCost,
   ModelTier,
-  ThinkingMode,
-  ContextUsage,
+  MessageOpts,
 } from "@aos-harness/runtime/types";
+import { BaseAgentRuntime, type HandleState, type ParsedEvent, type StdoutFormat, type ModelInfo } from "@aos-harness/adapter-shared";
+import type { BaseEventBus } from "@aos-harness/adapter-shared";
 
-// ── Per-handle state ─────────────────────────────────────────────
-
-interface HandleState {
-  config: AgentConfig;
-  sessionFile: string;
-  contextFiles: string[];
-  modelConfig: { tier: ModelTier; thinking: ThinkingMode };
-  lastContextTokens: number;
-}
-
-// ── Model tier resolution ────────────────────────────────────────
+// ── Model tier resolution (exported for backward compat) ────────
 
 export function resolveModelId(tier: ModelTier): string {
   const map: Record<ModelTier, string> = {
@@ -42,89 +24,38 @@ export function resolveModelId(tier: ModelTier): string {
 
 // ── PiAgentRuntime ───────────────────────────────────────────────
 
-export class PiAgentRuntime implements AgentRuntimeAdapter {
-  private handles = new Map<string, HandleState>();
-  private activeProcesses = new Set<ChildProcess>();
-  private orchestratorPrompt: string | undefined;
-
-  private buildSubprocessEnv(): Record<string, string> {
-    const env: Record<string, string> = {};
-    const allowlist = [
-      "PATH", "HOME", "USER", "SHELL", "TERM", "LANG",
-      "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY",
-      "AOS_MODEL_ECONOMY", "AOS_MODEL_STANDARD", "AOS_MODEL_PREMIUM",
-    ];
-    for (const key of allowlist) {
-      if (process.env[key]) env[key] = process.env[key]!;
-    }
-    return env;
+export class PiAgentRuntime extends BaseAgentRuntime {
+  constructor(eventBus: BaseEventBus, modelOverrides?: Partial<Record<ModelTier, string>>) {
+    super(eventBus, modelOverrides);
   }
 
-  async spawnAgent(config: AgentConfig, sessionId: string): Promise<AgentHandle> {
-    const sessionDir = join(".aos", "sessions", sessionId);
-    mkdirSync(sessionDir, { recursive: true });
-
-    const sessionFile = join(sessionDir, `${config.id}.jsonl`);
-
-    const handle: AgentHandle = {
-      id: `${sessionId}:${config.id}`,
-      agentId: config.id,
-      sessionId,
-    };
-
-    this.handles.set(handle.id, {
-      config,
-      sessionFile,
-      contextFiles: [],
-      modelConfig: { tier: config.model.tier, thinking: config.model.thinking },
-      lastContextTokens: 0,
-    });
-
-    return handle;
+  cliBinary(): string {
+    return "pi";
   }
 
-  async sendMessageOnce(
-    handle: AgentHandle,
-    message: string,
-    opts?: MessageOpts,
-    timeoutMs: number = 120000,
-  ): Promise<AgentResponse> {
-    const state = this.handles.get(handle.id);
-    if (!state) {
-      return {
-        text: "",
-        tokensIn: 0,
-        tokensOut: 0,
-        cost: 0,
-        contextTokens: 0,
-        model: "unknown",
-        status: "failed",
-        error: `No state found for handle ${handle.id}`,
-      };
-    }
+  stdoutFormat(): StdoutFormat {
+    return "ndjson";
+  }
 
+  buildArgs(state: HandleState, message: string, isFirstCall: boolean, opts?: MessageOpts): string[] {
     const args: string[] = [
-      "--mode",
-      "json",
+      "--mode", "json",
       "-p",
       "--no-extensions",
       "--no-skills",
       "--no-prompt-templates",
       "--no-themes",
-      "--session",
-      state.sessionFile,
-      "--thinking",
-      state.modelConfig.thinking,
+      "--session", state.sessionFile,
+      "--thinking", state.modelConfig.thinking,
     ];
 
     // First call: session file doesn't exist — set system prompt, model, and context files
-    const isFirstCall = !existsSync(state.sessionFile);
     if (isFirstCall) {
       const systemPrompt = state.config.systemPrompt || "";
       if (systemPrompt) {
         args.push("--system-prompt", systemPrompt);
       }
-      args.push("--model", resolveModelId(state.modelConfig.tier));
+      args.push("--model", this.resolveModelId(state.modelConfig.tier));
 
       // Inject context files via @file syntax
       const contextFiles = opts?.contextFiles?.length
@@ -137,272 +68,89 @@ export class PiAgentRuntime implements AgentRuntimeAdapter {
 
     // Final arg: the message
     args.push(message);
+    return args;
+  }
 
-    return new Promise<AgentResponse>((resolve) => {
-      // Timeout enforcement (spec Section 6.5)
-      const timeoutController = new AbortController();
-      const timeoutId = setTimeout(() => {
-        timeoutController.abort();
-      }, timeoutMs);
+  parseEventLine(line: string): ParsedEvent | null {
+    let event: any;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      return null;
+    }
 
-      const proc = spawn("pi", args, {
-        shell: false,
-        stdio: ["ignore", "pipe", "pipe"],
-        env: this.buildSubprocessEnv(),
-      });
+    // Stream text deltas
+    if (event.type === "message_update" && event.assistantMessageEvent) {
+      const ame = event.assistantMessageEvent;
+      if (ame.type === "text_delta" && (ame.delta || ame.text)) {
+        return { type: "text_delta", text: ame.delta || ame.text };
+      }
+    }
 
-      this.activeProcesses.add(proc);
+    // Tool execution
+    if (event.type === "tool_execution_start") {
+      return { type: "tool_call", name: event.toolName ?? "unknown", input: event.input ?? {} };
+    }
 
-      let buffer = "";
-      let stderr = "";
-      let accumulatedText = "";
-      let finalResponse = "";
-      let tokensIn = 0;
-      let tokensOut = 0;
-      let cost = 0;
-      let contextTokens = 0;
-      let model = resolveModelId(state.modelConfig.tier);
-      let wasAborted = false;
-
-      const processLine = (line: string) => {
-        if (!line.trim()) return;
-        let event: any;
-        try {
-          event = JSON.parse(line);
-        } catch {
-          return;
-        }
-
-        // Track tool usage
-        if (event.type === "tool_execution_start") {
-          // Optional tracking — no action needed
-        }
-
-        // Stream text deltas
-        if (event.type === "message_update" && event.assistantMessageEvent) {
-          const ame = event.assistantMessageEvent;
-          if (ame.type === "text_delta" && (ame.delta || ame.text)) {
-            accumulatedText += ame.delta || ame.text;
-            opts?.onStream?.(accumulatedText);
+    // Final message with usage stats
+    if (event.type === "message_end" && event.message) {
+      const msg = event.message;
+      if (msg.role === "assistant") {
+        let text = "";
+        if (msg.content && Array.isArray(msg.content)) {
+          for (const part of msg.content) {
+            if (part.type === "text") {
+              text = part.text;
+            }
           }
         }
 
-        // Final message with usage stats
-        if (event.type === "message_end" && event.message) {
-          const msg = event.message;
-          if (msg.role === "assistant") {
-            // Extract full response text from content blocks
-            if (msg.content && Array.isArray(msg.content)) {
-              for (const part of msg.content) {
-                if (part.type === "text") {
-                  finalResponse = part.text;
-                }
-              }
-            }
-
-            // Extract usage stats
-            const usage = msg.usage;
-            if (usage) {
-              tokensIn += usage.input || 0;
-              tokensOut += usage.output || 0;
-              cost += usage.cost?.total || 0;
-              contextTokens = usage.totalTokens || 0;
-            }
-            if (msg.model) model = msg.model;
-          }
-        }
-      };
-
-      proc.stdout!.on("data", (data: Buffer) => {
-        buffer += data.toString();
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) processLine(line);
-      });
-
-      proc.stderr!.on("data", (data: Buffer) => {
-        stderr += data.toString();
-      });
-
-      proc.on("close", (code: number | null) => {
-        clearTimeout(timeoutId);
-
-        // Process any remaining buffered data
-        if (buffer.trim()) processLine(buffer);
-
-        this.activeProcesses.delete(proc);
-
-        // Update last known context tokens
-        if (contextTokens > 0) {
-          state.lastContextTokens = contextTokens;
-        }
-
-        if (wasAborted) {
-          resolve({
-            text: accumulatedText,
-            tokensIn,
-            tokensOut,
-            cost,
-            contextTokens,
-            model,
-            status: "aborted",
-            error: "Agent call was aborted",
-          });
-          return;
-        }
-
-        if (code !== 0 && !finalResponse && !accumulatedText) {
-          resolve({
-            text: "",
-            tokensIn,
-            tokensOut,
-            cost,
-            contextTokens,
-            model,
-            status: "failed",
-            error: `Process exited with code ${code}: ${stderr.slice(0, 500)}`,
-          });
-          return;
-        }
-
-        resolve({
-          text: finalResponse || accumulatedText,
-          tokensIn,
-          tokensOut,
-          cost,
-          contextTokens,
-          model,
-          status: "success",
-        });
-      });
-
-      proc.on("error", (err: Error) => {
-        this.activeProcesses.delete(proc);
-        resolve({
-          text: "",
-          tokensIn: 0,
-          tokensOut: 0,
-          cost: 0,
-          contextTokens: 0,
-          model,
-          status: "failed",
-          error: `Failed to spawn pi: ${err.message}`,
-        });
-      });
-
-      // Handle timeout abort
-      timeoutController.signal.addEventListener("abort", () => {
-        wasAborted = true;
-        proc.kill("SIGTERM");
-        setTimeout(() => {
-          if (!proc.killed) proc.kill("SIGKILL");
-        }, 5000);
-        clearTimeout(timeoutId);
-        this.activeProcesses.delete(proc);
-        resolve({
-          text: accumulatedText,
-          tokensIn,
-          tokensOut,
-          cost,
-          contextTokens,
-          model,
-          status: "failed",
-          error: `Agent timed out after ${Math.round(timeoutMs / 1000)}s`,
-        });
-      }, { once: true });
-
-      // Handle abort signal
-      if (opts?.signal) {
-        const killProc = () => {
-          wasAborted = true;
-          proc.kill("SIGTERM");
-          setTimeout(() => {
-            if (!proc.killed) proc.kill("SIGKILL");
-          }, 5000);
+        const usage = msg.usage;
+        return {
+          type: "message_end",
+          text,
+          tokensIn: usage?.input || 0,
+          tokensOut: usage?.output || 0,
+          cost: usage?.cost?.total || 0,
+          contextTokens: usage?.totalTokens || 0,
+          model: msg.model || "",
         };
-        if (opts.signal.aborted) {
-          killProc();
-        } else {
-          opts.signal.addEventListener("abort", killProc, { once: true });
-        }
-      }
-    });
-  }
-
-  async sendMessage(
-    handle: AgentHandle,
-    message: string,
-    opts?: MessageOpts,
-  ): Promise<AgentResponse> {
-    return this.sendMessageWithRetry(handle, message, opts);
-  }
-
-  async sendMessageWithRetry(
-    handle: AgentHandle,
-    message: string,
-    opts?: MessageOpts,
-    maxRetries: number = 2,
-    backoff: "exponential" | "linear" = "exponential",
-    timeoutMs: number = 120000,
-  ): Promise<AgentResponse> {
-    let lastResponse: AgentResponse | null = null;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      const response = await this.sendMessageOnce(handle, message, opts, timeoutMs);
-      if (response.status === "success") {
-        return response;
-      }
-
-      lastResponse = response;
-
-      // Don't retry if aborted by user
-      if (response.status === "aborted") {
-        return response;
-      }
-
-      // If we have retries remaining, wait with backoff
-      if (attempt < maxRetries) {
-        const delayMs = backoff === "exponential"
-          ? 1000 * Math.pow(2, attempt)   // 1s, 2s, 4s
-          : 1000 * (attempt + 1);          // 1s, 2s, 3s
-        await new Promise((r) => setTimeout(r, delayMs));
       }
     }
 
-    return lastResponse!;
+    return { type: "ignored" };
   }
 
-  async destroyAgent(_handle: AgentHandle): Promise<void> {
-    // No-op — sessions persist on disk
-  }
-
-  setOrchestratorPrompt(prompt: string): void {
-    this.orchestratorPrompt = prompt;
-  }
-
-  async injectContext(handle: AgentHandle, files: string[]): Promise<void> {
-    const state = this.handles.get(handle.id);
-    if (state) {
-      state.contextFiles = files;
+  buildSubprocessEnv(): Record<string, string> {
+    const env: Record<string, string> = {};
+    const allowlist = [
+      "PATH", "HOME", "USER", "SHELL", "TERM", "LANG",
+      "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY",
+      "AOS_MODEL_ECONOMY", "AOS_MODEL_STANDARD", "AOS_MODEL_PREMIUM",
+    ];
+    for (const key of allowlist) {
+      if (process.env[key]) env[key] = process.env[key]!;
     }
+    return env;
   }
 
-  getContextUsage(handle: AgentHandle): ContextUsage {
-    const state = this.handles.get(handle.id);
-    const tokens = state?.lastContextTokens || 0;
-    // Estimate percent based on 200k context window
-    const maxContext = 200_000;
+  async discoverModels(): Promise<ModelInfo[]> {
+    // Pi doesn't have a model discovery API — return defaults
+    const defaults = this.defaultModelMap();
+    return Object.entries(defaults).map(([_tier, id]) => ({
+      id,
+      name: id,
+      contextWindow: 200_000,
+      provider: "pi",
+    }));
+  }
+
+  defaultModelMap(): Record<ModelTier, string> {
     return {
-      tokens,
-      percent: maxContext > 0 ? (tokens / maxContext) * 100 : 0,
+      economy: "anthropic/claude-haiku-4-5",
+      standard: "anthropic/claude-sonnet-4-6",
+      premium: "anthropic/claude-opus-4-6",
     };
-  }
-
-  setModel(handle: AgentHandle, modelConfig: { tier: ModelTier; thinking: ThinkingMode }): void {
-    const state = this.handles.get(handle.id);
-    if (state) {
-      state.modelConfig = modelConfig;
-    }
   }
 
   getAuthMode(): AuthMode {
@@ -431,15 +179,5 @@ export class PiAgentRuntime implements AgentRuntimeAdapter {
       },
     };
     return pricing[tier];
-  }
-
-  abort(): void {
-    for (const proc of this.activeProcesses) {
-      proc.kill("SIGTERM");
-      setTimeout(() => {
-        if (!proc.killed) proc.kill("SIGKILL");
-      }, 5000);
-    }
-    this.activeProcesses.clear();
   }
 }

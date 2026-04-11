@@ -1,14 +1,18 @@
 {
-  "name": "@aos-harness/gemini-adapter",
-  "version": "0.2.0",
+  "name": "@aos-harness/adapter-shared",
+  "version": "0.1.0",
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
   "files": ["src/"],
   "dependencies": {
     "@aos-harness/runtime": "workspace:*",
-    "@aos-harness/adapter-shared": "workspace:*"
+    "js-yaml": "^4.1.0"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/bun": "latest",
     "typescript": "^5.8.0"
   }
