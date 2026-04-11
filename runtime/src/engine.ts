@@ -35,12 +35,16 @@ import { WorkflowRunner } from "./workflow-runner";
 import type { WorkflowConfig } from "./workflow-runner";
 import { renderExecutionPackage } from "./output-renderer";
 import type { ArtifactManifest } from "./types";
+import type { MemoryProvider, MemoryConfig } from "./memory-provider";
+import { loadMemoryConfig } from "./memory-config";
 
 export interface EngineOpts {
   agentsDir: string;
   domain?: string;
   domainDir?: string;
   workflowsDir?: string;
+  projectDir?: string;
+  memoryProvider?: MemoryProvider;
   onTranscriptEvent?: (entry: TranscriptEntry) => void | Promise<void>;
 }
 
@@ -65,6 +69,9 @@ export class AOSEngine {
   private childAgentManager: ChildAgentManager;
   private checkpointManager: SessionCheckpointManager;
   private checkpoint: SessionCheckpoint | null = null;
+  private memoryProvider: MemoryProvider | null = null;
+  private memoryConfig: MemoryConfig | null = null;
+  private recallCount: number = 0;
 
   constructor(adapter: AOSAdapter, profilePath: string, opts: EngineOpts) {
     this.adapter = adapter;
@@ -143,6 +150,10 @@ export class AOSEngine {
         this.workflowConfig = loadWorkflow(workflowDir);
       }
     }
+
+    if (opts.memoryProvider) {
+      this.memoryProvider = opts.memoryProvider;
+    }
   }
 
   async start(inputPath: string, opts?: { domain?: string; deliberationDir?: string }): Promise<void> {
@@ -165,6 +176,28 @@ export class AOSEngine {
       auth_mode: this.adapter.getAuthMode(),
       brief_path: inputPath,
     });
+
+    // Initialize memory
+    if (this.memoryProvider && !this.memoryConfig) {
+      const projectDir = opts?.deliberationDir ?? process.cwd();
+      this.memoryConfig = loadMemoryConfig(projectDir);
+      await this.memoryProvider.initialize(this.memoryConfig);
+
+      const wakeCtx = await this.memoryProvider.wake(
+        this.memoryConfig.mempalace?.projectWing ?? this.profile.id,
+      );
+
+      if (wakeCtx.essentials) {
+        this.pushTranscript({
+          type: wakeCtx.truncated ? "memory_wake_truncated" : "memory_wake",
+          timestamp: new Date().toISOString(),
+          tokenEstimate: wakeCtx.tokenEstimate,
+          truncated: wakeCtx.truncated,
+        });
+      }
+
+      this.recallCount = 0;
+    }
 
     // Workflow mode: create artifacts directory and run workflow
     if (this.workflowMode && this.workflowConfig) {
