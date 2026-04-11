@@ -5,6 +5,7 @@
 import { join, resolve } from "node:path";
 import { existsSync, readdirSync } from "node:fs";
 
+
 /**
  * Resolve the AOS harness root directory.
  * Walks up from the CLI source to find the harness root (where core/, runtime/, adapters/ live).
@@ -71,4 +72,40 @@ export async function promptSelect(label: string, options: string[]): Promise<nu
   }
 
   return index;
+}
+
+/**
+ * Detect if the current directory (or ancestors) contains an AOS project.
+ * Checks for core/agents/ or .aos/ directory.
+ */
+export function detectProject(startDir: string): string | null {
+  let dir = startDir;
+  const root = resolve("/");
+  while (dir !== root) {
+    if (existsSync(join(dir, "core", "agents")) || existsSync(join(dir, ".aos"))) {
+      return dir;
+    }
+    const parent = resolve(dir, "..");
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+/**
+ * Resolve the bundled core/ directory from the installed package.
+ * Used when AOS is installed via npm (core/ lives inside the package,
+ * not in the working directory).
+ *
+ * NOTE: import.meta.dir is Bun-specific. Do not refactor to __dirname
+ * or import.meta.url — this is a deliberate Bun dependency.
+ */
+export function getPackageCoreDir(): string | null {
+  // cli/src/utils.ts -> cli/src -> cli -> look for core/
+  const packageRoot = resolve(import.meta.dir, "../..");
+  const coreDir = join(packageRoot, "core");
+  if (existsSync(join(coreDir, "agents"))) {
+    return coreDir;
+  }
+  return null;
 }
