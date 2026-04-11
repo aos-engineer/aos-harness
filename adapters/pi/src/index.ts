@@ -211,6 +211,16 @@ export default function (pi: ExtensionAPI) {
       `AOS Harness initialized\nProject: ${projectRoot}\nProfiles: ${profiles.length} | Agents: ${agentMap.size}\n\nRun /aos-run to start a deliberation.`,
       "info",
     );
+
+    // Auto-start session if CLI passed environment variables
+    const autoProfile = process.env.AOS_PROFILE;
+    const autoBrief = process.env.AOS_BRIEF;
+    if (autoProfile && autoBrief && projectRoot) {
+      // Defer to let Pi finish initialization
+      setTimeout(() => {
+        pi.runCommand("aos-run", "");
+      }, 500);
+    }
   });
 
   // ── 2. /aos-run command — main entry point ────────────────
@@ -228,74 +238,110 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      // ── Select profile ────────────────────────────────────
-      const profilesDir = join(projectRoot, "core", "profiles");
-      const profiles = listDirsWithFile(profilesDir, "profile.yaml");
+      // ── Check for CLI-provided env vars (auto-start mode) ──
+      const envProfile = process.env.AOS_PROFILE;
+      const envBrief = process.env.AOS_BRIEF;
+      const envDomain = process.env.AOS_DOMAIN;
+      const envSessionId = process.env.AOS_SESSION_ID;
+      const autoMode = !!(envProfile && envBrief);
 
-      if (profiles.length === 0) {
-        ctx.ui.notify(
-          "No profiles found in core/profiles/.\nCreate a directory with a profile.yaml file.",
-          "warning",
-        );
-        return;
-      }
-
-      const profileNames = profiles.map((p) => p.name);
-      let profileIdx: number;
-      if (profiles.length === 1) {
-        profileIdx = 0;
-      } else {
-        const selected = await ctx.ui.select("Select a profile:", profileNames);
-        profileIdx = typeof selected === "number" ? selected : Number(selected);
-      }
-      if (profileIdx === undefined || profileIdx === null || profileIdx < 0) {
-        ctx.ui.notify("No profile selected. Cancelled.", "info");
-        return;
-      }
-      const selectedProfile = profiles[profileIdx];
-      const profileDir = selectedProfile.dir;
-
-      // ── Select brief ──────────────────────────────────────
-      const briefsDir = join(projectRoot, "core", "briefs");
-      const briefs = listDirsWithFile(briefsDir, "brief.md");
-
-      if (briefs.length === 0) {
-        ctx.ui.notify(
-          "No briefs found in core/briefs/.\nCreate a directory containing a brief.md file.",
-          "warning",
-        );
-        return;
-      }
-
-      const briefNames = briefs.map((b) => b.name);
-      let briefIdx: number;
-      if (briefs.length === 1) {
-        briefIdx = 0;
-      } else {
-        const selected = await ctx.ui.select("Select a brief:", briefNames);
-        briefIdx = typeof selected === "number" ? selected : Number(selected);
-      }
-      if (briefIdx === undefined || briefIdx === null || briefIdx < 0) {
-        ctx.ui.notify("No brief selected. Cancelled.", "info");
-        return;
-      }
-      const selectedBrief = briefs[briefIdx];
-      briefPath = join(selectedBrief.dir, "brief.md");
-
-      // ── Optionally select domain ──────────────────────────
-      const domainsDir = join(projectRoot, "core", "domains");
+      let profileDir: string;
       let selectedDomain: string | undefined;
       let domainDir: string | undefined;
 
-      if (existsSync(domainsDir)) {
-        const domains = listDirsWithFile(domainsDir, "domain.yaml");
-        if (domains.length > 0) {
-          const domainNames = ["(none)", ...domains.map((d) => d.name)];
-          const rawDomainIdx = await ctx.ui.select("Select a domain (optional):", domainNames);
-          const domainIdx = typeof rawDomainIdx === "number" ? rawDomainIdx : Number(rawDomainIdx);
-          if (domainIdx > 0) {
-            selectedDomain = domains[domainIdx - 1].name;
-            domainDir = domains[domainIdx - 1].dir;
+      if (autoMode) {
+        // CLI provided profile and brief via env vars — skip interactive selection
+        profileDir = join(projectRoot, "core", "profiles", envProfile);
+        if (!existsSync(join(profileDir, "profile.yaml"))) {
+          ctx.ui.notify(`Profile not found: ${envProfile}`, "error");
+          return;
+        }
+        briefPath = envBrief;
+        if (!existsSync(briefPath)) {
+          ctx.ui.notify(`Brief not found: ${briefPath}`, "error");
+          return;
+        }
+        if (envDomain) {
+          selectedDomain = envDomain;
+          domainDir = join(projectRoot, "core", "domains", envDomain);
+          if (!existsSync(join(domainDir, "domain.yaml"))) {
+            ctx.ui.notify(`Domain not found: ${envDomain}`, "warning");
+            selectedDomain = undefined;
+            domainDir = undefined;
+          }
+        }
+        if (envSessionId) {
+          sessionId = envSessionId;
+        }
+      } else {
+        // Interactive mode — select profile, brief, domain via UI
+        // ── Select profile ────────────────────────────────────
+        const profilesDir = join(projectRoot, "core", "profiles");
+        const profiles = listDirsWithFile(profilesDir, "profile.yaml");
+
+        if (profiles.length === 0) {
+          ctx.ui.notify(
+            "No profiles found in core/profiles/.\nCreate a directory with a profile.yaml file.",
+            "warning",
+          );
+          return;
+        }
+
+        const profileNames = profiles.map((p) => p.name);
+        let profileIdx: number;
+        if (profiles.length === 1) {
+          profileIdx = 0;
+        } else {
+          const selected = await ctx.ui.select("Select a profile:", profileNames);
+          profileIdx = typeof selected === "number" ? selected : Number(selected);
+        }
+        if (profileIdx === undefined || profileIdx === null || profileIdx < 0) {
+          ctx.ui.notify("No profile selected. Cancelled.", "info");
+          return;
+        }
+        const selectedProfile = profiles[profileIdx];
+        profileDir = selectedProfile.dir;
+
+        // ── Select brief ──────────────────────────────────────
+        const briefsDir = join(projectRoot, "core", "briefs");
+        const briefs = listDirsWithFile(briefsDir, "brief.md");
+
+        if (briefs.length === 0) {
+          ctx.ui.notify(
+            "No briefs found in core/briefs/.\nCreate a directory containing a brief.md file.",
+            "warning",
+          );
+          return;
+        }
+
+        const briefNames = briefs.map((b) => b.name);
+        let briefIdx: number;
+        if (briefs.length === 1) {
+          briefIdx = 0;
+        } else {
+          const selected = await ctx.ui.select("Select a brief:", briefNames);
+          briefIdx = typeof selected === "number" ? selected : Number(selected);
+        }
+        if (briefIdx === undefined || briefIdx === null || briefIdx < 0) {
+          ctx.ui.notify("No brief selected. Cancelled.", "info");
+          return;
+        }
+        const selectedBrief = briefs[briefIdx];
+        briefPath = join(selectedBrief.dir, "brief.md");
+
+        // ── Optionally select domain ──────────────────────────
+        const domainsDir = join(projectRoot, "core", "domains");
+
+        if (existsSync(domainsDir)) {
+          const domains = listDirsWithFile(domainsDir, "domain.yaml");
+          if (domains.length > 0) {
+            const domainNames = ["(none)", ...domains.map((d) => d.name)];
+            const rawDomainIdx = await ctx.ui.select("Select a domain (optional):", domainNames);
+            const domainIdx = typeof rawDomainIdx === "number" ? rawDomainIdx : Number(rawDomainIdx);
+            if (domainIdx > 0) {
+              selectedDomain = domains[domainIdx - 1].name;
+              domainDir = domains[domainIdx - 1].dir;
+            }
           }
         }
       }
@@ -362,7 +408,9 @@ export default function (pi: ExtensionAPI) {
       }
 
       // Determine memo output path
-      const briefSlug = selectedBrief.name;
+      const briefSlug = autoMode
+        ? basename(briefPath, ".md").replace(/\s+/g, "-").toLowerCase()
+        : basename(briefPath, ".md").replace(/\s+/g, "-").toLowerCase();
       const dateStr = new Date().toISOString().split("T")[0];
       const memoDir = join(projectRoot, "output", "memos", `${dateStr}-${briefSlug}-${sessionId}`);
       mkdirSync(memoDir, { recursive: true });
@@ -378,7 +426,7 @@ export default function (pi: ExtensionAPI) {
 
           // Resolve template variables using spec-compliant underscore names (Section 6.13)
           // Also include hyphenated aliases for backward compatibility
-          const briefSlugValue = selectedBrief.name;
+          const briefSlugValue = briefSlug;
           const constraintsStr = `${profileRaw.match(/min_minutes:\s*(\d+)/)?.[1] ?? "?"}-${profileRaw.match(/max_minutes:\s*(\d+)/)?.[1] ?? "?"} min`;
           const deliberationDirPath = join(projectRoot, ".aos", "sessions", sessionId);
           const transcriptFilePath = join(deliberationDirPath, "transcript.jsonl");
@@ -416,9 +464,11 @@ export default function (pi: ExtensionAPI) {
       // ── Block input (allow only halt and wrap) ────────────
       ui.blockInput(["halt", "wrap"]);
 
-      ctx.ui.setStatus("aos", `AOS: ${selectedProfile.name} | ${selectedBrief.name}`);
+      const profileDisplayName = autoMode ? envProfile : basename(profileDir);
+      const briefDisplayName = autoMode ? basename(briefPath) : basename(briefPath);
+      ctx.ui.setStatus("aos", `AOS: ${profileDisplayName} | ${briefDisplayName}`);
       ctx.ui.notify(
-        `Deliberation started!\nProfile: ${selectedProfile.name}\nBrief: ${selectedBrief.name}\nMemo: ${memoPath}\n\nType 'halt' to stop or 'wrap' to end early.`,
+        `Deliberation started!\nProfile: ${profileDisplayName}\nBrief: ${briefDisplayName}\nMemo: ${memoPath}\n\nType 'halt' to stop or 'wrap' to end early.`,
         "info",
       );
 
