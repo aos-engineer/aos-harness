@@ -25,12 +25,21 @@ The harness ships with:
 
 ## Quick Start
 
+### Prerequisites
+
+- [Bun](https://bun.sh) 1.0+
+
 ### Install
 
 ```bash
-git clone https://github.com/aos-engineer/aos-harness.git
-cd aos-harness
-bun install
+bun add -g aos-harness
+```
+
+### Initialize a project
+
+```bash
+cd your-project
+aos init
 ```
 
 ### Run a deliberation

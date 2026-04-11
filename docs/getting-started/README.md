@@ -10,33 +10,25 @@ The AOS Harness (Agent Orchestration System) is a config-driven runtime for orch
 
 ## Installation
 
-1. Clone the repository:
+1. Install the CLI globally:
 
 ```bash
-git clone <repository-url> aos-harness
-cd aos-harness
+bun add -g aos-harness
 ```
 
-2. Install dependencies:
+2. Initialize AOS in your working directory:
 
 ```bash
-cd runtime && bun install && cd ..
-cd adapters/pi && bun install && cd ../..
-cd cli && bun install && cd ..
+cd your-project
+aos init
 ```
 
-3. Initialize AOS in your working directory:
+This creates a `.aos/config.yaml` file pointing to the default adapter.
+
+3. Verify the installation:
 
 ```bash
-bun run cli/src/index.ts init --adapter pi
-```
-
-This creates a `.aos/config.yaml` file pointing to the Pi adapter.
-
-4. Verify the installation:
-
-```bash
-bun run cli/src/index.ts validate
+aos validate
 ```
 
 You should see all agents, profiles, and domains pass validation.
