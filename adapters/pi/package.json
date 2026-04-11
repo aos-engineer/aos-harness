@@ -8,6 +8,7 @@
   "exports": { ".": "./src/index.ts" },
   "files": ["src/"],
   "dependencies": {
+    "@aos-harness/adapter-shared": "workspace:*",
     "@aos-harness/runtime": "workspace:*",
     "js-yaml": "^4.1.0"
   },

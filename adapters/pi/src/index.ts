@@ -13,6 +13,7 @@ import { PiAgentRuntime } from "./agent-runtime";
 import { PiEventBus } from "./event-bus";
 import { PiUI } from "./ui";
 import { PiWorkflow } from "./workflow";
+import { composeAdapter } from "@aos-harness/adapter-shared";
 
 import { AOSEngine } from "@aos-harness/runtime";
 import type { AOSAdapter, ConstraintState, ProfileConfig } from "@aos-harness/runtime/types";
@@ -167,8 +168,8 @@ export default function (pi: ExtensionAPI) {
   let constraintState: ConstraintState | null = null;
 
   // ── Adapter layer instances ─────────────────────────────────
-  const agentRuntime = new PiAgentRuntime();
   const eventBus = new PiEventBus();
+  const agentRuntime = new PiAgentRuntime(eventBus);
   const ui = new PiUI(pi);
   const workflow = new PiWorkflow(agentRuntime);
 
@@ -352,23 +353,7 @@ export default function (pi: ExtensionAPI) {
       const flatAgentsDir = createFlatAgentsDir(projectRoot, agentMap);
 
       // ── Compose adapter ───────────────────────────────────
-      const adapter = Object.assign(
-        {},
-        agentRuntime,
-        eventBus,
-        ui,
-        workflow,
-      ) as AOSAdapter;
-
-      // Bind methods that need their original `this` context
-      for (const layer of [agentRuntime, eventBus, ui, workflow] as any[]) {
-        for (const key of Object.getOwnPropertyNames(Object.getPrototypeOf(layer))) {
-          if (key === "constructor") continue;
-          if (typeof layer[key] === "function") {
-            (adapter as any)[key] = layer[key].bind(layer);
-          }
-        }
-      }
+      const adapter = composeAdapter(agentRuntime, eventBus, ui, workflow);
 
       // ── Create engine ─────────────────────────────────────
       try {
