@@ -58,7 +58,8 @@ report:
   structure: "Execution package with all sections. See workflow output template."
 
 tools: null
-skills: []
+skills:
+  - aos-memory
 expertise:
   - path: expertise/cto-orchestrator-notes.md
     mode: read-write

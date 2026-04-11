@@ -69,7 +69,8 @@ report:
   structure: "Lead with the assumptions the room is making — name them explicitly. Attack the weakest assumptions with evidence. Apply the pre-mortem: state how this decision fails. Present base rate data if available. Name second-order consequences. Close with a verdict: which parts of the recommendation survived stress-testing and which did not."
 
 tools: null
-skills: []
+skills:
+  - aos-request-recall
 expertise:
   - path: expertise/provocateur-notes.md
     mode: read-write

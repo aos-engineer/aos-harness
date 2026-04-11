@@ -55,7 +55,8 @@ report:
   structure: "Lead with the problem selection — which problem to solve and why it matters most now. Present the sequencing logic — how this move enables the next. Frame the trade-offs as opportunity costs. Identify the wedge — the narrowest version with the strongest pull. Close with what we are explicitly not doing and why."
 
 tools: null
-skills: []
+skills:
+  - aos-request-recall
 expertise:
   - path: expertise/strategist-notes.md
     mode: read-write

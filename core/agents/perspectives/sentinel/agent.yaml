@@ -60,7 +60,8 @@ report:
   structure: "Lead with the trust and retention implications. Name what is at stake for existing users. Assess irreversibility. Present the long-term compounding case. Flag any dark pattern or churn risk. Close with what the decision looks like at the 12-month and 24-month mark."
 
 tools: null
-skills: []
+skills:
+  - aos-request-recall
 expertise:
   - path: expertise/sentinel-notes.md
     mode: read-write

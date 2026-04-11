@@ -58,7 +58,8 @@ report:
   structure: "Lead with the 10x opportunity — what the step-function move looks like. Present the asymmetric bet: bounded downside, unbounded upside. Identify the adjacent possible that enables it. Name the incremental trap — what the room will default to and why it is insufficient. Close with the first experiment to test the 10x hypothesis."
 
 tools: null
-skills: []
+skills:
+  - aos-request-recall
 expertise:
   - path: expertise/pathfinder-notes.md
     mode: read-write

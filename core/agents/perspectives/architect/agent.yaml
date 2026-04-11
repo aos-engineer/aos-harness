@@ -58,7 +58,8 @@ report:
   structure: "Lead with feasibility assessment and implementation complexity. State the system architecture implications. Identify scale constraints and failure modes. Name irreversible commitments. Present the simplest viable approach. Close with operational cost projection and what breaks first under load."
 
 tools: null
-skills: []
+skills:
+  - aos-request-recall
 expertise:
   - path: expertise/architect-notes.md
     mode: read-write

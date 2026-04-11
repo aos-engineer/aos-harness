@@ -55,7 +55,8 @@ report:
   structure: "Lead with the market context and competitive landscape. State the positioning recommendation and timing window. Describe the distribution path with specifics. Assess competitive response risk. Close with the cost of missing the window."
 
 tools: null
-skills: []
+skills:
+  - aos-request-recall
 expertise:
   - path: expertise/navigator-notes.md
     mode: read-write

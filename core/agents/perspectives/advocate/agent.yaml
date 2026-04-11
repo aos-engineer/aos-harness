@@ -55,7 +55,8 @@ report:
   structure: "Lead with the user behavior reality — what users actually do today and where the pain is. State the adoption path with friction analysis. Identify the behavior-stated gaps that might mislead the room. Recommend the version that real users will actually adopt. Close with adoption risk — what causes users to bounce, churn, or never start."
 
 tools: null
-skills: []
+skills:
+  - aos-request-recall
 expertise:
   - path: expertise/advocate-notes.md
     mode: read-write

@@ -55,7 +55,8 @@ report:
   structure: "Ranked recommendations (top 3) with rationale for ordering. Agent stance table (agent, position, reasoning, key concern). Dissent section naming unresolved tensions. Trade-offs table. Next actions. Deliberation summary (3-5 paragraphs)."
 
 tools: null
-skills: []
+skills:
+  - aos-memory
 expertise:
   - path: expertise/arbiter-notes.md
     mode: read-write

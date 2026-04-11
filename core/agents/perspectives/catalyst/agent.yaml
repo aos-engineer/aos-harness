@@ -59,7 +59,8 @@ report:
   structure: "Lead with the revenue opportunity and time-to-capture. State the recommended path with a concrete ship date. Name the trade-offs in commercial terms (dollars, weeks, conversion rates). Flag risks only where they have quantified downside. Close with the cost of inaction."
 
 tools: null
-skills: []
+skills:
+  - aos-request-recall
 expertise:
   - path: expertise/catalyst-notes.md
     mode: read-write
