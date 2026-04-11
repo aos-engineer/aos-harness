@@ -1,0 +1,19 @@
+{
+  "name": "@aos-harness/adapter-shared",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "files": ["src/"],
+  "dependencies": {
+    "@aos-harness/runtime": "workspace:*",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/bun": "latest",
+    "typescript": "^5.8.0"
+  }
+}
