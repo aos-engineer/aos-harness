@@ -17,6 +17,13 @@ import {
 } from "@aos-harness/adapter-shared";
 import type { BaseEventBus } from "@aos-harness/adapter-shared";
 
+// ── McpBridgeOptions ─────────────────────────────────────────────
+
+export interface McpBridgeOptions {
+  bridgeScriptPath: string;
+  socketPath: string;
+}
+
 // ── ClaudeCodeAgentRuntime ────────────────────────────────────────
 
 export class ClaudeCodeAgentRuntime extends BaseAgentRuntime {
@@ -178,5 +185,23 @@ export class ClaudeCodeAgentRuntime extends BaseAgentRuntime {
       },
     };
     return pricing[tier];
+  }
+
+  buildMcpArgs(opts: McpBridgeOptions): string[] {
+    const config = JSON.stringify({
+      mcpServers: {
+        aos: {
+          command: "bun",
+          args: [opts.bridgeScriptPath],
+          env: { AOS_BRIDGE_SOCKET: opts.socketPath },
+        },
+      },
+    });
+    return [
+      "--mcp-config", config,
+      "--strict-mcp-config",
+      "--allowedTools", "mcp__aos__delegate mcp__aos__end",
+      "--permission-mode", "bypassPermissions",
+    ];
   }
 }
