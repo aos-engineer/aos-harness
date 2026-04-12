@@ -61,6 +61,9 @@ export class CodexAgentRuntime extends BaseAgentRuntime {
       args.push("--session", state.sessionFile);
     }
 
+    // Extra args (e.g. MCP flags) are spliced in before the positional message
+    args.push(...(opts?.extraArgs ?? []));
+
     // Message is always the final argument
     args.push(message);
     return args;

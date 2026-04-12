@@ -1,0 +1,266 @@
+// ── adapter-session.ts ────────────────────────────────────────────
+// Orchestration entrypoint used by the CLI to run a deliberation
+// session against one of the non-Pi adapters (Claude Code, Gemini, Codex).
+//
+// Responsibilities:
+//   1. Dynamically load the chosen AgentRuntime class.
+//   2. Compose the 4 adapter layers into an AOSAdapter.
+//   3. Build the AOSEngine and kick off with the brief.
+//   4. Start a Unix-socket bridge that forwards MCP `delegate`/`end`
+//      tool calls from the arbiter process into the engine.
+//   5. Resolve the arbiter prompt template and spawn the arbiter,
+//      threading MCP CLI flags through MessageOpts.extraArgs.
+//   6. Run a readline loop for `/aos-*` interactive commands.
+
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
+import readline from "node:readline";
+import {
+  BaseEventBus,
+  TerminalUI,
+  BaseWorkflow,
+  composeAdapter,
+  discoverAgents,
+  createFlatAgentsDir,
+} from "@aos-harness/adapter-shared";
+import { AOSEngine } from "@aos-harness/runtime";
+import { loadAgent } from "@aos-harness/runtime/config-loader";
+import { resolveTemplate } from "@aos-harness/runtime/template-resolver";
+import { startBridgeServer } from "./bridge-server";
+import { renderTextGauge, renderRoundOneLiner } from "./gauges";
+
+export interface AdapterSessionConfig {
+  platform: string; // "claude-code" | "gemini" | "codex"
+  profileDir: string;
+  briefPath: string;
+  domainName: string | null;
+  root: string;
+  sessionId: string;
+  deliberationDir: string;
+  verbose: boolean;
+  workflowConfig: any | null;
+  workflowsDir: string;
+  modelOverrides?: Partial<Record<string, string>>;
+}
+
+const ADAPTER_MAP: Record<string, { package: string; className: string }> = {
+  "claude-code": {
+    package: "@aos-harness/claude-code-adapter",
+    className: "ClaudeCodeAgentRuntime",
+  },
+  gemini: {
+    package: "@aos-harness/gemini-adapter",
+    className: "GeminiAgentRuntime",
+  },
+  codex: {
+    package: "@aos-harness/codex-adapter",
+    className: "CodexAgentRuntime",
+  },
+};
+
+async function loadAdapterRuntime(platform: string): Promise<any> {
+  const entry = ADAPTER_MAP[platform];
+  if (!entry) throw new Error(`Unknown adapter: ${platform}`);
+  try {
+    const mod = await import(entry.package);
+    return mod[entry.className];
+  } catch {
+    // Fallback: resolve from the installed aos-harness package's bundled adapter tree.
+    const here = dirname(fileURLToPath(import.meta.url));
+    const fallback = join(here, "..", "..", "adapters", platform, "src", "index.ts");
+    const mod = await import(fallback);
+    return mod[entry.className];
+  }
+}
+
+function toolNamesForPlatform(platform: string): { delegate: string; end: string } {
+  if (platform === "claude-code") {
+    return { delegate: "mcp__aos__delegate", end: "mcp__aos__end" };
+  }
+  return { delegate: "delegate", end: "end" };
+}
+
+export async function runAdapterSession(config: AdapterSessionConfig): Promise<void> {
+  const RuntimeClass = await loadAdapterRuntime(config.platform);
+
+  // ── Layer composition ──────────────────────────────────────
+  const eventBus = new BaseEventBus();
+  const agentRuntime = new RuntimeClass(eventBus, config.modelOverrides);
+  const ui = new TerminalUI();
+  const workflow = new BaseWorkflow(agentRuntime, config.root);
+  const adapter = composeAdapter(agentRuntime, eventBus, ui, workflow);
+
+  // ── Agent discovery (flatten nested core/agents layout) ───
+  const agentsDir = join(config.root, "core", "agents");
+  const agentMap = discoverAgents(agentsDir);
+  const flatAgentsDir = createFlatAgentsDir(config.root, agentMap);
+  const domainsDir = join(config.root, "core", "domains");
+
+  // ── Engine setup & brief intake ────────────────────────────
+  const engine = new AOSEngine(adapter, config.profileDir, {
+    agentsDir: flatAgentsDir,
+    domain: config.domainName ?? undefined,
+    domainDir: config.domainName ? domainsDir : undefined,
+  });
+  await engine.start(config.briefPath);
+
+  // ── Bridge server (MCP tool calls → engine) ────────────────
+  const sockPath = join(tmpdir(), `aos-bridge-${config.sessionId}.sock`);
+  const here = dirname(fileURLToPath(import.meta.url));
+  const bridgeScriptPath = join(here, "mcp-arbiter-bridge.ts");
+
+  let halted = false;
+  const steerQueue: string[] = [];
+
+  async function waitWhileHalted(): Promise<void> {
+    while (halted) await new Promise((r) => setTimeout(r, 200));
+  }
+
+  function drainSteer(): string {
+    if (steerQueue.length === 0) return "";
+    const msgs = steerQueue.splice(0);
+    return `\n\n[user steer]\n${msgs.join("\n")}`;
+  }
+
+  const closeBridge = await startBridgeServer(sockPath, {
+    delegate: async (params) => {
+      await waitWhileHalted();
+      const steer = drainSteer();
+      const responses = await engine.delegateMessage(
+        params.to as any,
+        (params.message as string) + steer,
+      );
+      const cs = engine.getConstraintState();
+      process.stdout.write(
+        "\n" +
+          renderRoundOneLiner({
+            round: cs.rounds_completed,
+            maxRounds: 8,
+            minutes: cs.elapsed_minutes,
+            dollars: cs.budget_spent,
+          }) +
+          "\n",
+      );
+      return { responses, constraints: cs };
+    },
+    end: async (params) => {
+      await waitWhileHalted();
+      const responses = await engine.end(params.closing_message as string);
+      return { ok: true, responses };
+    },
+  });
+
+  // ── Arbiter prompt resolution ──────────────────────────────
+  const arbiterDir = agentMap.get("arbiter");
+  if (!arbiterDir) throw new Error("No arbiter agent found in core/agents/");
+
+  const promptPath = join(arbiterDir, "prompt.md");
+  const rawPrompt = readFileSync(promptPath, "utf-8");
+  const briefContent = readFileSync(config.briefPath, "utf-8");
+  const participants = [...agentMap.keys()].filter((id) => id !== "arbiter");
+  const memoPath = join(config.deliberationDir, "memo.md");
+  const transcriptPath = join(config.deliberationDir, "transcript.jsonl");
+  const tools = toolNamesForPlatform(config.platform);
+
+  const templateVars: Record<string, string> = {
+    // Spec-compliant underscore names
+    session_id: config.sessionId,
+    brief_slug: config.sessionId,
+    brief: briefContent,
+    format: "brief",
+    agent_id: "arbiter",
+    agent_name: "Arbiter",
+    participants: participants.join(", "),
+    constraints: "(see constraint state in tool responses)",
+    expertise_block: "",
+    output_path: memoPath,
+    deliberation_dir: config.deliberationDir,
+    transcript_path: transcriptPath,
+    delegate_tool: tools.delegate,
+    end_tool: tools.end,
+    // Back-compat hyphenated aliases
+    "session-id": config.sessionId,
+    "brief-content": briefContent,
+    "output-path": memoPath,
+    "deliberation-dir": config.deliberationDir,
+    "memo-path": memoPath,
+  };
+
+  const resolvedPrompt = resolveTemplate(rawPrompt, templateVars);
+  adapter.setOrchestratorPrompt(resolvedPrompt);
+
+  // ── Build MCP args and launch arbiter ──────────────────────
+  const mcpOpts = { bridgeScriptPath, socketPath: sockPath };
+  const mcpArgs: string[] =
+    (agentRuntime as any).buildMcpArgs?.(mcpOpts) ?? [];
+
+  let restoreGeminiSettings: (() => void) | undefined;
+  if ((agentRuntime as any).writeMcpSettings) {
+    restoreGeminiSettings = (agentRuntime as any).writeMcpSettings({
+      ...mcpOpts,
+      projectRoot: config.root,
+    });
+  }
+
+  // Load the arbiter AgentConfig from disk (uses the flat dir so
+  // loadAgent sees the same shape the engine sees). Override the
+  // systemPrompt with the resolved template.
+  const arbiterFlatDir = join(flatAgentsDir, "arbiter");
+  const arbiterConfig = loadAgent(arbiterFlatDir);
+  arbiterConfig.systemPrompt = resolvedPrompt;
+
+  const arbiterHandle = await adapter.spawnAgent(arbiterConfig, config.sessionId);
+
+  // ── Kickoff message ────────────────────────────────────────
+  const kickoff =
+    "Read the brief below and begin the multi-agent deliberation. " +
+    `Use the \`${tools.delegate}\` tool to engage perspective agents and ` +
+    `\`${tools.end}\` when ready to wrap up.\n\n` +
+    `---\n\n## Brief\n\n${briefContent}`;
+
+  // ── Interactive readline commands ──────────────────────────
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  rl.on("line", (input) => {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    if (trimmed === "/aos-halt") {
+      halted = true;
+      console.log("Deliberation paused. Type /aos-resume to continue.");
+    } else if (trimmed === "/aos-resume") {
+      halted = false;
+      console.log("Resumed.");
+    } else if (trimmed === "/aos-end") {
+      steerQueue.push("Please wrap up now and call the end tool.");
+    } else if (trimmed === "/aos-status") {
+      const cs = engine.getConstraintState();
+      console.log(renderTextGauge("TIME", cs.elapsed_minutes, 2, 10, "min"));
+      if (cs.metered) {
+        console.log(renderTextGauge("BUDGET", cs.budget_spent, 1, 10, "$"));
+      }
+      console.log(renderTextGauge("ROUNDS", cs.rounds_completed, 2, 8, "rounds"));
+    } else if (trimmed.startsWith("/aos-steer ")) {
+      steerQueue.push(trimmed.slice("/aos-steer ".length));
+    } else if (!trimmed.startsWith("/")) {
+      steerQueue.push(trimmed);
+    }
+  });
+
+  try {
+    const response = await adapter.sendMessage(arbiterHandle, kickoff, {
+      extraArgs: mcpArgs,
+    });
+    console.log("\n" + response.text);
+  } finally {
+    rl.close();
+    await closeBridge();
+    if (restoreGeminiSettings) restoreGeminiSettings();
+    const cs = engine.getConstraintState();
+    console.log(
+      `\nSession complete. Rounds: ${cs.rounds_completed}, ` +
+        `Cost: $${cs.budget_spent.toFixed(4)}, ` +
+        `Time: ${cs.elapsed_minutes.toFixed(1)}min`,
+    );
+  }
+}
