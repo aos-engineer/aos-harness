@@ -2,9 +2,9 @@
 // Wires all 4 adapter layers together and makes the AOS Harness
 // runnable as a Pi extension.
 
-import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, statSync, symlinkSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { join, dirname, basename, resolve } from "node:path";
+import { join, dirname, basename } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Text, truncateToWidth } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
@@ -12,8 +12,7 @@ import { Type } from "@sinclair/typebox";
 import { PiAgentRuntime } from "./agent-runtime";
 import { PiEventBus } from "./event-bus";
 import { PiUI } from "./ui";
-import { BaseWorkflow } from "@aos-harness/adapter-shared";
-import { composeAdapter } from "@aos-harness/adapter-shared";
+import { BaseWorkflow, composeAdapter, discoverAgents, createFlatAgentsDir, findProjectRoot } from "@aos-harness/adapter-shared";
 
 import { AOSEngine } from "@aos-harness/runtime";
 import type { AOSAdapter, ConstraintState, ProfileConfig } from "@aos-harness/runtime/types";
@@ -21,75 +20,6 @@ import { resolveTemplate } from "@aos-harness/runtime/template-resolver";
 import { validateBrief } from "@aos-harness/runtime/config-loader";
 
 // ── Helpers ─────────────────────────────────────────────────────
-
-/** Walk up from `cwd` looking for a directory containing `core/`. */
-function findProjectRoot(cwd: string): string | null {
-  let dir = resolve(cwd);
-  for (let i = 0; i < 20; i++) {
-    if (existsSync(join(dir, "core"))) return dir;
-    if (existsSync(join(dir, ".aos"))) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return null;
-}
-
-/**
- * Recursively discover all agent directories (those containing agent.yaml).
- * Returns a Map of agentId -> absolute directory path.
- */
-function discoverAgents(agentsDir: string): Map<string, string> {
-  const agents = new Map<string, string>();
-
-  function walk(dir: string): void {
-    if (!existsSync(dir)) return;
-    const entries = readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const subDir = join(dir, entry.name);
-      const yamlPath = join(subDir, "agent.yaml");
-      if (existsSync(yamlPath)) {
-        // Read the id from agent.yaml
-        try {
-          const raw = readFileSync(yamlPath, "utf-8");
-          const idMatch = raw.match(/^id:\s*(.+)$/m);
-          if (idMatch) {
-            agents.set(idMatch[1].trim(), subDir);
-          }
-        } catch {
-          // Skip unreadable
-        }
-      }
-      // Recurse into subdirectories
-      walk(subDir);
-    }
-  }
-
-  walk(agentsDir);
-  return agents;
-}
-
-/**
- * Create a flat temporary directory with symlinks so the engine can
- * resolve agent IDs via `join(agentsDir, id)`.
- */
-function createFlatAgentsDir(projectRoot: string, agentMap: Map<string, string>): string {
-  const flatDir = join(projectRoot, ".aos", "_flat_agents");
-  if (existsSync(flatDir)) {
-    rmSync(flatDir, { recursive: true, force: true });
-  }
-  mkdirSync(flatDir, { recursive: true });
-
-  for (const [id, dirPath] of agentMap) {
-    const linkPath = join(flatDir, id);
-    if (!existsSync(linkPath)) {
-      symlinkSync(dirPath, linkPath, "dir");
-    }
-  }
-
-  return flatDir;
-}
 
 /** List subdirectories that contain a given file. */
 function listDirsWithFile(parentDir: string, fileName: string): { name: string; dir: string; mtime: number }[] {
