@@ -35,6 +35,21 @@ test("bridge server dispatches delegate", async () => {
   await close();
 });
 
+test("close() returns promptly even with a connected client", async () => {
+  const sockPath = join(tmpdir(), `aos-test-${Date.now()}-${Math.random()}.sock`);
+  const close = await startBridgeServer(sockPath, {
+    delegate: async () => ({}),
+    end: async () => ({}),
+  });
+  const client = connect(sockPath);
+  await new Promise((resolve) => client.on("connect", resolve));
+  const start = Date.now();
+  await close();
+  const elapsed = Date.now() - start;
+  expect(elapsed).toBeLessThan(500);
+  client.destroy();
+});
+
 test("bridge server returns error for unknown method", async () => {
   const sockPath = join(tmpdir(), `aos-test-${Date.now()}-${Math.random()}.sock`);
   const close = await startBridgeServer(sockPath, {
