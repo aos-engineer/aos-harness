@@ -83,6 +83,11 @@ function toolNamesForPlatform(platform: string): { delegate: string; end: string
 }
 
 export async function runAdapterSession(config: AdapterSessionConfig): Promise<void> {
+  const log = (msg: string) => {
+    if (config.verbose) console.error(`[session] ${msg}`);
+  };
+
+  log("loading adapter runtime");
   const RuntimeClass = await loadAdapterRuntime(config.platform);
 
   // ── Layer composition ──────────────────────────────────────
@@ -91,12 +96,14 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
   const ui = new TerminalUI();
   const workflow = new BaseWorkflow(agentRuntime, config.root);
   const adapter = composeAdapter(agentRuntime, eventBus, ui, workflow);
+  log("layers composed");
 
   // ── Agent discovery (flatten nested core/agents layout) ───
   const agentsDir = join(config.root, "core", "agents");
   const agentMap = discoverAgents(agentsDir);
   const flatAgentsDir = createFlatAgentsDir(config.root, agentMap);
   const domainsDir = join(config.root, "core", "domains");
+  log(`agents discovered (${agentMap.size})`);
 
   // ── Engine setup & brief intake ────────────────────────────
   const engine = new AOSEngine(adapter, config.profileDir, {
@@ -104,7 +111,9 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
     domain: config.domainName ?? undefined,
     domainDir: config.domainName ? domainsDir : undefined,
   });
+  log("starting engine");
   await engine.start(config.briefPath);
+  log("engine started");
 
   // ── Bridge server (MCP tool calls → engine) ────────────────
   const sockPath = join(tmpdir(), `aos-bridge-${config.sessionId}.sock`);
@@ -124,6 +133,7 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
     return `\n\n[user steer]\n${msgs.join("\n")}`;
   }
 
+  log(`starting bridge server sock=${sockPath}`);
   const closeBridge = await startBridgeServer(sockPath, {
     delegate: async (params) => {
       await waitWhileHalted();
@@ -152,6 +162,7 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
     },
   });
 
+  log("bridge listening");
   // ── Arbiter prompt resolution ──────────────────────────────
   const arbiterDir = agentMap.get("arbiter");
   if (!arbiterDir) throw new Error("No arbiter agent found in core/agents/");
@@ -211,6 +222,7 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
   const arbiterConfig = loadAgent(arbiterFlatDir);
   arbiterConfig.systemPrompt = resolvedPrompt;
 
+  log("spawning arbiter");
   const arbiterHandle = await adapter.spawnAgent(arbiterConfig, config.sessionId);
 
   // ── Kickoff message ────────────────────────────────────────
@@ -248,9 +260,21 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
   });
 
   try {
+    log(`sending kickoff to arbiter (mcpArgs=${mcpArgs.length})`);
+    console.log(
+      `\nArbiter running (${config.platform}). ` +
+        `Tool calls will stream as rounds complete. ` +
+        `Bridge socket: ${sockPath}\n`,
+    );
     const response = await adapter.sendMessage(arbiterHandle, kickoff, {
       extraArgs: mcpArgs,
     });
+    if ((response as any).status !== "success") {
+      console.error(
+        `\n[arbiter] call failed: status=${(response as any).status} ` +
+          `error=${(response as any).error ?? "(none)"}`,
+      );
+    }
     console.log("\n" + response.text);
   } finally {
     rl.close();
