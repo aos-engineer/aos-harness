@@ -1,7 +1,7 @@
 # CLI Adapter Integration Design
 
 **Date:** 2026-04-11
-**Status:** Draft
+**Status:** Draft (v2 — revised after architectural review)
 **Author:** Segun Kolade + Claude
 **Depends on:** Full Adapter Implementations (2026-04-11, merged)
 
@@ -16,12 +16,38 @@ Wire the new runtime adapters (Claude Code, Gemini, Codex) into the `aos run` CL
 3. `.aos/adapter.yaml` config reading with model overrides passed to adapter runtime
 4. Text-mode constraint gauges for terminal output
 5. Shared agent discovery helpers extracted from Pi (no duplication)
+6. Arbiter orchestration via MCP stdio bridge — same pattern across all three CLIs
 
 ## Non-Goals
 
 - Changing Pi's code path — Pi keeps its separate extension-based entry point
 - Headless/CI mode — out of scope (future work)
 - OpenCode adapter — deferred pending CLI investigation
+- Amending the `sendMessage()` contract — kept one-shot; full agentic loop happens inside the CLI subprocess
+
+---
+
+## Key Architectural Decision: MCP Bridge
+
+All three non-Pi CLIs (Claude Code, Gemini, Codex) support external tool servers via the **Model Context Protocol (MCP) over stdio**. In each, a single CLI invocation runs the full agentic loop, calling MCP tools as many times as needed before returning a final response. This means:
+
+- `BaseAgentRuntime.sendMessage()` stays one-shot — we send the kickoff message once and the arbiter drives itself to completion
+- `delegate` and `end` are exposed as **MCP tools**, not in-process tools registered on the TerminalUI
+- Each arbiter subprocess spawns its own MCP bridge subprocess (per-CLI requirement — they can't share one because each CLI owns its MCP server lifecycle)
+- The bridge talks back to the main AOS CLI over a Unix domain socket, forwarding tool calls into the engine and returning results
+
+```
+┌──────────────┐  spawn   ┌──────────────┐  spawn stdio  ┌──────────────────┐
+│  aos CLI     │─────────▶│  arbiter CLI │──────────────▶│  MCP bridge      │
+│  (engine +   │          │  (claude/    │  MCP protocol │  (tiny proxy)    │
+│   unix sock) │◀─────────│   gemini/    │◀─────────────▶│                  │
+│              │ IPC      │   codex)     │               │                  │
+└──────────────┘          └──────────────┘               └──────────────────┘
+     ▲                                                            │
+     └──── JSON-RPC over unix socket ─────────────────────────────┘
+```
+
+Pi is unchanged — its tools are registered in-process (Pi *is* the arbiter runtime).
 
 ---
 
@@ -42,18 +68,41 @@ async function runAdapterSession(config: AdapterSessionConfig): Promise<void>
 ```typescript
 interface AdapterSessionConfig {
   platform: string;           // "claude-code" | "gemini" | "codex"
-  profileDir: string;         // resolved profile directory
-  briefPath: string;          // path to brief.md
-  domainName: string | null;  // optional domain
-  root: string;               // harness root directory
-  sessionId: string;          // generated session ID
-  deliberationDir: string;    // output directory
+  profileDir: string;
+  briefPath: string;
+  domainName: string | null;
+  root: string;
+  sessionId: string;
+  deliberationDir: string;
   verbose: boolean;
-  workflowConfig: any | null; // execution profile workflow, if applicable
-  workflowsDir: string;       // workflows directory
-  modelOverrides?: Partial<Record<string, string>>; // from .aos/adapter.yaml
+  workflowConfig: any | null;
+  workflowsDir: string;
+  modelOverrides?: Partial<Record<string, string>>;
 }
 ```
+
+### New Module: `cli/src/mcp-arbiter-bridge.ts`
+
+A standalone script that runs as a subprocess of each arbiter CLI. It:
+
+- Implements an MCP stdio server via `@modelcontextprotocol/sdk`
+- Exposes `delegate(to, message)` and `end(closing_message)` tools
+- Connects back to the main `aos` CLI over a Unix socket (path passed via `AOS_BRIDGE_SOCKET` env var)
+- Forwards tool invocations as JSON-RPC requests and returns the results as MCP tool results
+
+The script entry point is invoked via `bun run path/to/mcp-arbiter-bridge.ts` and takes the socket path from the environment. The main CLI runs a Unix-socket server that dispatches incoming RPCs to `engine.delegateMessage()` and the end-flow handler.
+
+### New Module: `adapters/shared/src/agent-discovery.ts`
+
+Moved out of Pi. Contains:
+
+```typescript
+discoverAgents(agentsDir: string): Map<string, string>
+createFlatAgentsDir(projectRoot: string, agentMap: Map<string, string>): string
+findProjectRoot(cwd: string): string | null
+```
+
+Both `cli/src/adapter-session.ts` and `adapters/pi/src/index.ts` import from here. (Placing it in `adapters/shared/` avoids the circular dependency that would arise if it lived in `cli/src/`.)
 
 ### Integration Point in `run.ts`
 
@@ -61,7 +110,6 @@ Replace the current `else` block (lines 376-385) with:
 
 ```typescript
 } else {
-  // Read adapter-specific config
   const adapterConfig = readAdapterConfig(root);
   await runAdapterSession({
     platform: adapter,
@@ -97,11 +145,12 @@ const ADAPTER_MAP: Record<string, { package: string; className: string }> = {
 
 **Loading flow:**
 1. Look up platform in `ADAPTER_MAP`
-2. Try `await import(package)` — works if workspace package is linked
-3. If import fails, fall back to `import(join(root, "adapters", platform, "src", "index.ts"))`
-4. If both fail, exit with error: `"Adapter for <platform> not found."`
-5. Extract runtime class: `mod[className]`
-6. Instantiate: `new RuntimeClass(eventBus, modelOverrides)`
+2. Try `await import(entry.package)` — works in monorepo dev (workspace:*) and if a user installs these as separate packages
+3. Fall back to resolving from the `aos-harness` package install dir: `import(join(packageDir, "adapters", platform, "src", "index.ts"))` — this matches the npm distribution layout where adapters ship inside the main package under `adapters/`
+4. `packageDir` is computed from `import.meta.url` of the CLI entry, not the user's project root
+5. If both fail, exit with error: `"Adapter for <platform> not found."`
+6. Extract runtime class: `mod[className]`
+7. Instantiate: `new RuntimeClass(eventBus, modelOverrides)`
 
 ### 2. Layer Instantiation & Composition
 
@@ -118,23 +167,9 @@ All imported from `@aos-harness/adapter-shared`.
 
 ### 3. Agent Discovery & Engine Creation
 
-Shared helper functions extracted from Pi's `index.ts`:
-
 ```typescript
-discoverAgents(agentsDir: string): Map<string, string>
-  // Recursively walk core/agents/, find agent.yaml files, return id → dir map
+import { discoverAgents, createFlatAgentsDir } from "@aos-harness/adapter-shared";
 
-createFlatAgentsDir(projectRoot: string, agentMap: Map<string, string>): string
-  // Create .aos/_flat_agents/ with symlinks for engine resolution
-
-findProjectRoot(cwd: string): string | null
-  // Walk up from cwd looking for core/ or .aos/
-```
-
-These are extracted into `cli/src/adapter-helpers.ts`. Pi's `index.ts` is updated to import from this shared location instead of defining them inline.
-
-**Engine wiring:**
-```typescript
 const agentsDir = join(root, "core", "agents");
 const agentMap = discoverAgents(agentsDir);
 const flatAgentsDir = createFlatAgentsDir(root, agentMap);
@@ -149,41 +184,81 @@ const engine = new AOSEngine(adapter, config.profileDir, {
 await engine.start(config.briefPath);
 ```
 
-### 4. Arbiter Prompt Resolution
+Pi's existing `index.ts` is updated to import these helpers from `adapter-shared` instead of defining them inline.
 
-Same as Pi — read `prompt.md` from the arbiter agent directory, resolve template variables:
+### 4. MCP Bridge Lifecycle
 
-```typescript
-const templateVars = {
-  session_id: config.sessionId,
-  brief_slug: briefSlug,
-  brief: briefContent,
-  agent_id: "arbiter",
-  agent_name: "Arbiter",
-  participants: participantNames.join(", "),
-  constraints: constraintsStr,
-  output_path: memoPath,
-  deliberation_dir: deliberationDir,
-  transcript_path: transcriptPath,
-};
+For each arbiter session:
 
-const resolvedPrompt = resolveTemplate(rawPrompt, templateVars);
-adapter.setOrchestratorPrompt(resolvedPrompt);
+1. Generate a Unix socket path: `/tmp/aos-bridge-<sessionId>.sock`
+2. Start a Unix socket server in the main CLI that accepts JSON-RPC requests with methods `delegate` and `end`
+3. Compose the MCP config for the target CLI (see §5), pointing at the bridge script with the socket path in env
+4. Spawn the arbiter subprocess with MCP config + flags via `adapter.sendMessage(arbiterHandle, kickoff)`
+5. The subprocess spawns the MCP bridge as its own child; the bridge connects to the socket
+6. When the arbiter calls `delegate(...)`, the bridge forwards to the socket, the CLI dispatches to `engine.delegateMessage(...)`, result flows back
+7. When the arbiter calls `end(closing_message)`, the bridge forwards, the CLI triggers memo writing and sets a shutdown flag, returns the closing message as tool result
+8. Arbiter's system prompt instructs it to stop producing tool calls after `end` returns, so its loop naturally ends
+9. `sendMessage()` resolves with the final arbiter text; CLI closes the socket server and exits
+
+### 5. Per-CLI MCP Configuration
+
+Each adapter's `buildArgs()` (or a new `buildMcpArgs()` helper) adds the CLI-specific flags to register the bridge:
+
+**Claude Code:**
+```
+claude -p "<kickoff>" \
+  --mcp-config '{"mcpServers":{"aos":{"command":"bun","args":["<bridge.ts>"],"env":{"AOS_BRIDGE_SOCKET":"<sock>"}}}}' \
+  --strict-mcp-config \
+  --allowedTools "mcp__aos__delegate mcp__aos__end" \
+  --permission-mode bypassPermissions \
+  --output-format stream-json --verbose
 ```
 
-### 5. Interactive Commands
+**Gemini:** config must live in `~/.gemini/settings.json` or a project-level `.gemini/settings.json`. The adapter writes a temp settings file under `.aos/.runtime/gemini-settings-<sessionId>.json` and points the CLI at it via `GEMINI_SETTINGS_PATH` env (or project-level `.gemini/` dir if required):
+```
+gemini --yolo --output-format stream-json \
+  --allowed-mcp-server-names aos \
+  -p "<kickoff>"
+```
+
+**Codex:** `-c` flags override config.toml keys inline:
+```
+codex exec --json --skip-git-repo-check \
+  -c 'mcp_servers.aos.command="bun"' \
+  -c 'mcp_servers.aos.args=["<bridge.ts>"]' \
+  -c 'mcp_servers.aos.env={AOS_BRIDGE_SOCKET="<sock>"}' \
+  -c 'mcp_servers.aos.required=true' \
+  -c 'mcp_servers.aos.enabled_tools=["delegate","end"]' \
+  "<kickoff>"
+```
+
+### 6. Arbiter Prompt Resolution
+
+Same as Pi — read `prompt.md` from the arbiter agent directory, resolve template variables. Key addition: the prompt must reference the MCP-prefixed tool names the model will actually see (e.g., `mcp__aos__delegate` for Claude Code; Gemini and Codex expose them with server-namespaced names too). The resolver produces a CLI-specific variant:
+
+```typescript
+const toolNames = getToolNamesForPlatform(platform);
+// { delegate: "mcp__aos__delegate", end: "mcp__aos__end" } for Claude Code
+// { delegate: "aos.delegate", end: "aos.end" } for Gemini/Codex (example)
+```
+
+Template variables include `{{delegate_tool}}` and `{{end_tool}}` so the prompt tells the arbiter the exact names to call.
+
+### 7. Interactive Commands
 
 Registered on TerminalUI before entering the readline loop:
 
-| Command | Action |
-|---------|--------|
-| `/aos-halt` | Set `halted = true`, print "Deliberation paused. Type /aos-resume to continue." |
-| `/aos-resume` | Set `halted = false`, re-send last pending message to engine |
-| `/aos-end` | Call `engine.end()`, trigger graceful shutdown (memo writing, cost summary) |
-| `/aos-status` | Print constraint gauges to console |
-| `/aos-steer <msg>` | Queue message via `ui.steerMessage(msg)`, inject on next arbiter turn |
+| Command | Semantics |
+|---------|-----------|
+| `/aos-halt` | Set `halted = true`. The arbiter's current turn completes (the subprocess is not interrupted); when its next MCP tool call arrives, the bridge holds the response until `halted = false`. Prints: "Deliberation paused. Type /aos-resume to continue." |
+| `/aos-resume` | Set `halted = false`; release any pending tool response |
+| `/aos-end` | Send a signal via the bridge socket to inject a final "please wrap up now" message as the next tool result; arbiter receives it and is expected to call `end` |
+| `/aos-status` | Print full constraint gauges to console |
+| `/aos-steer <msg>` | Queue message; the bridge prepends it to the **next** tool-result payload returned to the arbiter (so the arbiter sees the steer as part of the delegate response for its next turn) |
 
-### 6. Readline Loop
+This resolves the synchronization question: steer messages and halt-gating happen at the MCP tool-result boundary, which is a natural interleaving point.
+
+### 8. Readline Loop
 
 ```typescript
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -196,35 +271,47 @@ rl.on("line", async (input) => {
     const [cmd, ...rest] = trimmed.slice(1).split(" ");
     await ui.dispatchCommand(cmd, rest.join(" "));
   } else {
-    // Treat raw input as steer message
     ui.steerMessage(trimmed);
   }
 });
 ```
 
-The loop runs concurrently with the engine's deliberation. The engine drives itself (arbiter sends messages, delegates to agents, checks constraints). User input steers or controls flow.
+The loop runs concurrently with the arbiter subprocess. Exit conditions:
+- Arbiter subprocess exits → `sendMessage()` resolves → CLI closes readline, prints summary, exits 0
+- User types `/aos-end` → steer-inject "wrap up" → arbiter calls `end` → memo written → subprocess exits → shutdown flow
+- Ctrl+C → kill arbiter subprocess, close socket server, exit 130
 
-**Exit conditions:**
-- Engine fires `onSessionShutdown` → close readline, print summary, exit 0
-- User types `/aos-end` → engine wraps up, then shutdown flow
-- Ctrl+C → abort all processes, exit 130
+### 9. Text-Mode Constraint Gauges
 
-### 7. Text-Mode Constraint Gauges
+Printed only on `/aos-status`. After each round, print a compact one-liner instead of full gauge bars:
 
-Printed on `/aos-status` and after each deliberation round (via `onMessageEnd` event):
+```
+[Round 3/8 · 4.2min · $0.45]
+```
 
+Full gauges on `/aos-status`:
 ```
   TIME:   4.2 min  [████████░░░░░░░░] (min: 2, max: 10)
   BUDGET: $0.45    [██░░░░░░░░░░░░░░] (min: $1, max: $10)
   ROUNDS: 3        [████░░░░░░░░░░░░] (min: 2, max: 8)
 ```
 
-Helper function `renderTextGauge(label, value, min, max, unit)` produces each line with ANSI coloring:
-- Green when below min
-- Yellow when between min and approaching max
-- Red when approaching or at max
+Helper function `renderTextGauge(label, value, min, max, unit)` with ANSI coloring (green/yellow/red based on proximity to max).
 
-### 8. Config Reading
+### 10. Memo Writing & Shutdown Ownership
+
+The **engine** owns memo writing. When the arbiter calls `end(closing_message)`:
+
+1. Bridge forwards the call to the main CLI
+2. CLI calls `engine.delegateMessage("all", closing_message)` to gather final statements
+3. CLI calls `engine.writeMemo(closing_message, finalResponses)` to persist the deliberation memo
+4. CLI returns a success tool result to the bridge
+5. Arbiter's system prompt instructs it to produce no further tool calls after `end` — so it emits a final text response and exits
+6. `sendMessage()` resolves; main CLI does cost summary and cleanup
+
+This mirrors Pi's flow but with the engine (not the arbiter process) writing the memo.
+
+### 11. Config Reading
 
 **`.aos/adapter.yaml`** is read by `adapter-session.ts` at startup:
 
@@ -232,13 +319,10 @@ Helper function `renderTextGauge(label, value, min, max, unit)` produces each li
 function readAdapterConfig(root: string): AdapterConfig | null {
   const configPath = join(root, ".aos", "adapter.yaml");
   if (!existsSync(configPath)) return null;
-  const raw = readFileSync(configPath, "utf-8");
-  const config = yaml.load(raw) as AdapterConfig;
-  return config;
+  return yaml.load(readFileSync(configPath, "utf-8")) as AdapterConfig;
 }
 ```
 
-**`AdapterConfig` type:**
 ```typescript
 interface AdapterConfig {
   platform?: string;
@@ -248,8 +332,6 @@ interface AdapterConfig {
 }
 ```
 
-`model_overrides` are passed to the adapter runtime constructor. `theme` and `editor` are stored for TerminalUI/workflow use.
-
 ---
 
 ## File Changes
@@ -257,83 +339,60 @@ interface AdapterConfig {
 ### New Files
 | File | Responsibility |
 |------|---------------|
-| `cli/src/adapter-session.ts` | Generic adapter session lifecycle (~250-350 lines) |
-| `cli/src/adapter-helpers.ts` | Shared agent discovery helpers (~80 lines, extracted from Pi) |
+| `cli/src/adapter-session.ts` | Generic adapter session lifecycle (~300-400 lines) |
+| `cli/src/mcp-arbiter-bridge.ts` | MCP stdio server + Unix socket client (~150 lines) |
+| `cli/src/bridge-server.ts` | Unix socket server in main CLI that dispatches bridge RPCs to engine (~100 lines) |
+| `adapters/shared/src/agent-discovery.ts` | Shared agent discovery helpers (~80 lines, extracted from Pi) |
 
 ### Modified Files
 | File | Change |
 |------|--------|
-| `cli/src/commands/run.ts` | Replace "not yet supported" block with `runAdapterSession()` call, add `readAdapterConfig()` |
-| `adapters/pi/src/index.ts` | Import `discoverAgents`, `createFlatAgentsDir`, `findProjectRoot` from `cli/src/adapter-helpers.ts` instead of defining inline |
-
-### Adapter Entry Points (No Change Needed)
-The adapter `index.ts` files stay as barrel exports. The CLI handles instantiation — adapters just export their runtime class.
+| `cli/src/commands/run.ts` | Replace "not yet supported" block with `runAdapterSession()` call |
+| `adapters/pi/src/index.ts` | Import `discoverAgents`, `createFlatAgentsDir`, `findProjectRoot` from `@aos-harness/adapter-shared` |
+| `adapters/shared/src/index.ts` | Export the new agent-discovery helpers |
+| `adapters/claude-code/src/runtime.ts` | Add `buildMcpArgs()` or extend `buildArgs()` for MCP flags |
+| `adapters/gemini/src/runtime.ts` | Same for Gemini; handle settings.json temp file |
+| `adapters/codex/src/runtime.ts` | Same for Codex; `-c` flag overrides |
+| Root `package.json` | Add `@modelcontextprotocol/sdk` dependency |
 
 ---
 
-## Engine Integration & Arbiter Orchestration
+## Dependencies
 
-**Critical architecture point:** In the Pi adapter, the Pi host process *is* the arbiter — Pi's AI drives the deliberation by calling `delegate` and `end` tools that are registered on it. For non-Pi adapters, **the arbiter must be spawned as a CLI subprocess** (e.g., a `claude` process) that has `delegate` and `end` registered as tools it can call.
-
-**Deliberation flow:**
-1. `engine.start(briefPath)` — validates brief, initializes constraint state
-2. Spawn the arbiter via `adapter.spawnAgent(arbiterConfig, sessionId)`
-3. Register `delegate` and `end` as tools on the TerminalUI (via `ui.registerTool()`)
-4. Set the arbiter's system prompt with resolved template (participants, constraints, output path)
-5. Send kickoff message to arbiter via `adapter.sendMessage(arbiterHandle, kickoffMessage)`
-6. The arbiter drives the loop: reads brief → calls `delegate(to, message)` → receives agent responses + constraint state → delegates again → eventually calls `end(closingMessage)`
-7. Each `delegate` call goes through `engine.delegateMessage()` which spawns perspective agents, sends messages, tracks costs, updates constraints
-8. Each `end` call triggers memo writing, session shutdown, and exits the readline loop
-
-**Tool registration (on TerminalUI):**
-
-`delegate` tool:
-- Parameters: `to` (string | string[]), `message` (string)
-- Handler: calls `engine.delegateMessage(to, message)`, returns responses + constraint state
-- Same logic as Pi's delegate tool (lines 533-700 of Pi's index.ts)
-
-`end` tool:
-- Parameters: `closing_message` (string)
-- Handler: calls `engine.delegateMessage("all", closingMessage)` for final statements, then triggers memo writing and session shutdown
-- Same logic as Pi's end tool
-
-**Key difference from Pi:** In Pi, tool calls happen within the same process. For CLI adapters, tool calls happen across process boundaries — the arbiter subprocess calls a tool, the adapter receives it via JSON event parsing (`tool_call` ParsedEvent), executes the handler, and returns the result. The `BaseAgentRuntime.parseEventLine()` already handles `tool_call` events and fires `eventBus.fireToolCall()`.
-
-However, the current `sendMessage()` flow in `BaseAgentRuntime` is one-shot: spawn process, collect response, return. For multi-turn tool use, the arbiter needs to call tools and receive results within a single session. This requires that the CLI subprocess supports **agentic tool use** natively — where the CLI itself handles tool execution loops internally.
-
-**Practical approach:** Each CLI (claude, gemini, codex) runs in its own agentic mode where it handles tool calls internally. The `delegate` and `end` tools are registered as MCP tools or CLI tools that the subprocess can call. The adapter's `sendMessage()` sends a single message and the CLI process handles the full agentic loop (multiple tool calls, multiple responses) before returning the final result.
-
-For this to work, each CLI must support tool registration. The specific mechanism varies:
-- **Claude Code:** `--allowedTools` flag + tool definitions via `--tool` or MCP
-- **Gemini:** Function declarations via `--tool` flag
-- **Codex:** Tool definitions via `--tool` flag or config
-
-The `buildArgs()` method on each adapter needs to include tool registration flags when spawning the arbiter. This is an addition to the current adapter implementations — the arbiter spawn call passes tool schemas as part of the args.
-
-The engine exposes these methods (already implemented):
-- `engine.start(briefPath)` — validate and begin
-- `engine.delegateMessage(to, message)` — dispatch to perspective agents
-- `engine.getConstraintState()` — current constraint gauges
+New npm dependency: `@modelcontextprotocol/sdk` (for the bridge script).
 
 ---
 
 ## Testing Strategy
 
-- **Unit tests for `adapter-helpers.ts`** — test `discoverAgents()` with mock directory structures
+- **Unit tests for `agent-discovery.ts`** — test `discoverAgents()` with mock directory structures
 - **Unit tests for `adapter-session.ts`** — mock adapter import, verify layer instantiation, verify command registration
-- **Integration test** — run `aos run` with a test profile and mock CLI binary, verify session starts and produces output
-- **Manual test** — run with each installed CLI (claude, gemini, codex) to verify end-to-end
+- **Unit tests for `bridge-server.ts`** — mock engine, send fake RPCs over socket, verify dispatch
+- **Integration test** — run the bridge end-to-end with a mock MCP client (no real CLI), verify `delegate`/`end` flow
+- **Manual E2E** — run `aos run` with each installed CLI (claude, gemini, codex) against a small test profile
 
 ---
 
 ## Implementation Order
 
-1. Extract `adapter-helpers.ts` from Pi's `index.ts`
-2. Update Pi's `index.ts` to import from `adapter-helpers.ts`
-3. Verify Pi still works (run existing tests)
-4. Implement `adapter-session.ts` — loading, instantiation, engine wiring
-5. Add interactive readline loop with commands
-6. Add constraint gauge rendering
-7. Add `.aos/adapter.yaml` config reading
-8. Wire into `run.ts` — replace "not yet supported" block
-9. End-to-end test with each adapter
+1. Extract `agent-discovery.ts` into `adapters/shared/` and update Pi to import from there
+2. Verify Pi still works (run existing tests)
+3. Implement `bridge-server.ts` (Unix socket server + engine dispatch)
+4. Implement `mcp-arbiter-bridge.ts` (MCP stdio server + socket client)
+5. Integration test the bridge pair against a mock MCP client
+6. Extend each adapter's runtime with MCP arg building (Claude Code first)
+7. Implement `adapter-session.ts` — loading, instantiation, bridge wiring, readline loop
+8. Add interactive commands (halt/resume/end/status/steer) with bridge-mediated semantics
+9. Add constraint gauge rendering (compact per-round + full on /aos-status)
+10. Wire `.aos/adapter.yaml` config reading
+11. Wire into `run.ts` — replace "not yet supported" block
+12. E2E test with Claude Code, then Gemini, then Codex
+
+---
+
+## Open Questions / Risks
+
+- **Gemini settings.json location**: need to verify whether `GEMINI_SETTINGS_PATH` env is respected or whether we must write to the project `.gemini/` dir. May require a different config strategy for Gemini.
+- **Bridge bundling in npm distribution**: `mcp-arbiter-bridge.ts` must be spawnable by a bun runtime the user has installed. Confirm it works when invoked via `bun run <path>` from a globally-installed npm package.
+- **Tool-name mismatch across CLIs**: each CLI namespaces MCP tools differently in what the model sees. Verify the arbiter prompt template handles this cleanly (per-platform tool-name substitution).
+- **Halt semantics**: withholding a tool result keeps the subprocess alive but idle — ensure no CLI has a hard timeout that kills the arbiter during a long halt.
