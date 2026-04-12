@@ -69,7 +69,7 @@ export class MemPalaceProvider implements MemoryProvider {
 
     const raw = await this.callToolWithRecovery("mempalace_search", params);
     const parsed = this.parseToolResult(raw);
-    const results: RecallEntry[] = parsed.results ?? [];
+    const results: RecallEntry[] = (parsed.results as RecallEntry[] | undefined) ?? [];
 
     // Sort by similarity descending so we keep the most relevant
     results.sort((a, b) => b.similarity - a.similarity);
@@ -109,7 +109,8 @@ export class MemPalaceProvider implements MemoryProvider {
 
     const raw = await this.callToolWithRecovery("mempalace_search", params);
     const parsed = this.parseToolResult(raw);
-    const entries: RecallEntry[] = (parsed.results ?? []).map(
+    const rawResults = (parsed.results as Record<string, unknown>[] | undefined) ?? [];
+    const entries: RecallEntry[] = rawResults.map(
       (r: Record<string, unknown>) => ({
         content: r.content as string,
         wing: r.wing as string,
