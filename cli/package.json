@@ -36,8 +36,9 @@
     "test": "bun run src/index.ts validate"
   },
   "dependencies": {
-    "@aos-harness/runtime": "workspace:*",
     "@aos-harness/adapter-shared": "workspace:*",
+    "@aos-harness/runtime": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
