@@ -306,7 +306,7 @@ ${c.bold(`AOS ${sessionType} Session`)}
   Output:   ${c.cyan(deliberationDir)}
 `);
 
-  // Check for .aos/config.yaml to determine adapter
+  // Determine adapter: --adapter flag > .aos/config.yaml > default "pi"
   let platformUrl = (args.flags["platform-url"] as string) || null;
   const aosConfigPath = join(process.cwd(), ".aos", "config.yaml");
   let adapter = "pi";
@@ -319,6 +319,7 @@ ${c.bold(`AOS ${sessionType} Session`)}
       platformUrl = (config.platform as Record<string, unknown>).url as string;
     }
   }
+  if (args.flags["adapter"]) adapter = args.flags["adapter"] as string;
 
   const adapterName = adapter === "claude-code" ? "claude-code" : adapter;
   // Resolve adapter from: 1) project dir, 2) installed package, 3) monorepo
