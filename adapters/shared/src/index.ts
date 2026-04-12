@@ -9,3 +9,4 @@ export { BaseEventBus } from "./base-event-bus";
 export { TerminalUI } from "./terminal-ui";
 export { BaseWorkflow } from "./base-workflow";
 export { composeAdapter } from "./compose";
+export { discoverAgents, createFlatAgentsDir, findProjectRoot } from "./agent-discovery";
