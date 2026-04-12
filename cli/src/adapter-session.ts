@@ -191,6 +191,7 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
     transcript_path: transcriptPath,
     delegate_tool: tools.delegate,
     end_tool: tools.end,
+    role_override: "",
     // Back-compat hyphenated aliases
     "session-id": config.sessionId,
     "brief-content": briefContent,
@@ -200,7 +201,19 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
   };
 
   const resolvedPrompt = resolveTemplate(rawPrompt, templateVars);
-  adapter.setOrchestratorPrompt(resolvedPrompt);
+
+  // The arbiter prompt was authored when tools were named bare (`delegate`, `end`).
+  // Claude Code exposes MCP tools as `mcp__aos__delegate` / `mcp__aos__end`, so the
+  // model would attempt to call tools that don't exist. Prepend a short preamble
+  // that maps the names it'll see to the names the prompt uses.
+  const toolPreamble =
+    config.platform === "claude-code"
+      ? `IMPORTANT — Tool names for this session:\n` +
+        `- Where the instructions below say \`delegate(...)\`, call \`${tools.delegate}\` (that is the actual MCP tool name you will see).\n` +
+        `- Where they say \`end(...)\`, call \`${tools.end}\`.\n` +
+        `- These are the ONLY two tools available to you. Use them exactly as described.\n\n---\n\n`
+      : "";
+  adapter.setOrchestratorPrompt(toolPreamble + resolvedPrompt);
 
   // ── Build MCP args and launch arbiter ──────────────────────
   const mcpOpts = { bridgeScriptPath, socketPath: sockPath };
