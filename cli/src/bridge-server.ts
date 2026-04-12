@@ -12,7 +12,11 @@ export async function startBridgeServer(
 ): Promise<() => Promise<void>> {
   if (existsSync(socketPath)) unlinkSync(socketPath);
 
+  const open = new Set<Socket>();
+
   const server = createServer((sock: Socket) => {
+    open.add(sock);
+    sock.on("close", () => open.delete(sock));
     let buf = "";
     sock.on("data", async (chunk) => {
       buf += chunk.toString("utf-8");
@@ -43,6 +47,7 @@ export async function startBridgeServer(
   });
 
   return async () => {
+    for (const s of open) s.destroy();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     if (existsSync(socketPath)) unlinkSync(socketPath);
   };
