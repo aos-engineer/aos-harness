@@ -412,6 +412,7 @@ export interface MessageOpts {
   contextFiles?: string[];
   signal?: AbortSignal;
   onStream?: (partial: string) => void;
+  extraArgs?: string[];
 }
 
 export interface AgentResponse {
