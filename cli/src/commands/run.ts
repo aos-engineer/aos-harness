@@ -7,6 +7,8 @@ import { join, resolve, basename } from "node:path";
 import { c, type ParsedArgs } from "../colors";
 import { getHarnessRoot, discoverDirs, promptSelect, getAdapterDir } from "../utils";
 import type { TranscriptEntry } from "@aos-harness/runtime/types";
+import { runAdapterSession } from "../adapter-session";
+import { readAdapterConfig } from "../adapter-config";
 
 function createEventBuffer(platformUrl: string, sessionId: string) {
   const buffer: TranscriptEntry[] = [];
@@ -374,13 +376,19 @@ ${c.bold(`AOS ${sessionType} Session`)}
     }
     process.exit(exitCode);
   } else {
-    console.log(c.yellow(`Adapter "${adapter}" is not yet fully supported in the CLI.`));
-    console.log(c.dim(`The framework launched with profile="${profileName}", domain="${domainName || "none"}", brief="${briefPath}".`));
-    if (isExecutionProfile && workflowConfig) {
-      console.log(c.dim(`Workflow: ${workflowConfig.id} (${workflowConfig.steps.length} steps)`));
-      console.log(c.dim(`Workflows dir: ${workflowsDir}`));
-    }
-    console.log(c.dim(`Deliberation dir: ${deliberationDir}`));
-    console.log(c.dim(`Implement the ${adapter} adapter at adapters/${adapter}/ to enable full execution.`));
+    const adapterConfig = readAdapterConfig(root);
+    await runAdapterSession({
+      platform: adapter,
+      profileDir: profileDir!,
+      briefPath,
+      domainName,
+      root,
+      sessionId,
+      deliberationDir,
+      verbose: !!args.flags.verbose,
+      workflowConfig: isExecutionProfile ? workflowConfig : null,
+      workflowsDir,
+      modelOverrides: adapterConfig?.model_overrides,
+    });
   }
 }
