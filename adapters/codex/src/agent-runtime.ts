@@ -17,6 +17,13 @@ import {
 } from "@aos-harness/adapter-shared";
 import type { BaseEventBus } from "@aos-harness/adapter-shared";
 
+// ── McpBridgeOptions ──────────────────────────────────────────────
+
+export interface McpBridgeOptions {
+  bridgeScriptPath: string;
+  socketPath: string;
+}
+
 // ── CodexAgentRuntime ─────────────────────────────────────────────
 
 export class CodexAgentRuntime extends BaseAgentRuntime {
@@ -172,6 +179,18 @@ export class CodexAgentRuntime extends BaseAgentRuntime {
       return { type: "api_key", metered: true };
     }
     return { type: "unknown", metered: false };
+  }
+
+  // Paths are controlled by adapter-session.ts (temp sock in /tmp, script in installed package) — shell-safe characters guaranteed; no escaping needed.
+  buildMcpArgs(opts: McpBridgeOptions): string[] {
+    return [
+      "-c", `mcp_servers.aos.command="bun"`,
+      "-c", `mcp_servers.aos.args=["${opts.bridgeScriptPath}"]`,
+      "-c", `mcp_servers.aos.env={AOS_BRIDGE_SOCKET="${opts.socketPath}"}`,
+      "-c", `mcp_servers.aos.required=true`,
+      "-c", `mcp_servers.aos.enabled_tools=["delegate","end"]`,
+      "-c", `mcp_servers.aos.tool_timeout_sec=600`,
+    ];
   }
 
   getModelCost(tier: ModelTier): ModelCost {
