@@ -2,6 +2,11 @@
 // Extends BaseAgentRuntime with Gemini CLI integration.
 
 import { execSync } from "node:child_process";
+
+export interface McpBridgeOptions {
+  bridgeScriptPath: string;
+  socketPath: string;
+}
 import type {
   AuthMode,
   ModelCost,
@@ -189,5 +194,49 @@ export class GeminiAgentRuntime extends BaseAgentRuntime {
       },
     };
     return pricing[tier];
+  }
+
+  buildMcpArgs(): string[] {
+    return [
+      "--yolo",
+      "--allowed-mcp-server-names", "aos",
+    ];
+  }
+
+  /**
+   * Writes a project-local .gemini/settings.json with our MCP server config.
+   * Returns a restore function that the caller MUST invoke on shutdown to
+   * restore any pre-existing settings file.
+   */
+  writeMcpSettings(opts: McpBridgeOptions & { projectRoot: string }): () => void {
+    const { mkdirSync, writeFileSync, existsSync, renameSync, unlinkSync } = require("node:fs") as typeof import("node:fs");
+    const { join } = require("node:path") as typeof import("node:path");
+
+    const geminiDir = join(opts.projectRoot, ".gemini");
+    const settingsPath = join(geminiDir, "settings.json");
+    const backupPath = join(geminiDir, "settings.json.aos-backup");
+
+    mkdirSync(geminiDir, { recursive: true });
+    const hadBackup = existsSync(settingsPath);
+    if (hadBackup) renameSync(settingsPath, backupPath);
+
+    writeFileSync(settingsPath, JSON.stringify({
+      mcpServers: {
+        aos: {
+          command: "bun",
+          args: [opts.bridgeScriptPath],
+          env: { AOS_BRIDGE_SOCKET: opts.socketPath },
+          trust: true,
+          timeout: 600000,
+        },
+      },
+    }, null, 2));
+
+    return () => {
+      try { unlinkSync(settingsPath); } catch { /* ignore */ }
+      if (hadBackup) {
+        try { renameSync(backupPath, settingsPath); } catch { /* ignore */ }
+      }
+    };
   }
 }
