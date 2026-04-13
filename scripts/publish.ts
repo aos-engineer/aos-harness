@@ -2,8 +2,9 @@
 /**
  * AOS Harness — Monorepo Publish Script
  *
- * Publishes @aos-harness/runtime and aos-harness (CLI) to npm.
- * Handles core/ bundling and workspace:* resolution with try/finally safety.
+ * Publishes all workspace packages to npm in dependency order with
+ * lockstep version enforcement. Idempotent: if a package version already
+ * exists on the registry, that package is skipped and the script continues.
  *
  * Dry-run by default. Pass --confirm to actually publish.
  */
@@ -16,12 +17,32 @@ import { copyCore, cleanCore } from "./copy-core";
 const root = resolve(import.meta.dir, "..");
 const confirm = process.argv.includes("--confirm");
 
-function readPkg(dir: string): Record<string, unknown> | null {
-  try {
-    return JSON.parse(readFileSync(resolve(root, dir, "package.json"), "utf-8"));
-  } catch {
-    return null;
-  }
+type PublishEntry = {
+  dir: string;
+  name: string;
+  pinDeps: string[];
+  postPublish?: () => void;
+  prePublish?: () => void;
+};
+
+const PUBLISH_ORDER: PublishEntry[] = [
+  { dir: "runtime",                name: "@aos-harness/runtime",             pinDeps: [] },
+  { dir: "adapters/shared",        name: "@aos-harness/adapter-shared",      pinDeps: ["@aos-harness/runtime"] },
+  { dir: "adapters/claude-code",   name: "@aos-harness/claude-code-adapter", pinDeps: ["@aos-harness/runtime", "@aos-harness/adapter-shared"] },
+  { dir: "adapters/codex",         name: "@aos-harness/codex-adapter",       pinDeps: ["@aos-harness/runtime", "@aos-harness/adapter-shared"] },
+  { dir: "adapters/gemini",        name: "@aos-harness/gemini-adapter",      pinDeps: ["@aos-harness/runtime", "@aos-harness/adapter-shared"] },
+  { dir: "adapters/pi",            name: "@aos-harness/pi-adapter",          pinDeps: ["@aos-harness/runtime", "@aos-harness/adapter-shared"] },
+  {
+    dir: "cli",
+    name: "aos-harness",
+    pinDeps: ["@aos-harness/runtime", "@aos-harness/adapter-shared"],
+    prePublish: () => copyCore(),
+    postPublish: () => cleanCore(),
+  },
+];
+
+function readPkg(dir: string): Record<string, unknown> {
+  return JSON.parse(readFileSync(resolve(root, dir, "package.json"), "utf-8"));
 }
 
 function readPkgRaw(dir: string): string {
@@ -32,10 +53,82 @@ function writePkg(dir: string, content: string): void {
   writeFileSync(resolve(root, dir, "package.json"), content, "utf-8");
 }
 
+function pinWorkspaceDeps(raw: string, pinMap: Record<string, string>): string {
+  let out = raw;
+  for (const [depName, version] of Object.entries(pinMap)) {
+    const pattern = new RegExp(`"${depName.replace(/[/@-]/g, "\\$&")}":\\s*"workspace:\\*"`, "g");
+    out = out.replace(pattern, `"${depName}": "${version}"`);
+  }
+  return out;
+}
+
+function isAlreadyPublished(stderr: string): boolean {
+  const s = stderr.toLowerCase();
+  return (
+    s.includes("already exists") ||
+    s.includes("cannot publish over") ||
+    s.includes("you cannot publish over the previously published versions") ||
+    (s.includes("403") && s.includes("previously published"))
+  );
+}
+
+async function publishWithPinnedDeps(entry: PublishEntry, pinMap: Record<string, string>): Promise<void> {
+  const cwd = resolve(root, entry.dir);
+  const originalRaw = readPkgRaw(entry.dir);
+  const version = (JSON.parse(originalRaw) as { version: string }).version;
+
+  try {
+    if (entry.prePublish) entry.prePublish();
+
+    if (entry.pinDeps.length > 0) {
+      const resolved = pinWorkspaceDeps(originalRaw, pinMap);
+      writePkg(entry.dir, resolved);
+    }
+
+    if (entry.dir === "cli") {
+      const bundledAdapters = ["pi", "claude-code", "gemini", "codex", "shared"];
+      for (const adapterName of bundledAdapters) {
+        const adapterPkgPath = resolve(root, "cli", "adapters", adapterName, "package.json");
+        if (existsSync(adapterPkgPath)) {
+          const adapterRaw = readFileSync(adapterPkgPath, "utf-8");
+          writeFileSync(adapterPkgPath, pinWorkspaceDeps(adapterRaw, pinMap), "utf-8");
+        }
+      }
+    }
+
+    const label = `${entry.name}@${version}`;
+    if (!confirm) {
+      console.log(`  [dry-run] bun publish --dry-run  (${label})`);
+      const result = await $`bun publish --dry-run`.cwd(cwd).quiet().nothrow();
+      if (result.exitCode !== 0) {
+        console.log(`    ⚠ dry-run issue: ${result.stderr.toString().trim()}`);
+      } else {
+        console.log(`    ✓ would publish ${label}`);
+      }
+    } else {
+      console.log(`  Publishing ${label}...`);
+      const result = await $`bun publish --access public`.cwd(cwd).nothrow();
+      if (result.exitCode !== 0) {
+        const stderr = result.stderr.toString();
+        if (isAlreadyPublished(stderr)) {
+          console.log(`  ⤳ ${label} already exists on registry — skipping`);
+        } else {
+          console.error(`  ✗ Failed to publish ${label}\n${stderr}`);
+          throw new Error(`Publish failed for ${entry.name}`);
+        }
+      } else {
+        console.log(`  ✓ Published ${label}`);
+      }
+    }
+  } finally {
+    writePkg(entry.dir, originalRaw);
+    if (entry.postPublish) entry.postPublish();
+  }
+}
+
 async function main() {
   console.log("=== AOS Harness Publish ===\n");
 
-  // 1. Run unit tests
   console.log("▸ Running unit tests...");
   const testResult = await $`bun test --cwd ${resolve(root, "runtime")}`.quiet().nothrow();
   if (testResult.exitCode !== 0) {
@@ -44,7 +137,6 @@ async function main() {
   }
   console.log("✓ Unit tests passed\n");
 
-  // 2. Run integration validation
   console.log("▸ Running integration validation...");
   const integrationScript = resolve(root, "tests/integration/validate-config.ts");
   const intResult = await $`bun run ${integrationScript}`.quiet().nothrow();
@@ -54,136 +146,31 @@ async function main() {
   }
   console.log("✓ Integration validation passed\n");
 
-  // 3. Read package versions
-  const runtimePkg = readPkg("runtime");
-  const sharedPkg = readPkg("adapters/shared");
-  const cliPkg = readPkg("cli");
-  if (!runtimePkg || !cliPkg) {
-    console.error("✗ Could not read package.json for runtime or cli");
+  const versions = new Map<string, string>();
+  for (const entry of PUBLISH_ORDER) {
+    const pkg = readPkg(entry.dir);
+    versions.set(entry.name, pkg.version as string);
+  }
+  const releaseVersion = versions.get("@aos-harness/runtime")!;
+  const mismatches = [...versions.entries()].filter(([, v]) => v !== releaseVersion);
+  if (mismatches.length > 0) {
+    console.error(`✗ Lockstep violation: expected all packages at ${releaseVersion}`);
+    for (const [name, v] of mismatches) console.error(`  ${name}@${v}`);
     process.exit(1);
   }
+  console.log(`▸ Release version: ${releaseVersion}\n`);
 
-  const runtimeVersion = runtimePkg.version as string;
-  const sharedVersion = sharedPkg?.version as string ?? runtimeVersion;
-  const cliVersion = cliPkg.version as string;
-  console.log(`▸ Packages to publish:\n`);
-  console.log(`  ${runtimePkg.name}@${runtimeVersion}  (runtime/)`);
-  if (sharedPkg) console.log(`  ${sharedPkg.name}@${sharedVersion}  (adapters/shared/)`);
-  console.log(`  ${cliPkg.name}@${cliVersion}  (cli/)\n`);
+  const pinMap: Record<string, string> = {
+    "@aos-harness/runtime": releaseVersion,
+    "@aos-harness/adapter-shared": releaseVersion,
+  };
 
-  if (runtimeVersion !== cliVersion) {
-    console.error(`✗ Version mismatch: runtime=${runtimeVersion}, cli=${cliVersion}`);
-    process.exit(1);
-  }
+  console.log("▸ Packages to publish:\n");
+  for (const entry of PUBLISH_ORDER) console.log(`  ${entry.name}@${releaseVersion}  (${entry.dir}/)`);
+  console.log();
 
-  // 4. Publish runtime first
-  const runtimeCwd = resolve(root, "runtime");
-  if (!confirm) {
-    console.log(`  [dry-run] bun publish --dry-run  (${runtimePkg.name})`);
-    const result = await $`bun publish --dry-run`.cwd(runtimeCwd).quiet().nothrow();
-    if (result.exitCode !== 0) {
-      console.log(`    ⚠ dry-run issue: ${result.stderr.toString().trim()}`);
-    } else {
-      console.log(`    ✓ would publish ${runtimePkg.name}@${runtimeVersion}`);
-    }
-  } else {
-    console.log(`  Publishing ${runtimePkg.name}@${runtimeVersion}...`);
-    const result = await $`bun publish --access public`.cwd(runtimeCwd).nothrow();
-    if (result.exitCode !== 0) {
-      console.error(`  ✗ Failed to publish ${runtimePkg.name}`);
-      process.exit(1);
-    }
-    console.log(`  ✓ Published ${runtimePkg.name}@${runtimeVersion}\n`);
-  }
-
-  // 5. Publish adapter-shared (dependency of all adapters)
-  if (sharedPkg) {
-    const sharedCwd = resolve(root, "adapters/shared");
-    const originalSharedPkg = readPkgRaw("adapters/shared");
-
-    try {
-      // Pin workspace dependency
-      const resolvedShared = originalSharedPkg.replace(
-        `"@aos-harness/runtime": "workspace:*"`,
-        `"@aos-harness/runtime": "${runtimeVersion}"`,
-      );
-      writePkg("adapters/shared", resolvedShared);
-
-      if (!confirm) {
-        console.log(`  [dry-run] bun publish --dry-run  (${sharedPkg.name})`);
-        const result = await $`bun publish --dry-run`.cwd(sharedCwd).quiet().nothrow();
-        if (result.exitCode !== 0) {
-          console.log(`    ⚠ dry-run issue: ${result.stderr.toString().trim()}`);
-        } else {
-          console.log(`    ✓ would publish ${sharedPkg.name}@${sharedVersion}`);
-        }
-      } else {
-        console.log(`  Publishing ${sharedPkg.name}@${sharedVersion}...`);
-        const result = await $`bun publish --access public`.cwd(sharedCwd).nothrow();
-        if (result.exitCode !== 0) {
-          console.error(`  ✗ Failed to publish ${sharedPkg.name}`);
-          throw new Error(`Publish failed for ${sharedPkg.name}`);
-        }
-        console.log(`  ✓ Published ${sharedPkg.name}@${sharedVersion}\n`);
-      }
-    } finally {
-      writePkg("adapters/shared", originalSharedPkg);
-      console.log("  Restored adapters/shared/package.json");
-    }
-  }
-
-  // 6. Publish CLI with core bundling and workspace resolution
-  const cliCwd = resolve(root, "cli");
-  const originalPkgJson = readPkgRaw("cli");
-
-  try {
-    // Copy core/ into cli/core/
-    console.log("  Bundling core configs...");
-    copyCore();
-
-    // Replace workspace:* with pinned versions in CLI package
-    const resolved = originalPkgJson
-      .replace(`"@aos-harness/runtime": "workspace:*"`, `"@aos-harness/runtime": "${runtimeVersion}"`)
-      .replace(`"@aos-harness/adapter-shared": "workspace:*"`, `"@aos-harness/adapter-shared": "${sharedVersion}"`);
-    writePkg("cli", resolved);
-
-    // Also resolve workspace:* in bundled adapter package.json files
-    const bundledAdapters = ["pi", "claude-code", "gemini", "codex", "shared"];
-    for (const adapterName of bundledAdapters) {
-      const adapterPkgPath = resolve(root, "cli", "adapters", adapterName, "package.json");
-      if (existsSync(adapterPkgPath)) {
-        const adapterPkgRaw = readFileSync(adapterPkgPath, "utf-8");
-        const resolvedAdapter = adapterPkgRaw
-          .replace(`"@aos-harness/runtime": "workspace:*"`, `"@aos-harness/runtime": "${runtimeVersion}"`)
-          .replace(`"@aos-harness/adapter-shared": "workspace:*"`, `"@aos-harness/adapter-shared": "${sharedVersion}"`);
-        writeFileSync(adapterPkgPath, resolvedAdapter, "utf-8");
-      }
-    }
-    console.log(`  Pinned workspace:* references to ${runtimeVersion}`);
-    console.log(`  Pinned @aos-harness/runtime to ${runtimeVersion}`);
-
-    if (!confirm) {
-      console.log(`  [dry-run] bun publish --dry-run  (${cliPkg.name})`);
-      const result = await $`bun publish --dry-run`.cwd(cliCwd).quiet().nothrow();
-      if (result.exitCode !== 0) {
-        console.log(`    ⚠ dry-run issue: ${result.stderr.toString().trim()}`);
-      } else {
-        console.log(`    ✓ would publish ${cliPkg.name}@${cliVersion}`);
-      }
-    } else {
-      console.log(`  Publishing ${cliPkg.name}@${cliVersion}...`);
-      const result = await $`bun publish --access public`.cwd(cliCwd).nothrow();
-      if (result.exitCode !== 0) {
-        console.error(`  ✗ Failed to publish ${cliPkg.name}`);
-        throw new Error(`Publish failed for ${cliPkg.name}`);
-      }
-      console.log(`  ✓ Published ${cliPkg.name}@${cliVersion}`);
-    }
-  } finally {
-    // Always restore original package.json and clean core/
-    writePkg("cli", originalPkgJson);
-    console.log("  Restored cli/package.json");
-    cleanCore();
+  for (const entry of PUBLISH_ORDER) {
+    await publishWithPinnedDeps(entry, pinMap);
   }
 
   console.log("\nDone.");
