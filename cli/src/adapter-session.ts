@@ -63,14 +63,30 @@ const ADAPTER_MAP: Record<string, { package: string; className: string }> = {
 async function loadAdapterRuntime(platform: string): Promise<any> {
   const entry = ADAPTER_MAP[platform];
   if (!entry) throw new Error(`Unknown adapter: ${platform}`);
+
+  async function readAdapterVersion(fromPath: string): Promise<string> {
+    try {
+      const pkgUrl = new URL("../package.json", fromPath).href;
+      const { readFile } = await import("node:fs/promises");
+      const raw = await readFile(new URL(pkgUrl), "utf-8");
+      return (JSON.parse(raw) as { version: string }).version ?? "unknown";
+    } catch {
+      return "unknown";
+    }
+  }
+
   try {
     const mod = await import(entry.package);
+    const resolved = (import.meta as any).resolve?.(entry.package) ?? entry.package;
+    const version = await readAdapterVersion(resolved);
+    console.error(`[adapter] loaded ${entry.package}@${version} (standalone)`);
     return mod[entry.className];
   } catch {
-    // Fallback: resolve from the installed aos-harness package's bundled adapter tree.
     const here = dirname(fileURLToPath(import.meta.url));
     const fallback = join(here, "..", "..", "adapters", platform, "src", "index.ts");
     const mod = await import(fallback);
+    const version = await readAdapterVersion(`file://${fallback}`);
+    console.error(`[adapter] loaded ${entry.package}@${version} (bundled: ${fallback})`);
     return mod[entry.className];
   }
 }
