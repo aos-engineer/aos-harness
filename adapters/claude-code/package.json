@@ -1,9 +1,20 @@
 {
   "name": "@aos-harness/claude-code-adapter",
-  "version": "0.2.0",
+  "version": "0.5.0",
+  "description": "AOS Harness adapter for Anthropic's Claude Code CLI.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aos-engineer/aos-harness.git",
+    "directory": "adapters/claude-code"
+  },
+  "homepage": "https://aos.engineer",
+  "keywords": ["aos-harness", "ai-agents", "claude-code", "adapter"],
   "type": "module",
+  "engines": { "bun": ">=1.0.0" },
   "exports": { ".": "./src/index.ts" },
-  "files": ["src/"],
+  "files": ["src/", "README.md"],
+  "publishConfig": { "access": "public" },
   "dependencies": {
     "@aos-harness/runtime": "workspace:*",
     "@aos-harness/adapter-shared": "workspace:*"
