@@ -54,9 +54,14 @@ Add the following fields to each of:
   },
   "homepage": "https://aos.engineer",
   "keywords": ["aos-harness", "ai-agents", "<adapter>", "adapter"],
+  "engines": { "bun": ">=1.0.0" },
+  "files": ["src/", "README.md"],
   "publishConfig": { "access": "public" }
 }
 ```
+
+- `engines.bun` is required — adapter packages ship raw TypeScript, so a Node-only install would fail confusingly without it. Matches the CLI/runtime convention.
+- `files` must be explicit to avoid publishing dev configs, fixtures, or local scratch files. Existing adapters declare `["src/"]`; add `README.md` (create per-adapter stubs where missing).
 
 Root `package.json` remains `private: true`.
 
@@ -74,7 +79,7 @@ Root `package.json` remains `private: true`.
 
 ### 3. `scripts/publish.ts` refactor
 
-- Define `publishedPkgs` array in publish order: `runtime → shared → claude-code → codex → gemini → pi → cli`.
+- Define `publishedPkgs` array in publish order: `runtime → shared → claude-code → codex → gemini → pi → cli`. Ordering ensures each package's dependencies already exist on the registry when it publishes.
 - Extract the try/finally workspace-pinning pattern into a helper:
   ```ts
   async function publishWithPinnedDeps(
@@ -83,14 +88,21 @@ Root `package.json` remains `private: true`.
     pinMap: Record<string, string>,
   ): Promise<void>
   ```
-  The helper (a) snapshots the raw `package.json`, (b) replaces each `workspace:*` entry per `pinMap`, (c) runs `bun publish` (or dry-run), and (d) always restores the original file in `finally`.
+  The helper (a) snapshots the raw `package.json`, (b) replaces **every** `workspace:*` entry per `pinMap`, (c) runs `bun publish` (or dry-run), and (d) always restores the original file in `finally`.
+- **`pinMap` must include all cross-workspace deps, not just direct parents.** Concretely:
+  - `shared` → `{ "@aos-harness/runtime": releaseVersion }`
+  - each adapter → `{ "@aos-harness/runtime": releaseVersion, "@aos-harness/adapter-shared": releaseVersion }`
+  - `cli` → `{ "@aos-harness/runtime": releaseVersion, "@aos-harness/adapter-shared": releaseVersion }` (plus bundled `cli/adapters/*/package.json` resolution as today)
 - **Lockstep gate:** compute `releaseVersion` from `runtime`, then assert every other package's version equals it. Fail fast with a clear message if not.
+- **Idempotent retries.** If `bun publish` fails with "version already exists" for a package, treat it as success and continue to the next. This makes the script safe to re-run after a partial publish (e.g., npm outage mid-run leaves runtime + shared on the registry; re-running should skip them and publish the remaining five). Match on stderr/exit-code pattern from `bun publish`; document the exact match string in code.
 - Keep the existing `copy-core` call before CLI publish so bundled adapters stay in sync.
 - Continue resolving `workspace:*` inside `cli/adapters/*/package.json` during the CLI publish step (already implemented).
 
 ### 4. CLI bundling unchanged
 
 `cli/package.json` already declares `files: ["src/", "core/", "adapters/", "README.md"]`. The hybrid model requires no CLI-side changes beyond the version bump.
+
+**Adapter resolution precedence (hybrid).** The CLI's adapter loader tries `import("@aos-harness/<name>-adapter")` first and falls back to the bundled `cli/adapters/<name>` path. Node/Bun module resolution means a standalone install (global or local) wins over the bundled copy. This is the intended behavior — users who explicitly install a standalone adapter get their chosen version. Document this precedence in the CLI README so users aren't surprised by bundled-vs-standalone version mismatches. Recommended UX: the CLI logs which adapter path resolved at load time (e.g., `loaded @aos-harness/claude-code-adapter@0.5.0 from <path>`).
 
 ### 5. Dry-run gate before publish
 
@@ -101,7 +113,8 @@ Root `package.json` remains `private: true`.
 1. `bun run lint` passes.
 2. `bun run test` passes.
 3. `bun run publish:all` (dry-run) reports 7 packages, all with matching versions, no workspace-resolution warnings.
-4. Manual spot-check: unpack the dry-run tarballs (or read `files` output) to confirm each adapter package contains `src/` and a resolved `package.json` (no `workspace:*` leaks).
+4. Manual spot-check: unpack the dry-run tarballs (or read `files` output) to confirm each adapter package contains `src/`, a `README.md`, and a resolved `package.json` (no `workspace:*` leaks, `engines.bun` present).
+5. Idempotency check: re-run `bun run publish:all` (dry-run) after a simulated partial publish (mock the "already exists" response for `runtime`) and confirm the script continues rather than aborting.
 
 ## Rollout
 
