@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0] - 2026-04-13
+
+### Added
+
+- Standalone npm distribution for all four adapters: `@aos-harness/claude-code-adapter`, `@aos-harness/codex-adapter`, `@aos-harness/gemini-adapter`, `@aos-harness/pi-adapter`. Hybrid model — adapters are still bundled inside the `aos-harness` CLI for zero-install UX.
+- `[adapter]` log line at adapter load time showing package name, version, and whether the adapter was resolved standalone or from the CLI's bundled copy.
+
+### Changed
+
+- Lockstep versioning across the seven published packages. `scripts/publish.ts` now enforces a single `releaseVersion` across `runtime`, `adapter-shared`, the four adapters, and the CLI.
+- `scripts/publish.ts` refactored to a single loop with a `publishWithPinnedDeps` helper. Idempotent: re-running after a partial publish skips packages already on the registry.
+- Every adapter `package.json` now declares `description`, `license`, `repository.directory`, `homepage`, `keywords`, `engines.bun`, `files`, and `publishConfig.access`.
+
 ## [0.1.0] - 2026-03-24
 
 ### Added
