@@ -17,8 +17,12 @@ git push origin v<version>
 # 4. Release workflow starts. Post the link in #releases (or equivalent)
 #    and @mention a reviewer from the npm-publish environment.
 # 5. Reviewer approves. Publish completes in ~3–5 min.
-# 6. Verify on consumer machine:
-npm audit signatures @aos-harness/pi-adapter@<version>
+# 6. Verify on consumer machine (install-then-audit — npm audit signatures
+#    only audits installed dependencies, not arbitrary package@version args):
+mkdir /tmp/verify && cd /tmp/verify
+npm init -y > /dev/null
+npm install --no-save @aos-harness/pi-adapter@<version>
+npm audit signatures
 ```
 
 ## RC (release candidate) publishes
@@ -78,9 +82,15 @@ Required for publish on the `@aos-harness` scope. Configure at npm.com → Organ
 
 ## Verifying provenance as a consumer
 
+`npm audit signatures` only audits packages installed in `node_modules`, so first install the package(s), then audit:
+
 ```bash
-npm audit signatures @aos-harness/pi-adapter@<version>
+mkdir /tmp/verify && cd /tmp/verify
+npm init -y > /dev/null
+npm install --no-save @aos-harness/pi-adapter@<version>
+npm audit signatures
 # Expected: "verified" for all packages
+
 npm view @aos-harness/pi-adapter@<version> dist.attestations
 # Expected: present, contains GitHub Actions workflow URL
 ```
