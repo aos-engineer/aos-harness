@@ -5,10 +5,11 @@
 import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { c, type ParsedArgs } from "../colors";
-import { getHarnessRoot, discoverDirs, promptSelect, getAdapterDir, ADAPTER_ALLOWLIST, isValidAdapter, validatePlatformUrl } from "../utils";
+import { getHarnessRoot, discoverDirs, promptSelect, getAdapterDir, ADAPTER_ALLOWLIST, isValidAdapter, validatePlatformUrl, parseAllowCodeExecutionFlag } from "../utils";
 import type { TranscriptEntry } from "@aos-harness/runtime/types";
 import { runAdapterSession } from "../adapter-session";
 import { readAdapterConfig } from "../adapter-config";
+import { buildToolPolicy, type ToolPolicy } from "@aos-harness/adapter-shared";
 
 function createEventBuffer(platformUrl: string, sessionId: string) {
   const buffer: TranscriptEntry[] = [];
@@ -59,6 +60,10 @@ ${c.bold("OPTIONS")}
   --dry-run             Validate config and print simulation summary without launching
   --workflow-dir <path> Directory containing workflow YAML files (default: core/workflows/)
   --platform-url <url> Platform API URL for live observability (e.g. http://localhost:3001)
+  --allow-code-execution[=<langs>|none]
+                        Narrow (never widen) the profile's code-execution allowlist
+                        for this session. Pass \`none\` to force-deny; pass a comma
+                        list like \`python,bash\` to intersect with the profile.
 
 ${c.bold("DESCRIPTION")}
   Launches a deliberation or execution session using the specified profile.
@@ -177,7 +182,33 @@ export async function runCommand(args: ParsedArgs): Promise<void> {
 
   // ── Validate brief against profile ───────────────────────────
   const { loadProfile, loadWorkflow, validateBrief } = await import("@aos-harness/runtime/config-loader");
-  const profile = loadProfile(profileDir);
+  let profile: ReturnType<typeof loadProfile>;
+  try {
+    profile = loadProfile(profileDir);
+  } catch (err: any) {
+    // Malformed `tools:` block (and any other profile-schema failure) comes
+    // through as a ConfigError. Surface as exit 3 per spec D6 so CI can
+    // distinguish policy/config errors from runtime errors (exit 1) and
+    // invalid input (exit 2).
+    if (err?.name === "ConfigError") {
+      console.error(c.red(err.message));
+      process.exit(3);
+    }
+    throw err;
+  }
+
+  // ── Resolve tool policy (spec D3.2) ─────────────────────────
+  // Profile's `tools:` block is the ceiling; the CLI flag can narrow but
+  // never widen. Any widening attempt from buildToolPolicy is exit 3.
+  const allowCodeExec = parseAllowCodeExecutionFlag(args.flags["allow-code-execution"]);
+  let toolPolicy: ToolPolicy;
+  try {
+    toolPolicy = buildToolPolicy(profile.tools!, { allowCodeExecution: allowCodeExec });
+  } catch (err: any) {
+    console.error(c.red(err.message));
+    process.exit(3);
+  }
+
   const validation = validateBrief(briefPath, profile.input.required_sections);
 
   // ── Detect execution profile (has workflow field) ──────────
@@ -392,6 +423,11 @@ ${c.bold(`AOS ${sessionType} Session`)}
       env.AOS_WORKFLOW_ID = workflowConfig.id;
       env.AOS_WORKFLOWS_DIR = workflowsDir;
     }
+    // Pass the resolved ToolPolicy to the Pi adapter as JSON. The Pi adapter
+    // runs in a separate process; this env var is the contract. Pi-side
+    // consumption (gating executeCode + emitting tool-denied transcript
+    // events) is a future follow-up — see adapter-trust-model-plan.md.
+    env.AOS_TOOL_POLICY_JSON = JSON.stringify(toolPolicy);
 
     const proc = Bun.spawn(["pi", "-e", adapterEntry], {
       cwd: root,
@@ -420,6 +456,7 @@ ${c.bold(`AOS ${sessionType} Session`)}
       workflowConfig: isExecutionProfile ? workflowConfig : null,
       workflowsDir,
       modelOverrides: adapterConfig?.model_overrides,
+      toolPolicy,
     });
   }
 }

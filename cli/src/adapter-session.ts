@@ -24,6 +24,7 @@ import {
   composeAdapter,
   discoverAgents,
   createFlatAgentsDir,
+  type ToolPolicy,
 } from "@aos-harness/adapter-shared";
 import { AOSEngine } from "@aos-harness/runtime";
 import { loadAgent } from "@aos-harness/runtime/config-loader";
@@ -43,6 +44,18 @@ export interface AdapterSessionConfig {
   workflowConfig: any | null;
   workflowsDir: string;
   modelOverrides?: Partial<Record<string, string>>;
+  /**
+   * Tool policy resolved by the CLI from the profile's `tools:` block narrowed
+   * (optionally) by the `--allow-code-execution` flag. Passed straight into
+   * BaseWorkflow to gate tool access during the session (spec D3).
+   */
+  toolPolicy?: ToolPolicy;
+  /**
+   * Path where BaseWorkflow should append tool-decision audit events
+   * (one JSON object per line). Defaults to `<deliberationDir>/transcript.jsonl`
+   * when omitted.
+   */
+  transcriptPath?: string;
 }
 
 const ADAPTER_MAP: Record<string, { package: string; className: string }> = {
@@ -181,7 +194,11 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
   const eventBus = new BaseEventBus();
   const agentRuntime = new RuntimeClass(eventBus, config.modelOverrides);
   const ui = new TerminalUI();
-  const workflow = new BaseWorkflow(agentRuntime, config.root);
+  const workflow = new BaseWorkflow(agentRuntime, config.root, {
+    toolPolicy: config.toolPolicy,
+    transcriptPath:
+      config.transcriptPath ?? join(config.deliberationDir, "transcript.jsonl"),
+  });
   const adapter = composeAdapter(agentRuntime, eventBus, ui, workflow);
   log("layers composed");
 
