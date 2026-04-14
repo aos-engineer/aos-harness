@@ -3,7 +3,7 @@
   "version": "0.7.0-rc.1",
   "description": "Agentic Orchestration System — assemble AI agents into deliberation and execution teams",
   "license": "MIT",
-  "publishConfig": { "access": "public", "provenance": true },
+  "publishConfig": { "access": "public" },
   "repository": {
     "type": "git",
     "url": "https://github.com/aos-engineer/aos-harness.git"

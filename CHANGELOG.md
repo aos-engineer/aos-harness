@@ -29,7 +29,7 @@ See `docs/security/profile-tools-migration.md` (new).
 
 ### Release infrastructure
 
-- Packages are now published from GitHub Actions with npm provenance attestations. Consumers can verify with `npm audit signatures @aos-harness/<pkg>@<version>`.
+- Packages are now published from GitHub Actions via an environment-gated release workflow. Consumers can verify the registry's built-in signature with `npm audit signatures` after install. (Provenance attestations require a public source repo; since this repo is private, the release intentionally does not emit them. Trust is instead anchored on the tag-triggered, reviewer-approved CI publish path.)
 - Local `publish:all` is replaced by `publish:dry-run` (pack-only, no upload). Publishing from a laptop is no longer supported; use `git tag -a v<version>` + push.
 - YAML-safety lint is now AST-based (`scripts/check-yaml-safety.ts`). The previous grep-based version is removed.
 - `scripts/copy-core.ts` refuses symlink targets and paths outside `cli/core`.

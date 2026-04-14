@@ -5,7 +5,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write
+  # id-token: write omitted: provenance requires public source, repo is private
 
 jobs:
   release:
@@ -49,13 +49,13 @@ jobs:
             echo "dist_tag=latest" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Publish all packages with provenance
+      - name: Publish all packages to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_ACTIONS: "true"
         run: bun run scripts/publish.ts --ci --dist-tag=${{ steps.disttag.outputs.dist_tag }}
 
-      - name: Verify provenance on npm (install-then-audit)
+      - name: Verify registry signatures (install-then-audit)
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ github.ref_name }}
@@ -88,4 +88,7 @@ jobs:
             sleep 15
           done
 
+          # Without --provenance, this verifies only the registry's built-in
+          # signature (npm signs every published tarball). No SLSA attestation
+          # assertion — that requires public source.
           npm audit signatures

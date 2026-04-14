@@ -273,13 +273,16 @@ async function runCi(): Promise<void> {
       }
 
       console.log(`  Publishing ${label}...`);
-      // Task 0 probe (2026-04-14, GitHub Actions run 24408969472) confirmed
-      // Bun 1.3.12 `bun publish` does NOT expand `${NODE_AUTH_TOKEN}` in the
-      // .npmrc written by actions/setup-node — it fails with "missing
-      // authentication" in CI. We therefore publish via the npm CLI, which
-      // honors both the .npmrc convention and the Sigstore/OIDC flow needed
-      // for real provenance attestations. See docs/security/provenance-probe-result.md.
-      const result = await $`npx --yes npm@latest publish --access public --provenance --tag=${distTag}`
+      // We publish via the npm CLI (not `bun publish`) because Bun 1.3.12
+      // does NOT expand `${NODE_AUTH_TOKEN}` in the .npmrc written by
+      // actions/setup-node and errors with "missing authentication" in CI.
+      // Task 0 probe (2026-04-14, GitHub Actions run 24408969472) confirmed.
+      //
+      // --provenance is intentionally NOT passed here: this repo is private,
+      // and npm rejects provenance for private-source packages. If the repo
+      // becomes public later, re-add --provenance and the `id-token: write`
+      // permission in release.yml.
+      const result = await $`npx --yes npm@latest publish --access public --tag=${distTag}`
         .cwd(cwd)
         .nothrow();
 
