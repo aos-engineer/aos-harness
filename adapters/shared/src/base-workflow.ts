@@ -18,6 +18,7 @@ import type {
   SkillInput,
   SkillResult,
   ReviewResult,
+  ToolCommand,
 } from "@aos-harness/runtime/types";
 import { UnsupportedError } from "@aos-harness/runtime/types";
 import { DEFAULT_TOOL_POLICY } from "@aos-harness/runtime/profile-schema";
@@ -411,7 +412,7 @@ Respond with:
 
   async enforceToolAccess(
     agentId: string,
-    toolCall: { tool: string; path?: string; command?: any },
+    toolCall: { tool: string; path?: string; command?: string | ToolCommand },
   ): Promise<{ allowed: boolean; reason?: string }> {
     const policy = this.toolPolicy;
     const entry = (policy as any)[toolCall.tool];
@@ -420,12 +421,12 @@ Respond with:
       this.emitToolDenied(agentId, toolCall.tool, reason, toolCall.command);
       return { allowed: false, reason };
     }
-    if (
-      toolCall.tool === "execute_code" &&
-      toolCall.command &&
-      typeof toolCall.command === "object"
-    ) {
-      const lang = toolCall.command.language ?? "bash";
+    const structured: ToolCommand | null =
+      typeof toolCall.command === "object" && toolCall.command !== null
+        ? toolCall.command
+        : null;
+    if (toolCall.tool === "execute_code" && structured) {
+      const lang = structured.language ?? "bash";
       if (!policy.execute_code.languages.includes(lang as any)) {
         const reason = `language "${lang}" not in profile allowlist (${
           policy.execute_code.languages.join(", ") || "none"
@@ -434,10 +435,10 @@ Respond with:
         return { allowed: false, reason };
       }
       if (
-        toolCall.command.timeout_ms &&
-        toolCall.command.timeout_ms > policy.execute_code.max_timeout_ms
+        structured.timeout_ms &&
+        structured.timeout_ms > policy.execute_code.max_timeout_ms
       ) {
-        const reason = `timeout ${toolCall.command.timeout_ms}ms exceeds profile max ${policy.execute_code.max_timeout_ms}ms`;
+        const reason = `timeout ${structured.timeout_ms}ms exceeds profile max ${policy.execute_code.max_timeout_ms}ms`;
         this.emitToolDenied(agentId, toolCall.tool, reason, toolCall.command);
         return { allowed: false, reason };
       }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { DomainEnforcer } from "../src/domain-enforcer";
-import type { DomainRules, EnforcementResult } from "../src/types";
+import type { DomainRules, EnforcementResult, ToolCommand } from "../src/types";
 import { MockAdapter } from "./mock-adapter";
 
 // ── Test 1: DomainEnforcer with DomainRules directly ──────────────────────────
@@ -97,7 +97,7 @@ describe("MockAdapter — enforceToolAccess with domainEnforcerOverride", () => 
     const adapter = new MockAdapter();
     adapter.domainEnforcerOverride = (
       _agentId: string,
-      toolCall: { tool: string; path?: string; command?: string },
+      toolCall: { tool: string; path?: string; command?: string | ToolCommand },
     ): EnforcementResult => {
       // Check tool access first
       const toolResult = enforcer.checkToolAccess(toolCall.tool);

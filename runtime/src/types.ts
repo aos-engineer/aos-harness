@@ -100,6 +100,16 @@ export interface EnforcementResult {
   reason?: string;
 }
 
+/**
+ * Structured command descriptor passed to `enforceToolAccess` for tools that
+ * need richer context than a raw command string (e.g. `execute_code`).
+ * Callers may still pass `command: string` for legacy shell-style tools.
+ */
+export interface ToolCommand {
+  language?: string;
+  timeout_ms?: number;
+}
+
 // ── Delegation Config ──────────────────────────────────────────
 
 export type DelegationStyle = "delegate-only" | "delegate-and-execute";
@@ -658,7 +668,7 @@ export interface WorkflowAdapter {
   createArtifact(artifact: ArtifactManifest, content: string): Promise<void>;
   loadArtifact(artifactId: string, sessionDir: string): Promise<LoadedArtifact>;
   submitForReview(artifact: LoadedArtifact, reviewer: AgentHandle, reviewPrompt?: string): Promise<ReviewResult>;
-  enforceToolAccess(agentId: string, toolCall: { tool: string; path?: string; command?: string }): Promise<EnforcementResult>;
+  enforceToolAccess(agentId: string, toolCall: { tool: string; path?: string; command?: string | ToolCommand }): Promise<EnforcementResult>;
 }
 
 export type AOSAdapter = AgentRuntimeAdapter & EventBusAdapter & UIAdapter & WorkflowAdapter;
