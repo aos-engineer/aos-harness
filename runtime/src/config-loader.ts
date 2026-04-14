@@ -9,6 +9,7 @@ import { join } from "node:path";
 import yaml from "js-yaml";
 import type { AgentConfig, ProfileConfig, DomainConfig, InputSection, SkillConfig } from "./types";
 import type { WorkflowConfig } from "./workflow-runner";
+import { parseToolsBlock } from "./profile-schema";
 
 export class ConfigError extends Error {
   constructor(message: string, public path: string) {
@@ -105,6 +106,13 @@ export function loadProfile(profileDir: string): ProfileConfig {
 
   // Parse optional workflow field
   config.workflow = config.workflow ?? null;
+
+  // Parse optional tools block (spec D3.1). Malformed → throw (caller surfaces as exit 3).
+  try {
+    config.tools = parseToolsBlock((config as any).tools);
+  } catch (e) {
+    throw new ConfigError((e as Error).message, yamlPath);
+  }
 
   // Ensure role_override is preserved on perspective entries
   if (config.assembly?.perspectives) {

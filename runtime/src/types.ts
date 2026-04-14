@@ -301,6 +301,7 @@ export interface ProfileConfig {
     interject: boolean;
   };
   workflow?: string | null;
+  tools: import("./profile-schema").ToolsBlock;
 }
 
 // ── Domain Config ───────────────────────────────────────────────
