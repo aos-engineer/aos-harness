@@ -1,5 +1,12 @@
 # npm Release Runbook
 
+## Architecture
+
+- **Source repo:** private (`aos-engineer/aos-harness`).
+- **npm packages:** public scoped under `@aos-harness` (plus the unscoped `aos-harness` CLI). Free tier today; will flip to private / paid access-gated in a later release once monetization is ready.
+- **Provenance attestations:** intentionally not produced. npm requires a public source repo for provenance; we keep the source private to preserve IP and the option to gate future versions. See "Future monetization" below.
+- **Publish path:** tag-triggered GitHub Actions workflow (`.github/workflows/release.yml`) with an `npm-publish` environment gate.
+
 ## Who can publish
 
 Publishing requires (a) a tag push by a maintainer, plus (b) approval from a reviewer configured on the `npm-publish` GitHub environment. No laptop-based publishes in normal operation.
@@ -17,12 +24,14 @@ git push origin v<version>
 # 4. Release workflow starts. Post the link in #releases (or equivalent)
 #    and @mention a reviewer from the npm-publish environment.
 # 5. Reviewer approves. Publish completes in ~3–5 min.
-# 6. Verify on consumer machine (install-then-audit — npm audit signatures
-#    only audits installed dependencies, not arbitrary package@version args):
+# 6. Verify on a consumer machine:
 mkdir /tmp/verify && cd /tmp/verify
 npm init -y > /dev/null
-npm install --no-save @aos-harness/pi-adapter@<version>
+npm install @aos-harness/pi-adapter@<version>
 npm audit signatures
+# Expected:
+#   "1 package has a verified registry signature"
+# (No "verified attestation" line — that would require --provenance / public source.)
 ```
 
 ## RC (release candidate) publishes
@@ -31,7 +40,7 @@ Tags matching `v*-rc.*` (e.g. `v0.7.0-rc.1`) automatically publish to the `next`
 
 ## 24h environment approval timeout
 
-If a reviewer does not approve within 24h, the workflow auto-cancels. **This will happen on Friday-evening tag pushes.** To re-trigger:
+If a reviewer does not approve within 24h, the workflow auto-cancels. This will happen on Friday-evening tag pushes. To re-trigger:
 
 ```bash
 # Delete and re-push the same tag:
@@ -45,7 +54,7 @@ git tag -a v<version>-rc.N -m "v<version>-rc.N"
 git push origin v<version>-rc.N
 ```
 
-The original stuck tag remains in the repo as a dated annotated tag that never published — harmless.
+The original stuck tag remains as a dated annotated tag that never published — harmless.
 
 ## Break-glass (CI unavailable)
 
@@ -56,7 +65,6 @@ Requires two people. Do NOT do this alone.
 2. **Person A** shares the token with **Person B** via 1Password shared item or Signal (never Slack/email).
 3. **Person B** on a clean checkout at the signed tag publishes via vanilla `npm publish` (our `scripts/publish.ts --ci` refuses to run outside GitHub Actions by design, so break-glass deliberately bypasses it):
    ```bash
-   # On a clean checkout at the signed tag:
    git fetch --tags origin
    git checkout v<version>
    git status --porcelain   # must be empty
@@ -64,37 +72,32 @@ Requires two people. Do NOT do this alone.
 
    # Publish each package in dependency order (matches publish.ts PUBLISH_ORDER)
    for pkg_dir in runtime adapters/shared adapters/claude-code adapters/codex adapters/gemini adapters/pi cli; do
-     (cd "$pkg_dir" && npm publish --access public --provenance)
+     (cd "$pkg_dir" && npm publish --access public)
    done
 
    unset NODE_AUTH_TOKEN
    ```
    > **Warning:** plain `npm publish` does NOT apply the `workspace:*` → pinned-version rewrite that `publish.ts` performs. Before running the loop, confirm tarballs are clean by running `bun run publish:dry-run` locally (or manually pin any `workspace:*` references in the package.json files at the tagged commit).
 4. **Person A** immediately revokes the token at npm.com.
-5. **Both** file an incident issue titled "Break-glass publish of v<version>" documenting:
-   - Why CI was unavailable
-   - What was published
-   - What fix prevents recurrence
+5. **Both** file an incident issue titled "Break-glass publish of v<version>" documenting why CI was unavailable, what was published, and the fix to prevent recurrence.
 
 ## NPM 2FA
 
-Required for publish on the `@aos-harness` scope. Configure at npm.com → Organizations → @aos-harness → Packages → Require 2FA. Automation tokens bypass the 2FA prompt (by design — they're issued behind a 2FA challenge) and are the only way CI can publish.
+Recommended on the `@aos-harness` scope. Configure at npm.com → Organizations → @aos-harness → Packages → Require 2FA. Automation tokens bypass the 2FA prompt (by design — they're issued behind a 2FA challenge) and are the only way CI can publish.
 
-## Verifying provenance as a consumer
+## Verifying registry signatures as a consumer
 
-`npm audit signatures` only audits packages installed in `node_modules`, so first install the package(s), then audit:
+Every tarball npm serves is signed with npm's registry key. `npm audit signatures` verifies this after install:
 
 ```bash
 mkdir /tmp/verify && cd /tmp/verify
 npm init -y > /dev/null
 npm install @aos-harness/pi-adapter@<version>    # note: NOT --no-save
 npm audit signatures
-# Expected: "verified" for all packages (audit signatures only walks
-# dependencies recorded in package.json, hence no --no-save)
-
-npm view @aos-harness/pi-adapter@<version> dist.attestations
-# Expected: present, contains GitHub Actions workflow URL
+# Expected: "1 package has a verified registry signature"
 ```
+
+Without provenance, `npm audit signatures` will NOT print "verified attestation" — that's expected for private-source packages. Consumers rely on the environment-gated publish path and the clean-tag verification as the supply-chain guarantee instead.
 
 ## Secret hygiene
 
@@ -102,6 +105,13 @@ npm view @aos-harness/pi-adapter@<version> dist.attestations
 - If a repo-level `NPM_TOKEN` is ever added, delete it immediately and rotate the npm token.
 - Rotate the automation token on a schedule (every 90 days) or after any suspected compromise.
 
-## Provenance probe (reference)
+## Future monetization path
 
-See `docs/security/provenance-probe-result.md` for the record of the one-time test that verified Bun's `bun publish --provenance` produces valid attestations.
+When you're ready to gate downloads to paying users:
+
+1. Upgrade `@aos-harness` to a paid plan (Teams or Organizations) at npmjs.com.
+2. In each of the 7 published `package.json` files, change `"publishConfig": { "access": "public" }` → `"publishConfig": { "access": "restricted" }`. Adjust `scripts/publish.ts --ci` to pass `--access restricted` instead of `--access public`.
+3. Add paying customers as npm-org members with read permission to the scope (manually or via billing-integrated automation).
+4. Bump the version and cut a new release. Previously-public versions stay public (you can deprecate them but not unpublish after 72h).
+
+Pre-monetization versions (0.7.x, 0.8.x …) serve as a free tier entry point; paid features land at a later major.

@@ -17,7 +17,7 @@
   },
   "exports": { ".": "./src/index.ts" },
   "files": ["src/", "README.md"],
-  "publishConfig": { "access": "public", "provenance": true },
+  "publishConfig": { "access": "public" },
   "dependencies": {
     "@aos-harness/adapter-shared": "workspace:*",
     "@aos-harness/runtime": "workspace:*",
