@@ -17,7 +17,7 @@
     "./*": "./src/*"
   },
   "files": ["src/", "README.md"],
-  "publishConfig": { "access": "public" },
+  "publishConfig": { "access": "public", "provenance": true },
   "dependencies": {
     "@aos-harness/runtime": "workspace:*",
     "js-yaml": "^4.1.0"

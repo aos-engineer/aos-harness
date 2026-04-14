@@ -14,7 +14,7 @@
   "engines": { "bun": ">=1.0.0" },
   "exports": { ".": "./src/index.ts" },
   "files": ["src/", "README.md"],
-  "publishConfig": { "access": "public" },
+  "publishConfig": { "access": "public", "provenance": true },
   "dependencies": {
     "@aos-harness/runtime": "workspace:*",
     "@aos-harness/adapter-shared": "workspace:*"
