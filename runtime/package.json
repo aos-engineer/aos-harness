@@ -1,6 +1,7 @@
 {
   "name": "@aos-harness/runtime",
   "version": "0.6.0",
+  "publishConfig": { "access": "public", "provenance": true },
   "type": "module",
   "main": "src/engine.ts",
   "engines": {
