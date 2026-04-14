@@ -33,6 +33,10 @@ describe("tools block parsing (spec D3.1)", () => {
     expect(p.execute_code.languages).toEqual([]);
   });
 
+  test("rejects array as tools block", () => {
+    expect(() => parseToolsBlock([])).toThrow(/array|must be an object/i);
+  });
+
   test("DEFAULT_TOOL_POLICY exported shape matches missing-block result", () => {
     const p: ToolsBlock = DEFAULT_TOOL_POLICY;
     expect(p.execute_code.enabled).toBe(false);

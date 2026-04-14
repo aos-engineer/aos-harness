@@ -52,7 +52,7 @@ export interface ToolsBlock {
 export const DEFAULT_TOOL_POLICY: ToolsBlock = Object.freeze({
   execute_code: Object.freeze({
     enabled: false,
-    languages: [],
+    languages: Object.freeze([]) as readonly SupportedLanguage[] as SupportedLanguage[],
     max_timeout_ms: 30_000,
   }) as ExecuteCodePolicy,
   read_file: Object.freeze({ enabled: true }),
@@ -66,6 +66,9 @@ export function parseToolsBlock(raw: unknown): ToolsBlock {
   if (raw === undefined || raw === null) return DEFAULT_TOOL_POLICY;
   if (typeof raw !== "object") {
     throw new Error(`tools block must be an object, got ${typeof raw}`);
+  }
+  if (Array.isArray(raw)) {
+    throw new Error(`tools block must be an object, got array`);
   }
   const r = raw as Record<string, any>;
   const ec = r.execute_code ?? {};
