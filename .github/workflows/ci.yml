@@ -30,8 +30,8 @@ jobs:
       - name: Run tests
         run: cd runtime && bun test
 
-      - name: YAML safety lint
-        run: bash scripts/check-yaml-safety.sh
+      - name: Run yaml-safety lint
+        run: bun run lint:yaml-safety
 
       - name: TypeScript type check
         run: cd runtime && bun run typecheck

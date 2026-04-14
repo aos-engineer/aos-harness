@@ -50,15 +50,22 @@ Requires two people. Do NOT do this alone.
 1. **Person A** generates a new npm automation token scoped to `@aos-harness`:
    - npm.com → Access Tokens → Generate → Automation → scope `@aos-harness` → copy token.
 2. **Person A** shares the token with **Person B** via 1Password shared item or Signal (never Slack/email).
-3. **Person B** on a clean checkout at the signed tag:
+3. **Person B** on a clean checkout at the signed tag publishes via vanilla `npm publish` (our `scripts/publish.ts --ci` refuses to run outside GitHub Actions by design, so break-glass deliberately bypasses it):
    ```bash
+   # On a clean checkout at the signed tag:
    git fetch --tags origin
    git checkout v<version>
    git status --porcelain   # must be empty
    export NODE_AUTH_TOKEN=<the-token>
-   bun run scripts/publish.ts --ci
+
+   # Publish each package in dependency order (matches publish.ts PUBLISH_ORDER)
+   for pkg_dir in runtime adapters/shared adapters/claude-code adapters/codex adapters/gemini adapters/pi cli; do
+     (cd "$pkg_dir" && npm publish --access public --provenance)
+   done
+
    unset NODE_AUTH_TOKEN
    ```
+   > **Warning:** plain `npm publish` does NOT apply the `workspace:*` → pinned-version rewrite that `publish.ts` performs. Before running the loop, confirm tarballs are clean by running `bun run publish:dry-run` locally (or manually pin any `workspace:*` references in the package.json files at the tagged commit).
 4. **Person A** immediately revokes the token at npm.com.
 5. **Both** file an incident issue titled "Break-glass publish of v<version>" documenting:
    - Why CI was unavailable
