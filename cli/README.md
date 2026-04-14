@@ -51,6 +51,15 @@ aos create profile my-review
 aos validate
 ```
 
+## Exit Codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Success |
+| 1 | Uncaught runtime error |
+| 2 | Invalid input (unknown adapter, bad path, bad URL, missing adapter package) |
+| 3 | Profile tool-policy error (malformed `tools:` block, flag cannot widen profile) |
+
 ## What It Does
 
 AOS Harness orchestrates multiple AI agents with distinct cognitive biases into structured deliberation and execution sessions:
