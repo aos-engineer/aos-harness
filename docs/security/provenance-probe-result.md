@@ -1,56 +1,68 @@
 # Provenance Probe Result
 
 **Date:** 2026-04-14
-**Probe run:** GitHub Actions run [24408969472](https://github.com/aos-engineer/aos-harness/actions/runs/24408969472) on `feat/cli-adapter-integration`.
-**Package used:** `@aos-harness/provenance-probe@0.0.1` (scratch; deprecate after verification completes).
+**Status:** ✅ VERIFIED — `npm publish --provenance` from GitHub Actions produces valid SLSA attestations that `npm audit signatures` confirms.
+**Probe runs:** `24408969472`, `24416197563`, `24418457163`, `24419719695`, `24420001130`, `24420940312` (iterated through multiple issues; last three successfully published `0.0.1`, `0.0.2`, `0.0.3`).
+**Package:** `@aos-harness/provenance-probe` (deprecate after cleanup).
 
-## Finding
+## Path taken
 
-**Bun 1.3.12 `bun publish` cannot authenticate against npm in GitHub Actions** when auth is set up via the standard `actions/setup-node@v4` + `registry-url` + `NODE_AUTH_TOKEN` flow.
+The probe uncovered four distinct failure modes before succeeding. Each informed the final publish/verify pipeline:
 
-The workflow's setup-node step writes an `.npmrc` containing:
+| # | Failure | Root cause | Fix |
+|---|---|---|---|
+| 1 | `bun publish` → `missing authentication` | Bun 1.3.12 doesn't expand `${NODE_AUTH_TOKEN}` in `.npmrc` | Switched `scripts/publish.ts --ci` and the probe workflow to `npx npm@latest publish --provenance` |
+| 2 | `npm publish --provenance` → HTTP 422: `Unsupported GitHub Actions source repository visibility: "private"` | Provenance requires public source repo | Made `aos-engineer/aos-harness` public |
+| 3 | `npm publish --provenance` → HTTP 422: `repository.url` mismatch | Scratch package's `package.json` had stale `aos-framework` URL | Updated probe `repository.url` to `aos-harness` |
+| 4 | `npm audit signatures` → `found no dependencies to audit` and `ETARGET no matching version` | Two separate bugs: audit signatures only walks packages in `package.json`, and CDN propagation takes 15-120s after publish | Install without `--no-save`, wrap install in retry loop |
+
+## Final verification
+
+Local end-to-end verification (2026-04-14 20:21 UTC):
 
 ```
-//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}
+$ mkdir /tmp/verify && cd /tmp/verify && npm init -y >/dev/null
+$ npm install @aos-harness/provenance-probe@0.0.3
+  added 1 package
+$ npm audit signatures
+  audited 1 package in 1s
+  1 package has a verified registry signature
+  1 package has a verified attestation
+$ npm view @aos-harness/provenance-probe@0.0.3 dist.attestations
+  {
+    url: 'https://registry.npmjs.org/-/npm/v1/attestations/@aos-harness%2fprovenance-probe@0.0.3',
+    provenance: { predicateType: 'https://slsa.dev/provenance/v1' }
+  }
 ```
 
-npm's CLI expands the `${NODE_AUTH_TOKEN}` placeholder from the environment at publish time. **Bun's `bun publish` does not perform this expansion** — it reads the literal string `${NODE_AUTH_TOKEN}` as the auth token and fails with:
+## Decision in code
 
-```
-error: missing authentication (run `bunx npm login`)
-```
+`scripts/publish.ts --ci` invokes `npx --yes npm@latest publish --access public --provenance --tag=<distTag>`. `.github/workflows/release.yml` verify step installs all 7 tagged packages (with retry for CDN propagation) and runs `npm audit signatures`.
 
-This is independent of the `--provenance` question: Bun cannot publish at all under the CI auth convention. The probe therefore never reached the point of testing whether Bun produces real attestations.
+## Cleanup tasks (operator)
 
-## Decision
+Once the real release (`v0.7.0-rc.1`) is published and verified:
 
-`scripts/publish.ts --ci` publishes via the **npm CLI**, not Bun:
-
-```ts
-await $`npx --yes npm@latest publish --access public --provenance --tag=${distTag}`
-```
-
-This path is expected to:
-
-1. Authenticate correctly via the `actions/setup-node` + `NODE_AUTH_TOKEN` convention.
-2. Produce real Sigstore/OIDC-signed provenance attestations that `npm audit signatures` verifies.
-
-Re-running the updated probe workflow will confirm both properties end-to-end.
-
-`bun publish --dry-run` remains the packing mechanism in `--dry-run` mode (local-only, no auth required) — the npm switch is only for the `--ci` upload path.
-
-## Follow-up
-
-The probe workflow (`.github/workflows/provenance-probe.yml`) has been updated to match (`npx npm publish --provenance`) for re-verification. Once a re-run confirms `npm audit signatures @aos-harness/provenance-probe@0.0.1` passes:
-
-1. Deprecate the scratch package: `npm deprecate @aos-harness/provenance-probe "scratch — verification only"`.
-2. Delete the `NPM_TOKEN_PROBE` repo secret.
-3. Optionally delete `.github/workflows/provenance-probe.yml` and `scripts/provenance-probe/` (or keep them for future audits — workflow-dispatch-only, never auto-fires).
+1. Deprecate scratch versions:
+   ```
+   npm deprecate @aos-harness/provenance-probe@0.0.1 "scratch — verification only"
+   npm deprecate @aos-harness/provenance-probe@0.0.2 "scratch — verification only"
+   npm deprecate @aos-harness/provenance-probe@0.0.3 "scratch — verification only"
+   ```
+2. Delete repo secret:
+   ```
+   gh secret delete NPM_TOKEN_PROBE --repo aos-engineer/aos-harness
+   ```
+3. Optionally remove probe artifacts:
+   ```
+   git rm -r .github/workflows/provenance-probe.yml scripts/provenance-probe/
+   ```
+   (Alternative: keep them for future auditing — `workflow_dispatch`-only, never auto-fires.)
 
 ## Reopen conditions
 
-Revisit this decision if any of the following become true:
+Revisit this decision if any become true:
 
-- Bun's `bun publish` gains `${VAR}` expansion in `.npmrc`.
-- Bun gains first-party Sigstore/OIDC provenance support (currently only npm CLI has this).
-- Our release workflow begins to require features only Bun's publisher provides (unlikely — this is a publish operation).
+- Bun's `bun publish` gains `${VAR}` expansion in `.npmrc` AND first-party Sigstore/OIDC provenance support (currently only the npm CLI has this).
+- npm policy changes (e.g., provenance for private repos becomes supported).
+- Our release workflow begins to require features only Bun's publisher provides.

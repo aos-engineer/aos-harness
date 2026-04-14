@@ -87,9 +87,10 @@ Required for publish on the `@aos-harness` scope. Configure at npm.com → Organ
 ```bash
 mkdir /tmp/verify && cd /tmp/verify
 npm init -y > /dev/null
-npm install --no-save @aos-harness/pi-adapter@<version>
+npm install @aos-harness/pi-adapter@<version>    # note: NOT --no-save
 npm audit signatures
-# Expected: "verified" for all packages
+# Expected: "verified" for all packages (audit signatures only walks
+# dependencies recorded in package.json, hence no --no-save)
 
 npm view @aos-harness/pi-adapter@<version> dist.attestations
 # Expected: present, contains GitHub Actions workflow URL
