@@ -10,3 +10,5 @@ export { TerminalUI } from "./terminal-ui";
 export { BaseWorkflow } from "./base-workflow";
 export { composeAdapter } from "./compose";
 export { discoverAgents, createFlatAgentsDir, findProjectRoot } from "./agent-discovery";
+export { buildToolPolicy } from "./tool-policy";
+export type { ToolPolicy, CliToolFlags } from "./tool-policy";
