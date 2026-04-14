@@ -2,7 +2,7 @@
  * Shared utilities for CLI commands.
  */
 
-import { join, resolve } from "node:path";
+import { join, normalize, resolve, sep } from "node:path";
 import { existsSync, readdirSync } from "node:fs";
 
 
@@ -200,4 +200,19 @@ export type AdapterName = typeof ADAPTER_ALLOWLIST[number];
 
 export function isValidAdapter(name: unknown): name is AdapterName {
   return typeof name === "string" && (ADAPTER_ALLOWLIST as readonly string[]).includes(name);
+}
+
+/**
+ * Resolve `rel` against `base` and require the result stays inside `base`.
+ * Throws if `rel` escapes. Use for any path value sourced from config or
+ * adapter output (spec D4). Direct CLI args from the user are NOT passed
+ * through this — the user trusts themselves.
+ */
+export function confinedResolve(base: string, rel: string): string {
+  const absBase = normalize(resolve(base));
+  const absTarget = normalize(resolve(absBase, rel));
+  if (absTarget !== absBase && !absTarget.startsWith(absBase + sep)) {
+    throw new Error(`Path escapes base directory: ${rel}`);
+  }
+  return absTarget;
 }
