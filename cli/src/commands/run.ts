@@ -332,8 +332,10 @@ ${c.bold(`AOS ${sessionType} Session`)}
     if (!adapterEntry || !existsSync(adapterEntry)) {
       console.error(c.red(`Pi adapter not found.`));
       console.error(c.yellow("Make sure Pi CLI is installed: https://github.com/pi-agi/pi"));
-      console.error(c.dim("The adapter should be bundled with aos-harness. Try reinstalling: bun add -g aos-harness"));
-      process.exit(1);
+      console.error(c.dim("Install the adapter package:"));
+      console.error(c.dim("  npm i -g @aos-harness/pi-adapter"));
+      console.error(c.dim("  # or in a project: npm i @aos-harness/pi-adapter"));
+      process.exit(2);
     }
 
     console.log(c.dim(`Launching Pi adapter...`));

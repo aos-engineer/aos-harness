@@ -25,14 +25,28 @@ The harness ships with:
 
 ## Quick Start
 
+> **0.6.0 migration note:** adapters are no longer bundled with the CLI. Install the adapter(s) for the AI CLI(s) you want to drive. See [CHANGELOG](./CHANGELOG.md#060).
+
 ### Prerequisites
 
 - [Bun](https://bun.sh) 1.0+
 
-### Install
+### Install the CLI
 
 ```bash
-bun add -g aos-harness
+npm i -g aos-harness
+# or: bun add -g aos-harness
+```
+
+### Install at least one adapter
+
+Adapters ship as separate packages. Pin to the same version as the CLI (they publish lockstep):
+
+```bash
+npm i -g @aos-harness/claude-code-adapter   # Anthropic's Claude Code
+npm i -g @aos-harness/gemini-adapter         # Google's Gemini CLI
+npm i -g @aos-harness/codex-adapter          # OpenAI's Codex CLI
+npm i -g @aos-harness/pi-adapter             # Pi (pi-ai) — direct model SDK
 ```
 
 ### Initialize a project
@@ -42,20 +56,18 @@ cd your-project
 aos init
 ```
 
+`aos init` prints the adapter install commands at the end as a reminder.
+
 ### Run a deliberation
 
 ```bash
-# Using the Pi CLI adapter
-cd adapters/pi && bun install
-pi -e src/index.ts
-/aos-run
+aos run strategic-council --brief core/briefs/sample-product-decision/brief.md
 ```
 
 ### Run an execution profile
 
 ```bash
-# Using the AOS CLI directly
-bun run cli/src/index.ts run cto-execution --brief core/briefs/sample-cto-execution/brief.md
+aos run cto-execution --brief core/briefs/sample-cto-execution/brief.md
 ```
 
 ### CLI commands

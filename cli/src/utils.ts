@@ -119,18 +119,58 @@ export function detectProject(startDir: string): string | null {
  * or import.meta.url — this is a deliberate Bun dependency.
  */
 /**
- * Resolve an adapter directory from the installed package or monorepo.
- * Checks both npm install layout and monorepo dev layout.
+ * Resolve an adapter directory on disk. Returns the directory containing
+ * `src/index.ts` for the named adapter, or null if none found.
+ *
+ * Checked in order:
+ * 1. Monorepo dev layout: harness-root/adapters/<name>/
+ * 2. Installed standalone package: node_modules/@aos-harness/<name>-adapter/
+ *    (via import.meta.resolve). Post-0.6.0 this is the primary path —
+ *    the CLI no longer bundles adapter source.
  */
 export function getAdapterDir(adapterName: string): string | null {
-  const candidates = [
-    resolve(import.meta.dir, "..", "adapters", adapterName),    // npm: package-root/adapters/
-    resolve(import.meta.dir, "../..", "adapters", adapterName), // monorepo: harness-root/adapters/
-  ];
-  for (const dir of candidates) {
-    if (existsSync(join(dir, "src", "index.ts"))) {
-      return dir;
+  // 1. Monorepo dev layout
+  const monorepoDir = resolve(import.meta.dir, "../..", "adapters", adapterName);
+  if (existsSync(join(monorepoDir, "src", "index.ts"))) {
+    return monorepoDir;
+  }
+
+  // 2. Installed @aos-harness/<name>-adapter package
+  try {
+    const pkgName = `@aos-harness/${adapterName}-adapter`;
+    const resolver = (import.meta as any).resolve;
+    if (typeof resolver !== "function") return null;
+    // import.meta.resolve returns a file:// URL to the package's main entry
+    // (e.g., .../node_modules/@aos-harness/pi-adapter/src/index.ts). Strip
+    // to the package root.
+    const mainUrl: string = resolver(pkgName);
+    if (!mainUrl.startsWith("file://")) return null;
+    const mainPath = mainUrl.slice("file://".length);
+    // Walk up until we find a package.json with the matching name
+    let dir = resolve(mainPath, "..");
+    const fsRoot = resolve("/");
+    while (dir !== fsRoot) {
+      const pkgJson = join(dir, "package.json");
+      if (existsSync(pkgJson)) {
+        try {
+          // Confirm it's the right package; if so, return dir.
+          const contents = JSON.parse(
+            require("node:fs").readFileSync(pkgJson, "utf-8"),
+          ) as { name?: string };
+          if (contents.name === pkgName) {
+            if (existsSync(join(dir, "src", "index.ts"))) return dir;
+          }
+        } catch {
+          // Fall through — keep walking up.
+        }
+      }
+      const parent = resolve(dir, "..");
+      if (parent === dir) break;
+      dir = parent;
     }
+  } catch {
+    // import.meta.resolve throws if the package isn't installed.
+    return null;
   }
   return null;
 }

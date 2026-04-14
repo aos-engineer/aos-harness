@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.6.0] - 2026-04-14
+
+### Breaking
+
+- **`aos-harness` no longer bundles adapter code.** You must install the adapter(s) you use as separate packages. If you run `aos run` without the matching `@aos-harness/<name>-adapter` installed, the CLI now exits with code `2` and prints both the global and project-local install commands. The bundled fallback path that 0.5.x used has been removed, along with the deprecation warning that 0.5.2 printed when it was hit.
+- **CLI tarball no longer ships `adapters/`.** The `files` field in `cli/package.json` is now `["src/", "core/", "README.md"]`.
+
+### Added
+
+- Adapters declared as optional peer dependencies on the CLI, range `">=0.6.0 <1.0.0"`. `peerDependenciesMeta.*.optional = true` so `npm i -g aos-harness` continues to succeed with no peers installed.
+- Runtime version-mismatch warning when the CLI's major or minor version differs from the loaded adapter's. Patch-level drift is silent. Fires once per package per session.
+- `aos init` prints the adapter install commands at the end (Claude Code, Gemini, Codex, Pi — all four).
+- `aos init --adapter` now accepts `codex` in addition to `pi`, `claude-code`, `gemini`.
+
+### Migration
+
+1. Upgrade the CLI: `npm i -g aos-harness@0.6.0`
+2. Install the adapter(s) you were relying on:
+   ```bash
+   npm i -g @aos-harness/claude-code-adapter@0.6.0
+   npm i -g @aos-harness/gemini-adapter@0.6.0
+   npm i -g @aos-harness/codex-adapter@0.6.0
+   npm i -g @aos-harness/pi-adapter@0.6.0
+   ```
+3. Re-run `aos run`. No other changes required.
+
 ## [0.5.2] - 2026-04-14
 
 ### Deprecated
