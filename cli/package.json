@@ -23,7 +23,7 @@
     "aos": "./src/index.ts"
   },
   "engines": {
-    "bun": ">=1.0.0"
+    "bun": ">=1.3.11"
   },
   "files": [
     "src/",
