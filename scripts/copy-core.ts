@@ -8,34 +8,55 @@
  * installed standalone by users via @aos-harness/<name>-adapter.
  */
 
-import { cpSync, rmSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { cpSync, rmSync, existsSync, lstatSync } from "node:fs";
+import { resolve, sep } from "node:path";
 
 const root = resolve(import.meta.dir, "..");
 const coreSrc = resolve(root, "core");
 const coreDest = resolve(root, "cli", "core");
 
+// Accept --target=<path> override for testing (not for production use).
+const argTarget = process.argv.find((a) => a.startsWith("--target="))?.slice("--target=".length);
+
+// Defense-in-depth: target MUST be under <root>/cli/core
+const allowedBase = resolve(root, "cli", "core");
+const effectiveTarget = argTarget ?? coreDest;
+const absTarget = resolve(effectiveTarget);
+if (absTarget !== allowedBase && !absTarget.startsWith(allowedBase + sep)) {
+  console.error(`copy-core: refusing to operate outside ${allowedBase} (cli/core): ${absTarget}`);
+  process.exit(1);
+}
+
+// Symlink guard: do NOT follow if the target is a symlink
+if (existsSync(absTarget)) {
+  const st = lstatSync(absTarget);
+  if (st.isSymbolicLink()) {
+    console.error(`copy-core: refusing to rm a symlink target: ${absTarget}`);
+    process.exit(1);
+  }
+}
+
 export function copyCore(): void {
   if (!existsSync(coreSrc)) {
     throw new Error(`Source core/ not found at ${coreSrc}`);
   }
-  if (existsSync(coreDest)) {
-    rmSync(coreDest, { recursive: true });
+  if (existsSync(absTarget)) {
+    rmSync(absTarget, { recursive: true });
   }
-  cpSync(coreSrc, coreDest, { recursive: true });
+  cpSync(coreSrc, absTarget, { recursive: true });
   console.log(`  Copied core/ → cli/core/`);
 }
 
 export function cleanCore(): void {
-  if (existsSync(coreDest)) {
-    rmSync(coreDest, { recursive: true });
+  if (existsSync(absTarget)) {
+    rmSync(absTarget, { recursive: true });
     console.log(`  Cleaned cli/core/`);
   }
 }
 
 // Allow running directly: bun run scripts/copy-core.ts [copy|clean]
 if (import.meta.main) {
-  const action = process.argv[2] ?? "copy";
+  const action = process.argv.find((a) => a === "copy" || a === "clean") ?? "copy";
   if (action === "copy") copyCore();
   else if (action === "clean") cleanCore();
   else console.error(`Unknown action: ${action}. Use "copy" or "clean".`);
