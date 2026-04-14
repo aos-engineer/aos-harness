@@ -377,6 +377,11 @@ export async function createCommand(args: ParsedArgs): Promise<void> {
   }
 
   const id = toKebabCase(name);
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) {
+    console.error(c.red(`Invalid name "${name}": must kebab-case to /^[a-z0-9][a-z0-9-]*$/`));
+    console.error(c.dim(`Allowed characters: a-z, 0-9, hyphen. Must start with a letter or digit.`));
+    process.exit(2);
+  }
   const displayName = id
     .split("-")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
