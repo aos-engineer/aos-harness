@@ -5,7 +5,7 @@
 import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { c, type ParsedArgs } from "../colors";
-import { getHarnessRoot, discoverDirs, promptSelect, getAdapterDir } from "../utils";
+import { getHarnessRoot, discoverDirs, promptSelect, getAdapterDir, ADAPTER_ALLOWLIST, isValidAdapter } from "../utils";
 import type { TranscriptEntry } from "@aos-harness/runtime/types";
 import { runAdapterSession } from "../adapter-session";
 import { readAdapterConfig } from "../adapter-config";
@@ -83,6 +83,17 @@ export async function runCommand(args: ParsedArgs): Promise<void> {
   if (args.flags.help) {
     console.log(HELP);
     return;
+  }
+
+  // Validate --adapter flag early (spec D2) before any project resolution so
+  // unknown names are rejected regardless of workspace state.
+  if (args.flags["adapter"]) {
+    const flagAdapter = args.flags["adapter"] as string;
+    if (!isValidAdapter(flagAdapter)) {
+      console.error(c.red(`Unknown adapter: ${flagAdapter}`));
+      console.error(c.dim(`Allowed: ${ADAPTER_ALLOWLIST.join(", ")}`));
+      process.exit(2);
+    }
   }
 
   const root = getHarnessRoot();
@@ -321,11 +332,17 @@ ${c.bold(`AOS ${sessionType} Session`)}
   }
   if (args.flags["adapter"]) adapter = args.flags["adapter"] as string;
 
-  const adapterName = adapter === "claude-code" ? "claude-code" : adapter;
-  // Resolve adapter from: 1) project dir, 2) installed package, 3) monorepo
-  const resolvedAdapterDir = existsSync(join(root, "adapters", adapterName, "src", "index.ts"))
-    ? join(root, "adapters", adapterName)
-    : getAdapterDir(adapterName);
+  if (!isValidAdapter(adapter)) {
+    console.error(c.red(`Unknown adapter: ${adapter}`));
+    console.error(c.dim(`Allowed: ${ADAPTER_ALLOWLIST.join(", ")}`));
+    process.exit(2);
+  }
+
+  const adapterName = adapter;
+  // Resolve from monorepo dev layout (CLI's own import.meta.dir) or installed
+  // @aos-harness/<name>-adapter. Project-local override is intentionally absent
+  // (spec D1 — workspace-trust hardening).
+  const resolvedAdapterDir = getAdapterDir(adapterName);
 
   if (adapter === "pi") {
     const adapterEntry = resolvedAdapterDir ? join(resolvedAdapterDir, "src", "index.ts") : null;
