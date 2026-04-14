@@ -21,7 +21,7 @@ import type {
   ToolCommand,
 } from "@aos-harness/runtime/types";
 import { UnsupportedError } from "@aos-harness/runtime/types";
-import { DEFAULT_TOOL_POLICY } from "@aos-harness/runtime/profile-schema";
+import { DEFAULT_TOOL_POLICY, type ToolsBlock } from "@aos-harness/runtime/profile-schema";
 import { buildToolPolicy, type ToolPolicy } from "./tool-policy";
 
 export interface BaseWorkflowOpts {
@@ -483,5 +483,57 @@ Respond with:
   /** Read-only view of the active tool policy. Spec D7.2. */
   listEnabledTools(): Readonly<Record<string, unknown>> {
     return this.toolPolicy as unknown as Readonly<Record<string, unknown>>;
+  }
+
+  /**
+   * Spawn a worker agent bound to a narrowed copy of this session's
+   * ToolPolicy. Workers inherit the parent policy and may only narrow it —
+   * any attempt to enable a tool the session has disabled is rejected
+   * (spec D3 worker inheritance rules).
+   */
+  async spawnWorker(opts: {
+    agentId: string;
+    toolsOverride?: Partial<ToolsBlock>;
+  }): Promise<BaseWorkflow> {
+    const session = this.toolPolicy;
+    let workerPolicy: ToolPolicy = session;
+
+    if (opts.toolsOverride) {
+      // Narrow-only: any enabled=true on a session-denied tool → throw
+      for (const [toolName, override] of Object.entries(opts.toolsOverride)) {
+        const sessionEntry = (session as any)[toolName];
+        if ((override as any)?.enabled && !sessionEntry?.enabled) {
+          throw new Error(
+            `worker ${opts.agentId} cannot widen session policy: tool "${toolName}" is disabled at session level`,
+          );
+        }
+      }
+      // Safe to narrow: intersect execute_code languages
+      const ec = opts.toolsOverride.execute_code;
+      let narrowedLangs = session.execute_code.languages;
+      if (ec?.languages) {
+        const requested = ec.languages as readonly string[];
+        narrowedLangs = session.execute_code.languages.filter((l) =>
+          requested.includes(l),
+        ) as typeof session.execute_code.languages;
+      }
+      const narrowed: ToolsBlock = {
+        ...session,
+        execute_code: {
+          ...session.execute_code,
+          languages: narrowedLangs,
+          enabled: Boolean(ec?.enabled ?? session.execute_code.enabled),
+        },
+      };
+      workerPolicy = Object.freeze({
+        ...narrowed,
+        execute_code: Object.freeze(narrowed.execute_code),
+      }) as ToolPolicy;
+    }
+
+    return new BaseWorkflow(this.agentRuntime, this.projectRoot, {
+      toolPolicy: workerPolicy,
+      transcriptPath: this.transcriptPath,
+    });
   }
 }
