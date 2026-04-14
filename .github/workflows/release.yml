@@ -1,0 +1,63 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Verify tag matches package versions and repo state
+        run: bun run scripts/verify-release-tag.ts
+
+      - name: Install (frozen)
+        run: bun install --frozen-lockfile
+
+      - name: Lint (yaml-safety + typecheck)
+        run: bun run lint
+
+      - name: Unit tests
+        run: bun test
+
+      - name: Integration tests
+        run: bun run test:integration
+
+      - name: Compute dist-tag
+        id: disttag
+        run: |
+          if [[ "${{ github.ref_name }}" == *"-rc."* ]]; then
+            echo "dist_tag=next" >> "$GITHUB_OUTPUT"
+          else
+            echo "dist_tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish all packages with provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_ACTIONS: "true"
+        run: bun run scripts/publish.ts --ci --dist-tag=${{ steps.disttag.outputs.dist_tag }}
+
+      - name: Verify provenance on npm
+        env: { NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} }
+        run: |
+          for pkg in aos-harness @aos-harness/runtime @aos-harness/adapter-shared @aos-harness/claude-code-adapter @aos-harness/codex-adapter @aos-harness/gemini-adapter @aos-harness/pi-adapter; do
+            npm audit signatures "$pkg@${GITHUB_REF_NAME#v}"
+          done
