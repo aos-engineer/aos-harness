@@ -2,21 +2,60 @@
 /**
  * AOS Harness — Monorepo Publish Script
  *
- * Publishes all workspace packages to npm in dependency order with
- * lockstep version enforcement. Idempotent: if a package version already
- * exists on the registry, that package is skipped and the script continues.
+ * Two explicit modes (per Publish Pipeline Hardening spec D4):
  *
- * Dry-run by default. Pass --confirm to actually publish.
+ *   --dry-run   Local verification. Copies the repo into a tempdir (via
+ *               rsync, excluding node_modules / .git), pins workspace deps
+ *               in the copy, then runs `bun publish --dry-run` for each
+ *               package. The source tree is never mutated; this script
+ *               asserts `git status --porcelain` is empty at the end.
+ *
+ *   --ci        Release workflow only. Refuses to run unless
+ *               GITHUB_ACTIONS=true. Pins in place (preserving the
+ *               existing try/finally restore), publishes each package with
+ *               explicit `--access public --provenance --tag=<distTag>`,
+ *               preserves the idempotent-retry behaviour where an
+ *               "already exists" error causes the package to be skipped.
+ *
+ * Flags:
+ *   --dry-run
+ *   --ci
+ *   --dist-tag=<tag>   (default: latest; applies to --ci)
+ *
+ * If no mode flag is passed, prints usage and exits 2.
  */
 
 import { $ } from "bun";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { resolve, join } from "node:path";
 import { copyCore, cleanCore } from "./copy-core";
 
 const root = resolve(import.meta.dir, "..");
-const confirm = process.argv.includes("--confirm");
 
+// ---------------------------------------------------------------------------
+// Argv parsing
+// ---------------------------------------------------------------------------
+type Mode = "dry-run" | "ci";
+const argv = process.argv.slice(2);
+const mode: Mode | null =
+  argv.includes("--ci") ? "ci" :
+  argv.includes("--dry-run") ? "dry-run" :
+  null;
+const distTag =
+  argv.find((a) => a.startsWith("--dist-tag="))?.slice("--dist-tag=".length) ??
+  "latest";
+
+if (!mode) {
+  console.error(
+    "publish.ts: specify --dry-run (local) or --ci (release workflow only)\n" +
+    "  --dist-tag=<tag>  (default: latest)\n"
+  );
+  process.exit(2);
+}
+
+// ---------------------------------------------------------------------------
+// Shared definitions
+// ---------------------------------------------------------------------------
 type PublishEntry = {
   dir: string;
   name: string;
@@ -41,16 +80,16 @@ const PUBLISH_ORDER: PublishEntry[] = [
   },
 ];
 
-function readPkg(dir: string): Record<string, unknown> {
-  return JSON.parse(readFileSync(resolve(root, dir, "package.json"), "utf-8"));
+function readPkgAt(path: string): Record<string, unknown> {
+  return JSON.parse(readFileSync(path, "utf-8"));
 }
 
-function readPkgRaw(dir: string): string {
-  return readFileSync(resolve(root, dir, "package.json"), "utf-8");
+function readPkgRawAt(path: string): string {
+  return readFileSync(path, "utf-8");
 }
 
-function writePkg(dir: string, content: string): void {
-  writeFileSync(resolve(root, dir, "package.json"), content, "utf-8");
+function writePkgAt(path: string, content: string): void {
+  writeFileSync(path, content, "utf-8");
 }
 
 function pinWorkspaceDeps(raw: string, pinMap: Record<string, string>): string {
@@ -72,54 +111,29 @@ function isAlreadyPublished(stderr: string): boolean {
   );
 }
 
-async function publishWithPinnedDeps(entry: PublishEntry, pinMap: Record<string, string>): Promise<void> {
-  const cwd = resolve(root, entry.dir);
-  const originalRaw = readPkgRaw(entry.dir);
-  const version = (JSON.parse(originalRaw) as { version: string }).version;
-
-  try {
-    if (entry.prePublish) entry.prePublish();
-
-    if (entry.pinDeps.length > 0) {
-      const resolved = pinWorkspaceDeps(originalRaw, pinMap);
-      writePkg(entry.dir, resolved);
-    }
-    // NOTE (0.6.0): CLI no longer bundles adapter source, so the loop that
-    // rewrote workspace:* inside cli/adapters/*/package.json is gone.
-
-    const label = `${entry.name}@${version}`;
-    if (!confirm) {
-      console.log(`  [dry-run] bun publish --dry-run  (${label})`);
-      const result = await $`bun publish --dry-run`.cwd(cwd).quiet().nothrow();
-      if (result.exitCode !== 0) {
-        console.log(`    ⚠ dry-run issue: ${result.stderr.toString().trim()}`);
-      } else {
-        console.log(`    ✓ would publish ${label}`);
-      }
-    } else {
-      console.log(`  Publishing ${label}...`);
-      const result = await $`bun publish --access public`.cwd(cwd).nothrow();
-      if (result.exitCode !== 0) {
-        const stderr = result.stderr.toString();
-        if (isAlreadyPublished(stderr)) {
-          console.log(`  ⤳ ${label} already exists on registry — skipping`);
-        } else {
-          console.error(`  ✗ Failed to publish ${label}\n${stderr}`);
-          throw new Error(`Publish failed for ${entry.name}`);
-        }
-      } else {
-        console.log(`  ✓ Published ${label}`);
-      }
-    }
-  } finally {
-    writePkg(entry.dir, originalRaw);
-    if (entry.postPublish) entry.postPublish();
+function computePinMap(baseDir: string): { releaseVersion: string; pinMap: Record<string, string> } {
+  const versions = new Map<string, string>();
+  for (const entry of PUBLISH_ORDER) {
+    const pkg = readPkgAt(resolve(baseDir, entry.dir, "package.json"));
+    versions.set(entry.name, pkg.version as string);
   }
+  const releaseVersion = versions.get("@aos-harness/runtime")!;
+  const mismatches = [...versions.entries()].filter(([, v]) => v !== releaseVersion);
+  if (mismatches.length > 0) {
+    console.error(`✗ Lockstep violation: expected all packages at ${releaseVersion}`);
+    for (const [name, v] of mismatches) console.error(`  ${name}@${v}`);
+    process.exit(1);
+  }
+  return {
+    releaseVersion,
+    pinMap: {
+      "@aos-harness/runtime": releaseVersion,
+      "@aos-harness/adapter-shared": releaseVersion,
+    },
+  };
 }
 
-async function main() {
-  console.log("=== AOS Harness Publish ===\n");
-
+async function runPrereleaseChecks(): Promise<void> {
   console.log("▸ Running unit tests...");
   const testResult = await $`bun test --cwd ${resolve(root, "runtime")}`.quiet().nothrow();
   if (testResult.exitCode !== 0) {
@@ -136,38 +150,162 @@ async function main() {
     process.exit(1);
   }
   console.log("✓ Integration validation passed\n");
+}
 
-  const versions = new Map<string, string>();
-  for (const entry of PUBLISH_ORDER) {
-    const pkg = readPkg(entry.dir);
-    versions.set(entry.name, pkg.version as string);
-  }
-  const releaseVersion = versions.get("@aos-harness/runtime")!;
-  const mismatches = [...versions.entries()].filter(([, v]) => v !== releaseVersion);
-  if (mismatches.length > 0) {
-    console.error(`✗ Lockstep violation: expected all packages at ${releaseVersion}`);
-    for (const [name, v] of mismatches) console.error(`  ${name}@${v}`);
-    process.exit(1);
-  }
+// ---------------------------------------------------------------------------
+// --dry-run mode: tempdir-based, source tree must remain bit-identical
+// ---------------------------------------------------------------------------
+async function runDryRun(): Promise<void> {
+  console.log("=== AOS Harness Publish (--dry-run) ===\n");
+
+  await runPrereleaseChecks();
+
+  const { releaseVersion, pinMap } = computePinMap(root);
   console.log(`▸ Release version: ${releaseVersion}\n`);
 
-  const pinMap: Record<string, string> = {
-    "@aos-harness/runtime": releaseVersion,
-    "@aos-harness/adapter-shared": releaseVersion,
-  };
+  const tmpRoot = (await $`mktemp -d`.text()).trim();
+  console.log(`publish.ts --dry-run: staging in ${tmpRoot}`);
+
+  try {
+    // Copy the repo (excluding node_modules / .git) to tmpRoot. Trailing
+    // slashes on rsync args are significant: `${root}/` copies the contents
+    // of root into tmpRoot (rather than creating a nested dir).
+    await $`rsync -a --exclude=node_modules --exclude=.git ${root}/ ${tmpRoot}/`;
+
+    // Apply workspace-dep pinning to the COPY's package.json files.
+    for (const entry of PUBLISH_ORDER) {
+      if (entry.pinDeps.length === 0) continue;
+      const pkgPath = join(tmpRoot, entry.dir, "package.json");
+      const raw = readPkgRawAt(pkgPath);
+      const pinned = pinWorkspaceDeps(raw, pinMap);
+      writePkgAt(pkgPath, pinned);
+    }
+
+    // Pack each package into tmpRoot/tarballs using bun pm pack.
+    //
+    // NOTE: Bun's `bun publish --dry-run` does NOT support a
+    // --pack-destination flag (verified on bun 1.3.11), so we use
+    // `bun pm pack --destination` for the tarball artifact. We still run
+    // `bun publish --dry-run` afterwards so the publish-side preflight
+    // (manifest lint, file set, registry auth probe) is exercised.
+    const tbDir = join(tmpRoot, "tarballs");
+    await $`mkdir -p ${tbDir}`;
+
+    console.log("\n▸ Packing + dry-run publishing each package:\n");
+    for (const entry of PUBLISH_ORDER) {
+      const cwd = join(tmpRoot, entry.dir);
+      const pkg = readPkgAt(join(cwd, "package.json"));
+      const label = `${entry.name}@${pkg.version as string}`;
+
+      // cli/ has a prePublish hook (copyCore) — but that would mutate
+      // SOURCE cli/core/, violating the "source tree untouched" invariant.
+      // Instead, copy core/ into the tempdir cli/ so packing sees it.
+      if (entry.dir === "cli") {
+        await $`cp -R ${join(root, "core")} ${join(cwd, "core")}`;
+      }
+
+      const packResult = await $`bun pm pack --destination ${tbDir} --quiet`.cwd(cwd).nothrow();
+      if (packResult.exitCode !== 0) {
+        console.error(`  ✗ pack failed for ${label}\n${packResult.stderr.toString()}`);
+        process.exit(1);
+      }
+
+      const pubResult = await $`bun publish --dry-run`.cwd(cwd).quiet().nothrow();
+      if (pubResult.exitCode !== 0) {
+        console.log(`    ⚠ dry-run issue for ${label}: ${pubResult.stderr.toString().trim()}`);
+      } else {
+        console.log(`    ✓ would publish ${label}`);
+      }
+    }
+
+    // Count tarballs for report clarity.
+    const tarballList = (await $`ls ${tbDir}`.text()).trim().split(/\n+/).filter(Boolean);
+    console.log(`\npublish.ts --dry-run: ${tarballList.length} tarball(s) in ${tbDir}`);
+
+    // Verify the SOURCE tree is bit-for-bit identical to what git knows.
+    const diff = (await $`git -C ${root} status --porcelain`.text()).trim();
+    if (diff.length > 0) {
+      console.error("publish.ts --dry-run: source tree modified (should be bit-for-bit identical)");
+      console.error(diff);
+      process.exit(1);
+    }
+
+    console.log("publish.ts --dry-run: source tree clean ✓");
+  } finally {
+    await $`rm -rf ${tmpRoot}`.nothrow();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// --ci mode: in-place pin + real publish with explicit --provenance + --tag
+// ---------------------------------------------------------------------------
+async function runCi(): Promise<void> {
+  // NEVER add a force flag — CI-only is a security property, not a convenience.
+  if (process.env.GITHUB_ACTIONS !== "true") {
+    console.error("publish.ts --ci must only run in GitHub Actions. Refusing.");
+    process.exit(1);
+  }
+
+  console.log(`=== AOS Harness Publish (--ci, --tag=${distTag}) ===\n`);
+
+  await runPrereleaseChecks();
+
+  const { releaseVersion, pinMap } = computePinMap(root);
+  console.log(`▸ Release version: ${releaseVersion}\n`);
 
   console.log("▸ Packages to publish:\n");
-  for (const entry of PUBLISH_ORDER) console.log(`  ${entry.name}@${releaseVersion}  (${entry.dir}/)`);
+  for (const entry of PUBLISH_ORDER) {
+    console.log(`  ${entry.name}@${releaseVersion}  (${entry.dir}/)`);
+  }
   console.log();
 
   for (const entry of PUBLISH_ORDER) {
-    await publishWithPinnedDeps(entry, pinMap);
+    const cwd = resolve(root, entry.dir);
+    const pkgPath = resolve(cwd, "package.json");
+    const originalRaw = readPkgRawAt(pkgPath);
+    const label = `${entry.name}@${releaseVersion}`;
+
+    try {
+      if (entry.prePublish) entry.prePublish();
+
+      if (entry.pinDeps.length > 0) {
+        writePkgAt(pkgPath, pinWorkspaceDeps(originalRaw, pinMap));
+      }
+
+      console.log(`  Publishing ${label}...`);
+      // --provenance passed EXPLICITLY regardless of publishConfig
+      // (belt-and-suspenders, per spec D4). See Task 0 probe notes:
+      // Bun 1.3.x silently accepts --provenance but may not actually
+      // sign; if npm provenance is strictly required, swap this line
+      // for: `npx npm@latest publish --access public --provenance --tag=${distTag}`.
+      const result = await $`bun publish --access public --provenance --tag=${distTag}`
+        .cwd(cwd)
+        .nothrow();
+
+      if (result.exitCode !== 0) {
+        const stderr = result.stderr.toString();
+        if (isAlreadyPublished(stderr)) {
+          console.log(`  ⤳ ${label} already exists on registry — skipping`);
+        } else {
+          console.error(`  ✗ Failed to publish ${label}\n${stderr}`);
+          throw new Error(`Publish failed for ${entry.name}`);
+        }
+      } else {
+        console.log(`  ✓ Published ${label}`);
+      }
+    } finally {
+      writePkgAt(pkgPath, originalRaw);
+      if (entry.postPublish) entry.postPublish();
+    }
   }
 
   console.log("\nDone.");
 }
 
-main().catch((err) => {
+// ---------------------------------------------------------------------------
+// Dispatch
+// ---------------------------------------------------------------------------
+await (mode === "ci" ? runCi() : runDryRun()).catch((err: unknown) => {
   console.error(err);
   process.exit(1);
 });
