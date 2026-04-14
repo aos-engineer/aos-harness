@@ -38,6 +38,8 @@ That's the complete trust surface. Adapter authors working against the main repo
 
 **Side effect:** the per-project `adapters/` override was undocumented and, as far as we know, unused outside the monorepo. Removing it is source-compatible for every documented workflow. The 0.6.0 CHANGELOG did not promise it.
 
+**`import.meta.dir` + `npm link` verification:** The monorepo-detection path depends on `import.meta.dir` pointing into the real CLI install, not the symlinked mirror. Bun 1.3 follows symlinks when computing `import.meta.dir` (verified empirically), meaning `npm link aos-harness` from an `aos-framework` checkout makes `import.meta.dir` resolve to the source checkout — so monorepo detection still triggers, as intended. However this behavior has drifted across Bun versions. **Before landing this change, run a one-shot verification test** (added to the plan): link the CLI from the monorepo into a sibling empty project, `aos run` from the empty project, assert the monorepo `adapters/` is reached. Pin the minimum Bun version in `cli/package.json` engines if we discover the behavior regresses on a supported Bun version.
+
 ### D2 — Validate `adapter` against an allowlist at entry
 
 Immediately after reading `adapter` from `.aos/config.yaml` / `--adapter`:
@@ -52,6 +54,8 @@ if (!ADAPTER_ALLOWLIST.includes(adapter as any)) {
 ```
 
 Reuse `VALID_ADAPTERS` from `cli/src/commands/init.ts` — promote it to `cli/src/utils.ts` as `ADAPTER_ALLOWLIST` so both commands share one source of truth. Also applied in `cli/src/adapter-session.ts`'s `loadAdapterRuntime` as a defense-in-depth check (it already has `ADAPTER_MAP` which is effectively an allowlist; explicit `throw` on unknown platform stays).
+
+**This allowlist is a security boundary, not a convenience list.** Adding a new adapter (e.g., OpenCode in 0.8.0) deliberately requires a CLI release that adds the name to the allowlist. That is a feature, not a limitation — it ensures every adapter name the CLI will load has been reviewed by a CLI maintainer, which is the guarantee an allowlist buys you. Runtime-extensible allowlists (env var, config file) are explicitly rejected for this reason.
 
 ### D3 — Profile-authoritative `enforceToolAccess` with CLI narrowing
 
@@ -76,6 +80,17 @@ tools:
 - Default (no `tools` block): every tool listed in the schema defaults to `enabled: false` **except** `readFile` / `writeFile` / `listDirectory` / `grep` / `invokeSkill`, which default to `enabled: true`. Those are the tools existing profiles rely on today; flipping them would break every deliberation profile.
 - `executeCode` defaults to **`enabled: false`** even without a `tools` block. This is the breaking change, scoped to a tool no profile currently exercises.
 - Schema lives in `runtime/src/profile-schema.ts` (or wherever profile-loader validates). Validation runs at profile load time — a typo in `languages` fails loading, not at tool-call time.
+
+**Known over-broad default — `writeFile` for deliberation profiles.** Deliberation profiles don't legitimately need `writeFile`; only execution profiles do. Tightening the default to read-only-by-default would shrink the attack surface further. We are **not** tightening it in this spec because (a) it breaks every existing deliberation profile that happens to call `writeFile` incidentally (e.g., saving intermediate notes) and we have no survey of which profiles do, and (b) this spec's remit is closing the RCE gap in `executeCode`, not a full tool-policy audit. **Recorded as a 1.0 follow-up**: split defaults by profile type (`type: deliberation` → read-only default, `type: execution` → read+write default), with a deprecation warning shipped in the minor before 1.0 for any profile whose actual tool usage wouldn't be allowed under the tightened default.
+
+**Worker-agent policy inheritance.** Hierarchical delegation (Engineering-Lead → workers, etc.) must not become a policy-escape hatch. **Workers inherit the session-level frozen `ToolPolicy` and cannot widen it.** Concretely:
+
+- `BaseWorkflow.toolPolicy` is set once, at engine-start, from `(rootProfile, cliFlags)`.
+- When a parent agent spawns a worker, the worker's spawn config may specify a `tools` subset (narrowing), but any attempt to set `enabled: true` on a tool the session policy has `enabled: false` is rejected at spawn time with `UnsupportedError`.
+- The narrowing semantics mirror the domain-inheritance rules (children only narrow parents). An engineering lead whose own profile denies `executeCode` cannot spawn a worker that uses `executeCode`, even if the worker's config requests it.
+- `enforceToolAccess` performs the lookup against the session policy, not the worker's declared tools. The worker's declared tools are used only to *further* narrow what that specific worker is allowed to do; they never participate in the authorization decision in a widening direction.
+
+This is a single extra check in the worker-spawn path plus one test per narrowing invariant. Non-blocking to ship the rest of D3.
 
 #### D3.2 CLI flag can only narrow
 
@@ -115,16 +130,19 @@ async enforceToolAccess(agentId, { tool, command }): Promise<{ allowed: boolean;
 Introduce a `confinedResolve(base: string, rel: string): string` helper in `cli/src/utils.ts`:
 
 ```ts
+import { resolve, sep, normalize } from "node:path";
+
 export function confinedResolve(base: string, rel: string): string {
-  const absBase = resolve(base);
-  const absTarget = resolve(absBase, rel);
-  const sep = require("node:path").sep;
+  const absBase = normalize(resolve(base));
+  const absTarget = normalize(resolve(absBase, rel));
   if (absTarget !== absBase && !absTarget.startsWith(absBase + sep)) {
     throw new Error(`Path escapes base directory: ${rel}`);
   }
   return absTarget;
 }
 ```
+
+`path.normalize` collapses mixed separators (Windows can produce `C:/foo\bar` from `resolve()` when inputs mix styles), `path.sep` is the platform-native separator. The `absTarget !== absBase` check allows `rel === ""` / `rel === "."` (resolves exactly to base). Verify on Bun (macOS + Linux at minimum; Windows is best-effort — `bun-windows-path-quirks.test.ts` in the plan) that `resolve()` output is idempotent under `normalize()`. Bun is the only supported runtime, so we're not chasing Node/Deno variants.
 
 Apply it to:
 
@@ -142,18 +160,36 @@ New helper `validatePlatformUrl(url: string): URL` in `cli/src/utils.ts`:
 
 Called once at `run.ts:318` when `platformUrl` is set. A bad URL exits `2` before any fetch is issued.
 
+**Known limitation — DNS rebinding / TOCTOU.** This validator resolves the hostname once; the actual `fetch()` may resolve it again and get a different answer. An attacker who controls the DNS for a hostname the user puts in `.aos/config.yaml` could return a safe IP on validation and a metadata-service IP on the real request. This is the canonical DNS-rebinding pattern. We accept this risk because:
+
+1. The attacker must already control a hostname the user willingly configured — this is not a drive-by attack.
+2. True mitigation requires pinning the resolved IP into the connection (custom `Agent` in Node / `tls.connect({servername})` separation) which is out of scope for a CLI telemetry feature.
+3. The user's workstation is a far less interesting SSRF target than a cloud server (no IAM metadata service on a laptop).
+
+The validator is still load-bearing against the much more common case: a typo, a misconfigured `platform.url`, or an adapter-influenced URL pointed at `169.254.169.254` / `file:///` directly. Full DNS-rebinding hardening is explicitly deferred.
+
 ### D6 — Error taxonomy
 
-All four new failure modes use distinct exit codes so scripts/wrappers can distinguish:
+Two distinct failure classes, kept rigorously separate:
+
+**Startup-time failures** exit the process with a non-zero code. These fire before the engine starts and include every invalid-input case that can be detected up front:
 
 | Cause | Exit code | Example stderr line |
 |---|---|---|
 | Unknown adapter | 2 | `Unknown adapter: foo. Allowed: pi, claude-code, codex, gemini` |
-| Profile tool denied | 3 | `tool "execute_code" is not enabled in profile "deliberation-default"` |
 | Invalid create name | 2 | `Invalid name "../evil": must match /^[a-z0-9][a-z0-9-]*$/` |
 | Invalid platform URL | 2 | `platform.url rejected: scheme "file" not allowed` |
+| Malformed `tools` block in profile | 3 | `profile "x" tools.execute_code.languages: unknown value "ruby"` |
+| Flag widens profile (e.g. `--allow-code-execution` on a deny-profile) | 3 | `flag --allow-code-execution cannot widen profile "x" (execute_code not enabled)` |
 
-Exit `3` for policy denials is new; document it in `cli/README.md` and the profile-authoring guide.
+**Runtime (mid-session) denials** are **not** process exits. An agent that calls a disallowed tool gets an `UnsupportedError` returned as a normal tool-result error; the model reads the error and decides what to do (typically: try a different approach). The session continues, the transcript records the denial (see D7 / open question 2), and the top-level exit code is whatever the session's natural outcome is.
+
+The distinction is load-bearing:
+
+- **Startup** = the operator mis-configured something; fail fast and loudly.
+- **Runtime denial** = policy is doing its job in the middle of a live deliberation; killing the session would be a denial-of-service to the operator for an event that is *expected* under a tightened policy.
+
+Exit `3` (policy validation failure at startup) is new; document it in `cli/README.md` and the profile-authoring guide. Exit `2` stays the catch-all for user-input validation failures.
 
 ## Architecture
 
@@ -218,10 +254,11 @@ agent calls executeCode ──────────────────�
 
 ## Error Handling
 
-- **Unknown adapter / bad platform URL / bad create name** exit `2` with a single-line stderr + a `dim` hint on the allowlist or format. No stack trace.
-- **Policy denial** throws `UnsupportedError` (existing type) from `enforceToolAccess`; the agent runtime already converts that into a tool-result error and lets the model decide what to do. Deliberation continues; session does not crash. Exit `3` only applies if a top-level command fails due to a policy load problem (malformed `tools` block).
-- **Profile with invalid `tools` block** fails at profile-load time with a Zod-style validation error citing the bad field. The runtime already does this for other profile fields.
-- **Flag-widens-profile** (e.g. `--allow-code-execution=ruby` against a profile that doesn't allow any languages) exits `2` with `flag cannot widen profile's execute_code allowlist`.
+- **Unknown adapter / bad platform URL / bad create name** exit `2` with a single-line stderr + a `dim` hint on the allowlist or format. No stack trace. Startup-time.
+- **Profile with invalid `tools` block** fails at profile-load time with a Zod-style validation error citing the bad field. Exit `3`. The runtime already does this kind of validation for other profile fields; we extend the same mechanism.
+- **Flag-widens-profile** (e.g. `--allow-code-execution=ruby` against a profile that denies `execute_code`) exits `3` at startup with `flag --allow-code-execution cannot widen profile "<name>"`.
+- **Mid-session tool denial** throws `UnsupportedError` (existing type) from `enforceToolAccess`; the agent runtime converts that into a tool-result error and lets the model decide what to do. Deliberation continues; session does not crash. **This never produces a non-zero exit code.** Denials are recorded in `transcript.jsonl` as `tool-denied` events (see D7.1 below) for post-hoc audit.
+- **Worker spawn that tries to widen session policy** throws `UnsupportedError` from the spawn call (also mid-session); parent agent sees a failed spawn and reacts like any other spawn failure. No process exit.
 
 ## Testing
 
@@ -260,7 +297,21 @@ All new behavior is testable without network, without real LLMs, and without spa
   - Default policy: `executeCode({code,language:"bash"})` → `UnsupportedError("tool \"execute_code\" is not enabled")`, child process never spawned
   - Policy allows `["python"]`: bash call denied, python call allowed (assert `spawn` is called with `python3`; mock `spawn`)
   - CLI narrowing: policy from profile `[python, bash]` + flag `python` → bash denied
-  - Flag widens profile: construction throws
+  - Flag widens profile: construction throws (startup-time exit 3)
+  - Denial appends a `tool-denied` event to the configured transcript path (D7.1) — assert via fs read after a denied call
+  - `listEnabledTools()` returns the frozen policy shape and throws on mutation attempts (D7.2)
+- `tests/adapters-shared/worker-policy-inheritance.test.ts`
+  - Parent session denies `execute_code`; worker spawn config sets `tools.execute_code.enabled: true` → spawn throws `UnsupportedError`
+  - Parent session allows `[python, bash]`; worker narrows to `[python]` → worker can call python, bash call denied at the worker level
+  - Worker spawn with no `tools` block inherits parent session policy verbatim
+
+### Runtime verification (one-shot, gated)
+
+- `tests/cli/import-meta-dir-symlink.test.ts` — run once in the plan's Step 1 to verify D1's Bun symlink assumption:
+  1. Create a temp `aos-framework-like` checkout (minimal fixture: `package.json` + `cli/src/commands/run.ts` stub that logs `import.meta.dir`).
+  2. `npm link` it from a sibling empty project.
+  3. Run the stub under Bun. Assert `import.meta.dir` points into the checkout, not the global `node_modules/aos-harness` path.
+  4. If the assertion fails on the current Bun version, halt the plan and surface a blocker. Pin `engines.bun` accordingly before proceeding.
 
 ### Integration sanity
 
@@ -278,9 +329,26 @@ All new behavior is testable without network, without real LLMs, and without spa
 
 This spec plus its implementation plan fit inside one release (0.7.0). No feature flag gymnastics, no dual-write, no telemetry. The changes are small enough and testable enough that a pre-release candidate to `npm` with a 48-hour soak is the whole rollout strategy. Regression test (cloned hostile repo scenario) is automated; no manual QA gate.
 
-## Open Questions
+### D7 — Settled follow-ons (previously "open questions")
 
-- Should we expose the frozen `ToolPolicy` back to the agent runtime so agents can ask "can I call executeCode?" before attempting and failing? **Proposed answer: yes, via a read-only `listEnabledTools()` method on `BaseWorkflow`.** This avoids the agent burning a round on a denied tool call. Non-blocking — can ship without it and add later.
-- Do we want a machine-readable log entry when `enforceToolAccess` denies a call? **Proposed answer: yes, append to `transcript.jsonl` as a `tool-denied` event.** Auditability. Low-cost.
+#### D7.1 Tool-denied transcript events (ship it)
 
-Mark both as "implementation detail — decide during plan-writing" unless reviewer wants them settled now.
+`enforceToolAccess` denials append a line to the session's `transcript.jsonl`:
+
+```jsonl
+{"ts":"2026-04-14T12:34:56.789Z","type":"tool-denied","agent":"arbiter","tool":"execute_code","reason":"tool \"execute_code\" is not enabled in profile","detail":{"language":"bash"}}
+```
+
+Auditability for security controls is not optional. If we don't ship it with the enforcement, it will never get added — the most useful time to have these events is the first time a denial fires in anger (profile misconfiguration, unexpected agent behavior, or actual prompt-injection attempt). Cost: one `appendFileSync` inside the already-existing deny path. ~8 lines in `BaseWorkflow`, ~5 lines of test.
+
+#### D7.2 `listEnabledTools()` on `BaseWorkflow` (ship it)
+
+Read-only method returning the frozen policy as a plain object:
+
+```ts
+listEnabledTools(): Readonly<{ [tool: string]: { enabled: boolean; [k: string]: unknown } }>;
+```
+
+Agents (via the runtime) can query this to know what's available before attempting a call. Prevents wasted rounds on denied calls. Trivially safe because the underlying object is already frozen. ~3 lines in `BaseWorkflow`, exposed through the existing adapter-to-workflow surface.
+
+Both ship with the main implementation, not as follow-ups.
