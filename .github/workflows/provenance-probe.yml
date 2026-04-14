@@ -37,11 +37,11 @@ jobs:
       - name: Print Bun version
         run: bun --version
 
-      - name: Publish probe with bun publish --provenance
+      - name: Publish probe with npm publish --provenance
         working-directory: scripts/provenance-probe
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_PROBE }}
-        run: bun publish --access public --provenance
+        run: npx --yes npm@latest publish --access public --provenance
 
       - name: Verify provenance via npm audit signatures
         env:
