@@ -2,10 +2,21 @@
  * aos init — Initialize AOS configuration in the current project.
  */
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { c, type ParsedArgs } from "../colors";
 import { getHarnessRoot, getPackageCoreDir } from "../utils";
+
+function readCliVersion(): string {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const raw = readFileSync(join(here, "..", "..", "package.json"), "utf-8");
+    return (JSON.parse(raw) as { version: string }).version ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
 
 const HELP = `
 ${c.bold("aos init")} — Initialize AOS in the current project
@@ -14,7 +25,7 @@ ${c.bold("USAGE")}
   aos init [--adapter <adapter>] [--force]
 
 ${c.bold("OPTIONS")}
-  --adapter <name>    Adapter to use: pi (default), claude-code, gemini
+  --adapter <name>    Adapter to use: pi (default), claude-code, gemini, codex
   --force             Reinitialize even if AOS is already set up (overwrites existing core configs)
 
 ${c.bold("DESCRIPTION")}
@@ -27,7 +38,7 @@ ${c.bold("EXAMPLES")}
   aos init --adapter claude-code
 `;
 
-const VALID_ADAPTERS = ["pi", "claude-code", "gemini"];
+const VALID_ADAPTERS = ["pi", "claude-code", "gemini", "codex"];
 
 function generateConfig(adapter: string): string {
   return `# AOS Harness Configuration
@@ -155,5 +166,19 @@ ${c.bold("Customization")}
   Create custom profiles: ${c.cyan("aos create profile <name>")}
   Create domain packs:    ${c.cyan("aos create domain <name>")}
   Validate everything:    ${c.cyan("aos validate")}
+`);
+
+  // Adapter-install guidance. Starting in 0.6.0 the CLI no longer bundles
+  // adapter source — users must install the adapter(s) they want to use.
+  const v = readCliVersion();
+  console.log(`${c.bold("Next step: install an adapter")}
+  Adapters live as separate npm packages. Install the one(s) you'll use:
+
+    Claude Code:   ${c.cyan(`npm i -g @aos-harness/claude-code-adapter@${v}`)}
+    Gemini CLI:    ${c.cyan(`npm i -g @aos-harness/gemini-adapter@${v}`)}
+    Codex CLI:     ${c.cyan(`npm i -g @aos-harness/codex-adapter@${v}`)}
+    Pi (pi-ai):    ${c.cyan(`npm i -g @aos-harness/pi-adapter@${v}`)}
+
+  ${c.dim("Pick one (or more). Then run `aos run`.")}
 `);
 }

@@ -84,17 +84,8 @@ async function publishWithPinnedDeps(entry: PublishEntry, pinMap: Record<string,
       const resolved = pinWorkspaceDeps(originalRaw, pinMap);
       writePkg(entry.dir, resolved);
     }
-
-    if (entry.dir === "cli") {
-      const bundledAdapters = ["pi", "claude-code", "gemini", "codex", "shared"];
-      for (const adapterName of bundledAdapters) {
-        const adapterPkgPath = resolve(root, "cli", "adapters", adapterName, "package.json");
-        if (existsSync(adapterPkgPath)) {
-          const adapterRaw = readFileSync(adapterPkgPath, "utf-8");
-          writeFileSync(adapterPkgPath, pinWorkspaceDeps(adapterRaw, pinMap), "utf-8");
-        }
-      }
-    }
+    // NOTE (0.6.0): CLI no longer bundles adapter source, so the loop that
+    // rewrote workspace:* inside cli/adapters/*/package.json is gone.
 
     const label = `${entry.name}@${version}`;
     if (!confirm) {

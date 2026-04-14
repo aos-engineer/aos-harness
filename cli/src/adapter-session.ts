@@ -15,7 +15,7 @@
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import readline from "node:readline";
 import {
   BaseEventBus,
@@ -60,8 +60,8 @@ const ADAPTER_MAP: Record<string, { package: string; className: string }> = {
   },
 };
 
-// CLI version read once at module load, used in the 0.6.0 deprecation
-// warning so the suggested install command pins to the matching version.
+// CLI version read once at module load, used in the missing-adapter
+// install hint and the version-mismatch warning.
 function readCliVersion(): string {
   try {
     const here = dirname(fileURLToPath(import.meta.url));
@@ -73,39 +73,64 @@ function readCliVersion(): string {
 }
 const CLI_VERSION = readCliVersion();
 
-// Session-level dedup for the deprecation warning. If the process uses
-// multiple adapters, we still only warn once per run.
-let deprecationWarnedThisSession = false;
-
-function maybeWarnAdapterDeprecation(pkg: string, projectRoot: string): void {
-  if (deprecationWarnedThisSession) return;
-  const flagPath = join(projectRoot, ".aos", "migration-warned-0.6");
-  if (existsSync(flagPath)) return;
-  deprecationWarnedThisSession = true;
-
-  const useColor = !!process.stderr.isTTY;
-  const y = useColor ? "\x1b[33m" : "";
-  const b = useColor ? "\x1b[1m" : "";
-  const r = useColor ? "\x1b[0m" : "";
-
-  console.error(
-    `\n${y}${b}⚠ Deprecation: bundled adapters will be removed in aos-harness@0.6.0.${r}\n` +
-      `  This project is using the bundled copy of ${pkg}.\n` +
-      `  Install the standalone package to silence this warning and prepare for 0.6.0:\n\n` +
-      `    npm i -g ${pkg}@${CLI_VERSION}\n` +
-      `    # or in a project:  npm i ${pkg}@${CLI_VERSION}\n\n` +
-      `  This warning appears once per project. Delete .aos/migration-warned-0.6 to re-enable.\n`,
-  );
-
-  try {
-    mkdirSync(dirname(flagPath), { recursive: true });
-    writeFileSync(flagPath, new Date().toISOString() + "\n");
-  } catch {
-    // non-fatal — if we can't write the flag, the warning just repeats next run.
-  }
+// Classify an error from a dynamic import() as "package not installed".
+// Bun 1.3.11 throws ResolveMessage with code=ERR_MODULE_NOT_FOUND. Older
+// Bun/Node and edge cases are caught by constructor-name and message-regex
+// fallbacks. Anything that doesn't match these patterns is a real error
+// (syntax error, missing transitive dep, etc.) and must surface with its
+// original stack — never swallowed as "not installed".
+function isModuleNotFound(err: any): boolean {
+  if (err?.code === "ERR_MODULE_NOT_FOUND") return true;
+  if (err?.code === "MODULE_NOT_FOUND") return true;
+  if (err?.constructor?.name === "ResolveMessage") return true;
+  const msg = typeof err?.message === "string" ? err.message : "";
+  return /Cannot find (module|package)/i.test(msg);
 }
 
-async function loadAdapterRuntime(platform: string, projectRoot: string): Promise<any> {
+function printMissingAdapterError(pkg: string): void {
+  const useColor = !!process.stderr.isTTY;
+  const red = useColor ? "\x1b[31m" : "";
+  const bold = useColor ? "\x1b[1m" : "";
+  const reset = useColor ? "\x1b[0m" : "";
+  console.error(
+    `\n${red}${bold}✗ Adapter not installed: ${pkg}${reset}\n\n` +
+      `Install it:\n` +
+      `  npm i -g ${pkg}    # if aos-harness is installed globally\n` +
+      `  npm i    ${pkg}    # if aos-harness is a project dependency\n\n` +
+      `(or use bun / pnpm / yarn equivalents)\n\n` +
+      `CLI version: aos-harness@${CLI_VERSION}. Pin the adapter to the same version.\n`,
+  );
+}
+
+// Compare CLI and adapter versions. Under pre-1.0 lockstep, any minor or
+// major drift is a warning — patch drift is silent (expected during
+// quick-turnaround publishes).
+function versionMismatchSeverity(cliVer: string, adapterVer: string): "none" | "warn" {
+  const [cliMaj, cliMin] = cliVer.split(".").map(Number);
+  const [adaMaj, adaMin] = adapterVer.split(".").map(Number);
+  if (Number.isNaN(cliMaj) || Number.isNaN(adaMaj)) return "none";
+  if (cliMaj !== adaMaj) return "warn";
+  if (cliMin !== adaMin) return "warn";
+  return "none";
+}
+
+const mismatchWarnedPackages = new Set<string>();
+
+function maybeWarnVersionMismatch(pkg: string, adapterVer: string): void {
+  if (mismatchWarnedPackages.has(pkg)) return;
+  if (versionMismatchSeverity(CLI_VERSION, adapterVer) !== "warn") return;
+  mismatchWarnedPackages.add(pkg);
+  const useColor = !!process.stderr.isTTY;
+  const y = useColor ? "\x1b[33m" : "";
+  const r = useColor ? "\x1b[0m" : "";
+  console.error(
+    `\n${y}⚠ Version mismatch: aos-harness@${CLI_VERSION} and ${pkg}@${adapterVer}${r}\n` +
+      `  Adapters are published lockstep with the CLI. Install matching versions:\n` +
+      `  npm i -g ${pkg}@${CLI_VERSION}\n`,
+  );
+}
+
+async function loadAdapterRuntime(platform: string): Promise<any> {
   const entry = ADAPTER_MAP[platform];
   if (!entry) throw new Error(`Unknown adapter: ${platform}`);
 
@@ -120,21 +145,21 @@ async function loadAdapterRuntime(platform: string, projectRoot: string): Promis
     }
   }
 
+  let mod: any;
   try {
-    const mod = await import(entry.package);
-    const resolved = (import.meta as any).resolve?.(entry.package) ?? entry.package;
-    const version = await readAdapterVersion(resolved);
-    console.error(`[adapter] loaded ${entry.package}@${version} (standalone)`);
-    return mod[entry.className];
-  } catch {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const fallback = join(here, "..", "..", "adapters", platform, "src", "index.ts");
-    const mod = await import(fallback);
-    const version = await readAdapterVersion(`file://${fallback}`);
-    console.error(`[adapter] loaded ${entry.package}@${version} (bundled: ${fallback})`);
-    maybeWarnAdapterDeprecation(entry.package, projectRoot);
-    return mod[entry.className];
+    mod = await import(entry.package);
+  } catch (err) {
+    if (isModuleNotFound(err)) {
+      printMissingAdapterError(entry.package);
+      process.exit(2);
+    }
+    throw err; // real load error — surface it
   }
+  const resolved = (import.meta as any).resolve?.(entry.package) ?? entry.package;
+  const version = await readAdapterVersion(resolved);
+  console.error(`[adapter] loaded ${entry.package}@${version}`);
+  maybeWarnVersionMismatch(entry.package, version);
+  return mod[entry.className];
 }
 
 function toolNamesForPlatform(platform: string): { delegate: string; end: string } {
@@ -150,7 +175,7 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
   };
 
   log("loading adapter runtime");
-  const RuntimeClass = await loadAdapterRuntime(config.platform, config.root);
+  const RuntimeClass = await loadAdapterRuntime(config.platform);
 
   // ── Layer composition ──────────────────────────────────────
   const eventBus = new BaseEventBus();
