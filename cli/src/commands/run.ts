@@ -5,7 +5,7 @@
 import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { c, type ParsedArgs } from "../colors";
-import { getHarnessRoot, discoverDirs, promptSelect, getAdapterDir, ADAPTER_ALLOWLIST, isValidAdapter } from "../utils";
+import { getHarnessRoot, discoverDirs, promptSelect, getAdapterDir, ADAPTER_ALLOWLIST, isValidAdapter, validatePlatformUrl } from "../utils";
 import type { TranscriptEntry } from "@aos-harness/runtime/types";
 import { runAdapterSession } from "../adapter-session";
 import { readAdapterConfig } from "../adapter-config";
@@ -331,6 +331,17 @@ ${c.bold(`AOS ${sessionType} Session`)}
     }
   }
   if (args.flags["adapter"]) adapter = args.flags["adapter"] as string;
+
+  // Validate platform URL (spec D5). Fires for both --platform-url flag
+  // and .aos/config.yaml platform.url after both sources are merged.
+  if (platformUrl) {
+    try {
+      validatePlatformUrl(platformUrl);
+    } catch (err: any) {
+      console.error(c.red(`Invalid platform.url: ${err.message}`));
+      process.exit(2);
+    }
+  }
 
   if (!isValidAdapter(adapter)) {
     console.error(c.red(`Unknown adapter: ${adapter}`));
