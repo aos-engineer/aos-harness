@@ -138,6 +138,12 @@ export class BaseWorkflow implements WorkflowAdapter {
     return { path: worktreePath, cleanup };
   }
 
+  // TODO(trust-model-followup): This method currently gates only via
+  // validatePath(), not enforceToolAccess(). Per spec
+  // docs/superpowers/specs/2026-04-14-adapter-trust-model-design.md D3.3,
+  // readFile/writeFile should consult the frozen ToolPolicy. Scoped out of
+  // the 0.7.0 RCE-002 fix because the default policy already allows these
+  // for deliberation profiles; tightening requires per-profile audit.
   async writeFile(path: string, content: string): Promise<void> {
     const safe = this.validatePath(path);
     const dir = dirname(safe);
@@ -147,6 +153,12 @@ export class BaseWorkflow implements WorkflowAdapter {
     writeFileSync(safe, content, "utf-8");
   }
 
+  // TODO(trust-model-followup): This method currently gates only via
+  // validatePath(), not enforceToolAccess(). Per spec
+  // docs/superpowers/specs/2026-04-14-adapter-trust-model-design.md D3.3,
+  // readFile/writeFile should consult the frozen ToolPolicy. Scoped out of
+  // the 0.7.0 RCE-002 fix because the default policy already allows these
+  // for deliberation profiles; tightening requires per-profile audit.
   async readFile(path: string): Promise<string> {
     const safe = this.validatePath(path);
     if (!existsSync(safe)) {
