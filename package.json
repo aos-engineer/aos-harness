@@ -32,9 +32,12 @@
     "test:integration": "bun run tests/integration/validate-config.ts",
     "validate": "bun run cli/src/index.ts validate",
     "typecheck": "bun x tsc --noEmit --project runtime/tsconfig.json",
-    "lint:yaml-safety": "bash scripts/check-yaml-safety.sh",
+    "lint:yaml-safety": "bun run scripts/check-yaml-safety.ts",
     "lint": "bun run lint:yaml-safety && bun run typecheck",
     "prerelease": "bun run lint && bun run test",
     "publish:all": "bun run scripts/publish.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
   }
 }
