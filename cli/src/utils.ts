@@ -216,3 +216,36 @@ export function confinedResolve(base: string, rel: string): string {
   }
   return absTarget;
 }
+
+/**
+ * Validate a platform URL (telemetry endpoint). Rejects non-http(s), plain
+ * http to non-loopback hosts, and link-local / metadata-service addresses
+ * (169.254.0.0/16). See spec D5 for DNS-rebinding caveat.
+ *
+ * Bypass: set AOS_ALLOW_INSECURE_PLATFORM_URL=1 for internal testing only.
+ */
+export function validatePlatformUrl(raw: string): URL {
+  if (process.env.AOS_ALLOW_INSECURE_PLATFORM_URL === "1") {
+    return new URL(raw); // still throws on parse failure
+  }
+
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    throw new Error(`platform.url rejected: unparseable URL "${raw}"`);
+  }
+
+  const isLoopbackHost = u.hostname === "localhost" || u.hostname === "127.0.0.1";
+
+  // Link-local / metadata service: 169.254.0.0/16
+  if (/^169\.254\.\d{1,3}\.\d{1,3}$/.test(u.hostname)) {
+    throw new Error(`platform.url rejected: link-local / metadata address ${u.hostname}`);
+  }
+
+  if (u.protocol !== "https:" && !(u.protocol === "http:" && isLoopbackHost)) {
+    throw new Error(`platform.url rejected: scheme "${u.protocol.replace(":", "")}" not allowed`);
+  }
+
+  return u;
+}
