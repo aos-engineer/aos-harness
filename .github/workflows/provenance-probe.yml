@@ -43,10 +43,16 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_PROBE }}
         run: npx --yes npm@latest publish --access public --provenance
 
-      - name: Verify provenance via npm audit signatures
+      - name: Verify provenance via npm audit signatures (install-then-audit)
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_PROBE }}
-        run: npm audit signatures @aos-harness/provenance-probe@0.0.1
+        run: |
+          mkdir /tmp/verify && cd /tmp/verify
+          npm init -y > /dev/null
+          # --no-save keeps package.json clean; we only care about installing
+          # so `npm audit signatures` has something to audit.
+          npm install --no-save @aos-harness/provenance-probe@0.0.1
+          npm audit signatures
 
       - name: Show attestation metadata
         run: npm view @aos-harness/provenance-probe@0.0.1 dist.attestations

@@ -55,9 +55,23 @@ jobs:
           GITHUB_ACTIONS: "true"
         run: bun run scripts/publish.ts --ci --dist-tag=${{ steps.disttag.outputs.dist_tag }}
 
-      - name: Verify provenance on npm
-        env: { NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} }
+      - name: Verify provenance on npm (install-then-audit)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ github.ref_name }}
         run: |
-          for pkg in aos-harness @aos-harness/runtime @aos-harness/adapter-shared @aos-harness/claude-code-adapter @aos-harness/codex-adapter @aos-harness/gemini-adapter @aos-harness/pi-adapter; do
-            npm audit signatures "$pkg@${GITHUB_REF_NAME#v}"
-          done
+          mkdir /tmp/verify && cd /tmp/verify
+          npm init -y > /dev/null
+          VER="${VERSION#v}"
+          # Install all 7 published packages at the tagged version, then audit.
+          # --no-save keeps package.json clean; we only need them in node_modules
+          # for npm audit signatures to walk the installed tree.
+          npm install --no-save \
+            aos-harness@"$VER" \
+            @aos-harness/runtime@"$VER" \
+            @aos-harness/adapter-shared@"$VER" \
+            @aos-harness/claude-code-adapter@"$VER" \
+            @aos-harness/codex-adapter@"$VER" \
+            @aos-harness/gemini-adapter@"$VER" \
+            @aos-harness/pi-adapter@"$VER"
+          npm audit signatures
