@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.7.0 — Adapter Trust Model (security)
+
+### Breaking
+
+- **Adapter source inside a cloned repo is no longer loaded.** The CLI resolves adapters only from installed `@aos-harness/<name>-adapter` packages or the monorepo dev layout (from the CLI's own install location). A project-local `adapters/<name>/` directory is ignored. Adapter authors should use `npm link @aos-harness/my-adapter`.
+- **`executeCode` is denied by default.** Profiles that use code execution must add:
+  ```yaml
+  tools:
+    execute_code:
+      enabled: true
+      languages: [python, bash]
+      max_timeout_ms: 60000
+  ```
+- **Unknown adapter names exit 2.** The CLI now allowlists `pi`, `claude-code`, `codex`, `gemini`.
+- **New exit code 3:** profile tool-policy validation failures and CLI flag attempting to widen profile.
+
+### Added
+
+- `--allow-code-execution[=<langs>|none]` flag to narrow (never widen) the profile's code-execution allowlist for a single session.
+- Tool-denied events appended to `transcript.jsonl` for audit.
+- `BaseWorkflow.listEnabledTools()` read-only API.
+- `validatePlatformUrl` rejects non-https (except loopback), link-local, and metadata addresses.
+
+### Migration
+
+See `docs/security/profile-tools-migration.md` (new).
+
 ## [0.6.0] - 2026-04-14
 
 ### Breaking
