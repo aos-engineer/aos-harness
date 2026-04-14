@@ -169,6 +169,8 @@ export async function replayCommand(args: ParsedArgs): Promise<void> {
     process.exit(1);
   }
 
+  // Direct CLI arg — not passed through confinedResolve (spec D4: user is trusted
+  // at the CLI boundary). If this ever becomes config-driven, use confinedResolve.
   const resolved = filePath.startsWith("/") ? filePath : resolve(process.cwd(), filePath);
   if (!existsSync(resolved)) {
     console.error(c.red(`Transcript file not found: ${resolved}`));
