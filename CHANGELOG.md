@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.2] - 2026-04-14
+
+### Deprecated
+
+- **Bundled adapters will be removed in 0.6.0.** When `aos run` falls back to the bundled copy of an adapter (i.e., the standalone `@aos-harness/<name>-adapter` package is not installed), the CLI now prints a one-time yellow deprecation warning per project with the install command needed to prepare for 0.6.0. The flag file `.aos/migration-warned-0.6` records that the warning was shown; delete it to re-enable. The warning is also deduped within a single process so multi-adapter runs don't double-warn.
+
+### Unchanged
+
+- Bundled adapter loading still works exactly as before. 0.5.2 is purely additive — no runtime behavior changes beyond the warning.
+
 ## [0.5.1] - 2026-04-14
 
 ### Fixed

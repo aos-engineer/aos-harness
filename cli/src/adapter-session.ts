@@ -15,7 +15,7 @@
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import readline from "node:readline";
 import {
   BaseEventBus,
@@ -60,7 +60,52 @@ const ADAPTER_MAP: Record<string, { package: string; className: string }> = {
   },
 };
 
-async function loadAdapterRuntime(platform: string): Promise<any> {
+// CLI version read once at module load, used in the 0.6.0 deprecation
+// warning so the suggested install command pins to the matching version.
+function readCliVersion(): string {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const raw = readFileSync(join(here, "..", "package.json"), "utf-8");
+    return (JSON.parse(raw) as { version: string }).version ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+const CLI_VERSION = readCliVersion();
+
+// Session-level dedup for the deprecation warning. If the process uses
+// multiple adapters, we still only warn once per run.
+let deprecationWarnedThisSession = false;
+
+function maybeWarnAdapterDeprecation(pkg: string, projectRoot: string): void {
+  if (deprecationWarnedThisSession) return;
+  const flagPath = join(projectRoot, ".aos", "migration-warned-0.6");
+  if (existsSync(flagPath)) return;
+  deprecationWarnedThisSession = true;
+
+  const useColor = !!process.stderr.isTTY;
+  const y = useColor ? "\x1b[33m" : "";
+  const b = useColor ? "\x1b[1m" : "";
+  const r = useColor ? "\x1b[0m" : "";
+
+  console.error(
+    `\n${y}${b}⚠ Deprecation: bundled adapters will be removed in aos-harness@0.6.0.${r}\n` +
+      `  This project is using the bundled copy of ${pkg}.\n` +
+      `  Install the standalone package to silence this warning and prepare for 0.6.0:\n\n` +
+      `    npm i -g ${pkg}@${CLI_VERSION}\n` +
+      `    # or in a project:  npm i ${pkg}@${CLI_VERSION}\n\n` +
+      `  This warning appears once per project. Delete .aos/migration-warned-0.6 to re-enable.\n`,
+  );
+
+  try {
+    mkdirSync(dirname(flagPath), { recursive: true });
+    writeFileSync(flagPath, new Date().toISOString() + "\n");
+  } catch {
+    // non-fatal — if we can't write the flag, the warning just repeats next run.
+  }
+}
+
+async function loadAdapterRuntime(platform: string, projectRoot: string): Promise<any> {
   const entry = ADAPTER_MAP[platform];
   if (!entry) throw new Error(`Unknown adapter: ${platform}`);
 
@@ -87,6 +132,7 @@ async function loadAdapterRuntime(platform: string): Promise<any> {
     const mod = await import(fallback);
     const version = await readAdapterVersion(`file://${fallback}`);
     console.error(`[adapter] loaded ${entry.package}@${version} (bundled: ${fallback})`);
+    maybeWarnAdapterDeprecation(entry.package, projectRoot);
     return mod[entry.className];
   }
 }
@@ -104,7 +150,7 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
   };
 
   log("loading adapter runtime");
-  const RuntimeClass = await loadAdapterRuntime(config.platform);
+  const RuntimeClass = await loadAdapterRuntime(config.platform, config.root);
 
   // ── Layer composition ──────────────────────────────────────
   const eventBus = new BaseEventBus();
