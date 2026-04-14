@@ -24,6 +24,7 @@ import type {
   SkillInput,
   SkillResult,
   ThinkingMode,
+  ToolCommand,
 } from "../src/types";
 import { UnsupportedError } from "../src/types";
 import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
@@ -42,7 +43,7 @@ export class MockAdapter implements AOSAdapter, PersistenceAdapter {
   responseCost = 0.012;
   responseTokensIn = 500;
   responseTokensOut = 300;
-  domainEnforcerOverride?: (agentId: string, toolCall: { tool: string; path?: string; command?: string }) => EnforcementResult;
+  domainEnforcerOverride?: (agentId: string, toolCall: { tool: string; path?: string; command?: string | ToolCommand }) => EnforcementResult;
 
   // ── Internal tracking ───────────────────────────────────────────
   calls: MockCall[] = [];
@@ -355,7 +356,7 @@ export class MockAdapter implements AOSAdapter, PersistenceAdapter {
 
   async enforceToolAccess(
     agentId: string,
-    toolCall: { tool: string; path?: string; command?: string },
+    toolCall: { tool: string; path?: string; command?: string | ToolCommand },
   ): Promise<EnforcementResult> {
     this.record("enforceToolAccess", agentId, toolCall);
     if (this.domainEnforcerOverride) {
