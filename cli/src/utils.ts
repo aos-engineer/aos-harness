@@ -189,3 +189,15 @@ export function getPackageCoreDir(): string | null {
   }
   return null;
 }
+
+/**
+ * Adapters the CLI is permitted to load. Security boundary, not a convenience
+ * list: expanding it requires a CLI release because every entry has been
+ * reviewed by a CLI maintainer. Spec D2.
+ */
+export const ADAPTER_ALLOWLIST = ["pi", "claude-code", "codex", "gemini"] as const;
+export type AdapterName = typeof ADAPTER_ALLOWLIST[number];
+
+export function isValidAdapter(name: unknown): name is AdapterName {
+  return typeof name === "string" && (ADAPTER_ALLOWLIST as readonly string[]).includes(name);
+}
