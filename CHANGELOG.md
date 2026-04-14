@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.1] - 2026-04-14
+
+### Fixed
+
+- `aos-harness` CLI tarball dropped from ~39 MB to ~220 KB. `scripts/copy-core.ts` now filters out `node_modules/`, lockfiles, `.aos/` session data, and test directories when bundling adapters into the CLI. Users installing the CLI no longer pull ~15k transitive files from bundled adapters' dev dependencies.
+
 ## [0.5.0] - 2026-04-13
 
 ### Added

@@ -6,7 +6,7 @@
  */
 
 import { cpSync, rmSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, relative, sep } from "node:path";
 
 const root = resolve(import.meta.dir, "..");
 const coreSrc = resolve(root, "core");
@@ -24,13 +24,41 @@ export function copyCore(): void {
   cpSync(coreSrc, coreDest, { recursive: true });
   console.log(`  Copied core/ → cli/core/`);
 
-  // Also copy adapters
+  // Also copy adapters — but strip dev-only cruft (node_modules, lockfiles,
+  // session data, tests). Keep only runtime-relevant files so the CLI tarball
+  // stays small. Standalone users install @aos-harness/<name>-adapter directly.
   if (existsSync(adaptersSrc)) {
     if (existsSync(adaptersDest)) {
       rmSync(adaptersDest, { recursive: true });
     }
-    cpSync(adaptersSrc, adaptersDest, { recursive: true });
-    console.log(`  Copied adapters/ → cli/adapters/`);
+    const EXCLUDED_SEGMENTS = new Set([
+      "node_modules",
+      ".aos",
+      "tests",
+      "test",
+      "__tests__",
+    ]);
+    const EXCLUDED_FILES = new Set([
+      "bun.lock",
+      "bun.lockb",
+      "package-lock.json",
+      "yarn.lock",
+      "pnpm-lock.yaml",
+      ".DS_Store",
+    ]);
+    cpSync(adaptersSrc, adaptersDest, {
+      recursive: true,
+      filter: (src) => {
+        const rel = relative(adaptersSrc, src);
+        if (!rel) return true;
+        const parts = rel.split(sep);
+        if (parts.some((p) => EXCLUDED_SEGMENTS.has(p))) return false;
+        const basename = parts[parts.length - 1];
+        if (basename && EXCLUDED_FILES.has(basename)) return false;
+        return true;
+      },
+    });
+    console.log(`  Copied adapters/ → cli/adapters/ (runtime files only)`);
   }
 }
 
