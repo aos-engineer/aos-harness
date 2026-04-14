@@ -28,7 +28,16 @@ export function parseArgs(argv: string[]): ParsedArgs {
   while (i < args.length) {
     const arg = args[i];
     if (arg.startsWith("--")) {
-      const key = arg.slice(2);
+      const body = arg.slice(2);
+      // Support --key=value (inline) as well as --key value (separate arg).
+      const eq = body.indexOf("=");
+      if (eq !== -1) {
+        const key = body.slice(0, eq);
+        flags[key] = body.slice(eq + 1);
+        i += 1;
+        continue;
+      }
+      const key = body;
       const next = args[i + 1];
       if (next && !next.startsWith("--")) {
         flags[key] = next;

@@ -249,3 +249,28 @@ export function validatePlatformUrl(raw: string): URL {
 
   return u;
 }
+
+/**
+ * Parse the `--allow-code-execution[=<val>]` flag (spec D3.2).
+ *
+ * Semantics (narrow-only — never widens the profile):
+ *   undefined         → undefined   (no flag: use profile as-is)
+ *   true (bare flag)  → "all"       (no-op vs profile)
+ *   "" or "all"       → "all"
+ *   "none"            → "none"      (force-deny)
+ *   "python,bash"     → ["python", "bash"]  (narrow to set; buildToolPolicy
+ *                                             will reject widening attempts)
+ */
+export function parseAllowCodeExecutionFlag(
+  raw: unknown,
+): "none" | "all" | string[] | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (raw === true) return "all";
+  if (typeof raw !== "string") return undefined;
+  if (raw === "none") return "none";
+  if (raw === "all" || raw === "") return "all";
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
