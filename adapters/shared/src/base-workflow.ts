@@ -429,7 +429,7 @@ Respond with:
     const policy = this.toolPolicy;
     const entry = (policy as any)[toolCall.tool];
     if (!entry?.enabled) {
-      const reason = `tool "${toolCall.tool}" (execute_code) is not enabled in profile`;
+      const reason = `tool "${toolCall.tool}" is not enabled in profile`;
       this.emitToolDenied(agentId, toolCall.tool, reason, toolCall.command);
       return { allowed: false, reason };
     }
