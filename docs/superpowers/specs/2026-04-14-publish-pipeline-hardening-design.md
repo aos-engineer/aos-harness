@@ -106,17 +106,28 @@ Exits `0` on pass, `1` on fail with a clear message. Locally runnable too — `b
 
 ### D3 — Replace `scripts/check-yaml-safety.sh` with an AST-based lint
 
-Drop the shell script. New file `scripts/check-yaml-safety.ts` that uses the TypeScript compiler API (already a Bun-runtime dependency) — no new dependencies — to walk every `.ts` file under `cli/`, `runtime/`, `adapters/`, and `core/` (if it has `.ts`) and find `CallExpression`s where the callee resolves to `yaml.load` (any binding path: `yaml.load`, destructured `load`, aliased `import { load as l }`). For each, assert the second argument is an `ObjectLiteralExpression` with a `schema` property whose value is either `yaml.JSON_SCHEMA` or `yaml.FAILSAFE_SCHEMA`.
+Drop the shell script. New file `scripts/check-yaml-safety.ts` that uses the TypeScript compiler API (already a Bun-runtime dependency) — no new dependencies — to walk every `.ts` file under `cli/`, `runtime/`, `adapters/`, and `core/` (if it has `.ts`) and find `CallExpression`s whose callee matches `load(` or `<identifier>.load(` by **syntactic shape**. For each, assert the second argument is an `ObjectLiteralExpression` with a `schema` property whose value is either `yaml.JSON_SCHEMA` or `yaml.FAILSAFE_SCHEMA`.
 
 ```ts
 // High-level algorithm
 1. Glob **/*.ts in cli/, runtime/, adapters/, core/. Exclude node_modules, **/*.test.ts, **/tests/**.
 2. For each file, ts.createSourceFile(fileContent).
-3. Walk the AST. For each CallExpression:
-   a. Resolve callee to a symbol. Is it `yaml.load` or a destructured/aliased `load` from `js-yaml`?
-   b. If yes, check args[1]: must be an object literal with `schema: yaml.JSON_SCHEMA` or `FAILSAFE_SCHEMA`.
-4. Collect violations. If any, print `file:line: yaml.load missing safe schema: <snippet>` and exit 1.
+3. Walk the AST. For each CallExpression whose callee is:
+   - an Identifier named `load`, OR
+   - a PropertyAccessExpression whose name is `load`
+   check args[1]: must be an object literal with `schema: <Identifier "JSON_SCHEMA" | "FAILSAFE_SCHEMA">` or
+   `schema: <PropertyAccessExpression ending in JSON_SCHEMA | FAILSAFE_SCHEMA>`.
+4. Permit an inline escape hatch: a leading comment `// yaml-safety-ignore` on the same or immediately-preceding
+   line suppresses the finding. Comment must explain why (enforced: comment text after the marker must be ≥ 10 chars).
+5. Collect violations. If any, print `file:line: yaml.load missing safe schema: <snippet>` and exit 1.
 ```
+
+**Design choice — accept false positives over false negatives.** This is a **syntactic**, not semantic, check. We deliberately do NOT use `ts.createProgram` with a compiler host to resolve import bindings back to `js-yaml`. Two reasons:
+
+1. **For a security lint, false positives are strictly better than false negatives.** A call to `load()` from a local module named `my-local-loader` that happens not to need a schema arg is a tiny amount of developer friction; a missed `yaml.load(untrusted)` from `js-yaml` is an RCE on every CI run. We always err on the over-flagging side.
+2. **Bindings-resolution is disproportionate cost.** `createProgram` requires a full TS program with resolved `tsconfig.json` per workspace, which is 10–50× slower and adds failure modes (what if a workspace's tsconfig is momentarily broken?). The syntactic check runs in <1s across the whole repo.
+
+The `// yaml-safety-ignore <reason>` escape hatch handles the "local `load()` function that doesn't take a schema" case. Reason text is mandatory and enforced. Expected use is rare (a handful of call sites at most) and every use is reviewable in PR diffs.
 
 Exclusions are path-scoped (`**/tests/**`, `**/*.test.ts`), not substring-based. No file with "test" in its name is automatically exempt.
 
@@ -134,6 +145,7 @@ The script grows a `--ci` flag:
   - Assumes pre-validated environment (tag, lint, tests already ran).
   - Pins workspace deps, runs `bun publish --access public --provenance`, unpins, exits.
   - No `prompts`, no interactive confirmations, no `sleep`.
+  - **Provenance is passed both via `publishConfig.provenance: true` (D6) and as an explicit CLI flag.** Bun 1.3.11 delegates `bun publish` through its own implementation, not to `npm`. Empirical behavior as of 2026-04-14: Bun honors `publishConfig.provenance`, but this has drifted in minor releases. The plan's Step 0 is a one-shot verification (publish a `@aos-harness/_provenance-probe` scratch package from a fork, confirm the provenance statement lands on the registry). **If Bun silently drops the flag, the plan halts and we switch to invoking `npm publish --provenance` directly** via `npx npm@latest publish --access public --provenance`. The explicit `--provenance` CLI arg is belt-and-suspenders — Bun's flag parser logs on unknown flags, which doubles as a detection signal for the silent-drop case.
 - **`--dry-run`** (default for local):
   - Pins workspace deps into a `.tmp-publish/` directory tree **instead of mutating the source**.
   - Runs `bun publish --dry-run --pack-destination .tmp-publish/tarballs/` per package.
@@ -151,6 +163,8 @@ Two small changes:
 2. Assert `target` is under `cli/core` (startsWith check against an absolute `resolve(root, "cli", "core")`). Defense-in-depth against a future refactor that parameterizes the target.
 
 Both are 4-line additions. No behavior change in the happy path.
+
+**Known limitation — symlinks inside the tree.** The `lstat` guard only checks the *top-level* target. If an attacker with repo write access could place `cli/core/agents/evil → /etc`, `rmSync({ recursive: true })` may follow it depending on runtime. Full protection would require walking the tree and refusing on any descendant symlink, which is a ~30-line recursive walk for a script that runs during local/CI builds only. **We accept this risk** because: (a) the directory is created fresh by `cpSync` in the same script, seconds earlier — the window for tampering is zero during normal CI runs; (b) the threat model requires push access to the repo, at which point the attacker has much more direct paths to code execution; (c) CI runs in a disposable VM where even a full-tree `rm` off the target would be bounded. Revisit only if `copy-core.ts` ever runs against a persistent, shared, or pre-existing directory.
 
 ### D6 — Per-package `publishConfig`
 
@@ -230,7 +244,7 @@ No new services. No new secrets beyond the rotated `NPM_TOKEN`. No cross-repo in
 - **Tag mismatch / dirty tree** → `verify-release-tag.ts` exits 1; workflow fails before any publish.
 - **Lint or test failure** → standard CI failure.
 - **YAML-safety violation** → `check-yaml-safety.ts` prints `file:line` list, exits 1.
-- **No environment approval within 24h** → GitHub auto-cancels the waiting job; release can be re-triggered by re-pushing the same tag (or a `vN.N.N-rc1` retry tag).
+- **No environment approval within 24h** → GitHub auto-cancels the waiting job. This **will** happen on weekend-tag pushes; document the re-trigger procedure prominently in the runbook so the Monday-morning operator doesn't panic. Recovery: `git tag -d v0.7.0 && git push --delete origin v0.7.0 && git tag -a v0.7.0 -m "…" && git push --tags`. Or cut a fresh `v0.7.0-rc.2` and let that go through the flow; the original tag becomes a dated annotated tag that never published. **Operational recommendation**: post tag-push announcement to the team channel with a @mention of the environment reviewers so approvals happen promptly.
 - **`bun publish` fails mid-lockstep** (say, #3 of 7) → existing idempotent retry logic in `publish.ts` handles the "version already exists" case on re-run. Operator's fix: re-push the tag (fast-forward, no code change).
 - **Provenance generation fails** (missing `id-token: write`) → `bun publish --provenance` errors loudly; fail-closed, never publishes without provenance.
 
@@ -250,18 +264,49 @@ Single release (0.7.0-rc.1 → 0.7.0). No user-visible behavior change. Consumer
 Operator actions (one-time, in the order they must happen):
 
 1. Merge D3 + D5 + D6 + D7 on a feature branch (they're pure local changes; no release-workflow involvement). Existing CI stays green.
-2. Create GitHub environment `npm-publish`. Add required reviewers. Set `NPM_TOKEN` as a scoped secret.
-3. Rotate npm token. Enable 2FA-required on the scope.
+2. Create GitHub environment `npm-publish`. Add required reviewers. Set the **new** environment-scoped `NPM_TOKEN` secret (value generated in Step 3).
+3. Rotate npm token:
+   a. Generate a new **automation token** scoped to the `@aos-harness` npm org.
+   b. Store it in the `npm-publish` GitHub environment (Step 2).
+   c. Enable 2FA-required for publish on the `@aos-harness` scope (npm settings → packages).
+   d. **Delete any repo-level (non-environment-scoped) `NPM_TOKEN` secret from GitHub repo settings.** This is critical: a repo-level token is readable by every workflow on every branch, bypassing the environment approval we just set up. Verify no other workflow depends on it (only `release.yml` should reference `NPM_TOKEN`).
+   e. Revoke the **old** automation token on npm (the one currently on developer laptops) last, so steps a–d complete before losing publish capability.
 4. Merge D1 + D2 + D4 (release workflow + verify script + publish.ts --ci flag). CI doesn't fire on this (no tag).
-5. Cut `v0.7.0-rc.1` → release workflow runs → approval → provenance verified.
+5. Cut `v0.7.0-rc.1` → release workflow runs → approval → provenance verified via `npm audit signatures @aos-harness/pi-adapter@0.7.0-rc.1`.
 6. Cut `v0.7.0` (real release).
 7. Delete or comment out `publish:all` from root `package.json` scripts (or rename to `publish:dry-run`) to remove the "run locally" muscle memory.
 
-## Open Questions
+## D8 — Settled follow-ons (previously "open questions")
 
-- Do we want to publish docs/security/npm-release-runbook.md in-repo, or keep it internal? **Proposed: in-repo under `docs/security/`**, so external contributors can understand the release trust chain without special access. Contains no secrets — only the process.
-- Should `verify-release-tag.ts` require signed tags (`git verify-tag`)? **Proposed: no for 0.7.0, yes for 1.0.0.** Signing-key friction during pre-1.0 is not worth the marginal security on top of provenance + environment approval. Revisit at 1.0.
-- Should the release workflow publish to the `next` dist-tag on any tag matching `v*-rc.*` automatically? **Proposed: yes.** One-line conditional in the workflow. Makes pre-release testing trivial.
-- Do we want to retain the ability to publish from a laptop as a fallback if CI is down? **Proposed: no.** Emergency publishes bypass every security control we just added; better to fix CI. If genuine emergency, document a break-glass procedure (temporary token + explicit operator sign-off in an issue) but don't build it in.
+### D8.1 Runbook lives in-repo
 
-Mark all as "decide during plan-writing" unless reviewer wants them settled now.
+`docs/security/npm-release-runbook.md` is committed alongside the rest of the documentation. Contains no secrets — only the process: who has publish rights, how to cut a release, how to approve one, what to do when a tag gets stuck in the 24h auto-cancel window, how to verify provenance as a consumer. Transparency about the release process builds trust with external contributors and consumers.
+
+### D8.2 Defer signed tags to 1.0
+
+`verify-release-tag.ts` requires an annotated tag but does **not** require `git verify-tag`. The marginal security of signed tags on top of provenance + environment approval + automation-token rotation + 2FA is thin; the friction of onboarding contributor signing keys is real. Revisit at 1.0.0 as part of a broader "pre-GA security hardening" pass.
+
+### D8.3 `rc` tags auto-publish to `next` dist-tag
+
+The release workflow has one conditional:
+
+```yaml
+- name: Publish all packages with provenance
+  env:
+    NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    DIST_TAG: ${{ contains(github.ref_name, '-rc.') && 'next' || 'latest' }}
+  run: bun run scripts/publish.ts --ci --dist-tag=$DIST_TAG
+```
+
+`publish.ts --ci --dist-tag=<tag>` threads the value into every `bun publish --tag=<tag>` call. Pre-release consumers opt in with `npm i @aos-harness/pi-adapter@next`; the `latest` tag stays pinned to the last real release. One-line change with real testing leverage.
+
+### D8.4 No laptop fallback; break-glass requires two people
+
+If CI is genuinely unavailable for a publish that must happen, the break-glass procedure (documented in the runbook, not built into the codebase) requires:
+
+1. **Person A**: generates a temporary, short-lived automation token (≤24h expiry where supported; otherwise manual revocation reminder in the runbook) and hands it to Person B via a secure channel (1Password shared item, Signal, etc.).
+2. **Person B**: runs the publish from a clean checkout at the signed tag, using the temporary token.
+3. **Person A**: revokes the temporary token immediately after Person B confirms publish success.
+4. **Both**: file a post-incident issue documenting why CI was unavailable, what was published, and what fix is needed to prevent recurrence.
+
+This mirrors the CI approval gate (two humans involved) and forces the incident to be visible. We do not build tooling for it — the friction is the point. If someone finds themselves break-glassing more than once a year, that's a signal to invest in CI reliability, not in better break-glass tooling.
