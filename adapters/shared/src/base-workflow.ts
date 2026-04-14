@@ -3,7 +3,7 @@
 // code execution, and skill invocation. CLI-agnostic.
 
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import * as yaml from "js-yaml";
 import type {
@@ -20,6 +20,13 @@ import type {
   ReviewResult,
 } from "@aos-harness/runtime/types";
 import { UnsupportedError } from "@aos-harness/runtime/types";
+import { DEFAULT_TOOL_POLICY } from "@aos-harness/runtime/profile-schema";
+import { buildToolPolicy, type ToolPolicy } from "./tool-policy";
+
+export interface BaseWorkflowOpts {
+  toolPolicy?: ToolPolicy;
+  transcriptPath?: string;
+}
 
 // Minimal interface for the agent runtime dependency
 interface AgentMessageSender {
@@ -29,10 +36,18 @@ interface AgentMessageSender {
 export class BaseWorkflow implements WorkflowAdapter {
   private agentRuntime: AgentMessageSender;
   private projectRoot: string;
+  private readonly toolPolicy: ToolPolicy;
+  private readonly transcriptPath?: string;
 
-  constructor(agentRuntime: AgentMessageSender, projectRoot: string = process.cwd()) {
+  constructor(
+    agentRuntime: AgentMessageSender,
+    projectRoot: string = process.cwd(),
+    opts?: BaseWorkflowOpts,
+  ) {
     this.agentRuntime = agentRuntime;
     this.projectRoot = resolve(projectRoot);
+    this.toolPolicy = opts?.toolPolicy ?? buildToolPolicy(DEFAULT_TOOL_POLICY, {});
+    this.transcriptPath = opts?.transcriptPath;
   }
 
   private validatePath(filePath: string): string {
@@ -232,6 +247,17 @@ Respond with:
     const cwd = opts?.cwd ?? process.cwd();
     const sandbox = opts?.sandbox ?? "strict";
 
+    const gate = await this.enforceToolAccess(
+      (handle as any)?.agentId ?? "unknown",
+      {
+        tool: "execute_code",
+        command: { language, timeout_ms: timeout },
+      },
+    );
+    if (!gate.allowed) {
+      throw new UnsupportedError("executeCode", gate.reason ?? "denied by policy");
+    }
+
     let cmd: string;
     let args: string[];
 
@@ -384,9 +410,65 @@ Respond with:
   }
 
   async enforceToolAccess(
-    _agentId: string,
-    _toolCall: { tool: string; path?: string; command?: string },
+    agentId: string,
+    toolCall: { tool: string; path?: string; command?: any },
   ): Promise<{ allowed: boolean; reason?: string }> {
+    const policy = this.toolPolicy;
+    const entry = (policy as any)[toolCall.tool];
+    if (!entry?.enabled) {
+      const reason = `tool "${toolCall.tool}" (execute_code) is not enabled in profile`;
+      this.emitToolDenied(agentId, toolCall.tool, reason, toolCall.command);
+      return { allowed: false, reason };
+    }
+    if (
+      toolCall.tool === "execute_code" &&
+      toolCall.command &&
+      typeof toolCall.command === "object"
+    ) {
+      const lang = toolCall.command.language ?? "bash";
+      if (!policy.execute_code.languages.includes(lang as any)) {
+        const reason = `language "${lang}" not in profile allowlist (${
+          policy.execute_code.languages.join(", ") || "none"
+        })`;
+        this.emitToolDenied(agentId, toolCall.tool, reason, toolCall.command);
+        return { allowed: false, reason };
+      }
+      if (
+        toolCall.command.timeout_ms &&
+        toolCall.command.timeout_ms > policy.execute_code.max_timeout_ms
+      ) {
+        const reason = `timeout ${toolCall.command.timeout_ms}ms exceeds profile max ${policy.execute_code.max_timeout_ms}ms`;
+        this.emitToolDenied(agentId, toolCall.tool, reason, toolCall.command);
+        return { allowed: false, reason };
+      }
+    }
     return { allowed: true };
+  }
+
+  private emitToolDenied(
+    agentId: string,
+    tool: string,
+    reason: string,
+    detail?: unknown,
+  ): void {
+    if (!this.transcriptPath) return;
+    const line = JSON.stringify({
+      ts: new Date().toISOString(),
+      type: "tool-denied",
+      agent: agentId,
+      tool,
+      reason,
+      detail: detail ?? null,
+    });
+    try {
+      appendFileSync(this.transcriptPath, line + "\n");
+    } catch {
+      // Transcript unavailable — do not fail the deliberation
+    }
+  }
+
+  /** Read-only view of the active tool policy. Spec D7.2. */
+  listEnabledTools(): Readonly<Record<string, unknown>> {
+    return this.toolPolicy as unknown as Readonly<Record<string, unknown>>;
   }
 }
