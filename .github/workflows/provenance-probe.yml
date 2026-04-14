@@ -49,10 +49,23 @@ jobs:
         run: |
           mkdir /tmp/verify && cd /tmp/verify
           npm init -y > /dev/null
-          # --no-save keeps package.json clean; we only care about installing
-          # so `npm audit signatures` has something to audit.
-          npm install --no-save @aos-harness/provenance-probe@0.0.2
+
+          # npm registry CDN propagation can take 15-120 seconds after publish.
+          # Retry the install up to 6x with a 15s backoff before giving up.
+          for attempt in 1 2 3 4 5 6; do
+            if npm install --no-save @aos-harness/provenance-probe@0.0.3 2>&1; then
+              echo "install succeeded on attempt $attempt"
+              break
+            fi
+            if [ "$attempt" = "6" ]; then
+              echo "install still failing after 6 attempts — registry did not propagate"
+              exit 1
+            fi
+            echo "install attempt $attempt failed (propagation delay); sleeping 15s"
+            sleep 15
+          done
+
           npm audit signatures
 
       - name: Show attestation metadata
-        run: npm view @aos-harness/provenance-probe@0.0.2 dist.attestations
+        run: npm view @aos-harness/provenance-probe@0.0.3 dist.attestations

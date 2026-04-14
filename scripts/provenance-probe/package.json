@@ -1,6 +1,6 @@
 {
   "name": "@aos-harness/provenance-probe",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Scratch package used once to verify Bun's bun publish --provenance produces real npm provenance attestations. Deprecate after verification.",
   "license": "MIT",
   "repository": {

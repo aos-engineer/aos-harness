@@ -63,15 +63,27 @@ jobs:
           mkdir /tmp/verify && cd /tmp/verify
           npm init -y > /dev/null
           VER="${VERSION#v}"
-          # Install all 7 published packages at the tagged version, then audit.
-          # --no-save keeps package.json clean; we only need them in node_modules
-          # for npm audit signatures to walk the installed tree.
-          npm install --no-save \
-            aos-harness@"$VER" \
-            @aos-harness/runtime@"$VER" \
-            @aos-harness/adapter-shared@"$VER" \
-            @aos-harness/claude-code-adapter@"$VER" \
-            @aos-harness/codex-adapter@"$VER" \
-            @aos-harness/gemini-adapter@"$VER" \
-            @aos-harness/pi-adapter@"$VER"
+
+          # npm registry CDN propagation can take 15-120 seconds after publish.
+          # Retry the install up to 6x with a 15s backoff before giving up.
+          for attempt in 1 2 3 4 5 6; do
+            if npm install --no-save \
+                aos-harness@"$VER" \
+                @aos-harness/runtime@"$VER" \
+                @aos-harness/adapter-shared@"$VER" \
+                @aos-harness/claude-code-adapter@"$VER" \
+                @aos-harness/codex-adapter@"$VER" \
+                @aos-harness/gemini-adapter@"$VER" \
+                @aos-harness/pi-adapter@"$VER"; then
+              echo "install succeeded on attempt $attempt"
+              break
+            fi
+            if [ "$attempt" = "6" ]; then
+              echo "install still failing after 6 attempts — registry did not propagate"
+              exit 1
+            fi
+            echo "install attempt $attempt failed; sleeping 15s for propagation"
+            sleep 15
+          done
+
           npm audit signatures
