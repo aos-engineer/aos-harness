@@ -33,4 +33,10 @@ describe("buildToolPolicy (spec D3)", () => {
     const p = buildToolPolicy(profile as any, { allowCodeExecution: "all" });
     expect(p.execute_code.languages).toEqual(["python"]);
   });
+
+  test("flag requests a language not in profile's list → throws (partial mismatch)", () => {
+    const profile = { ...DEFAULT_TOOL_POLICY, execute_code: { enabled: true, languages: ["python", "bash"] as const, max_timeout_ms: 30000 } };
+    expect(() => buildToolPolicy(profile as any, { allowCodeExecution: ["ruby"] }))
+      .toThrow(/cannot widen|ruby/i);
+  });
 });
