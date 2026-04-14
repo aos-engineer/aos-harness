@@ -13,9 +13,13 @@
  *   --ci        Release workflow only. Refuses to run unless
  *               GITHUB_ACTIONS=true. Pins in place (preserving the
  *               existing try/finally restore), publishes each package with
- *               explicit `--access public --provenance --tag=<distTag>`,
+ *               `--access public --tag=<distTag>` via the npm CLI, and
  *               preserves the idempotent-retry behaviour where an
  *               "already exists" error causes the package to be skipped.
+ *               Note: --provenance is intentionally NOT passed; the source
+ *               repo is private and npm rejects provenance for private
+ *               sources. Re-add --provenance (and `id-token: write` in
+ *               release.yml) if the repo becomes public.
  *
  * Flags:
  *   --dry-run
@@ -237,7 +241,8 @@ async function runDryRun(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// --ci mode: in-place pin + real publish with explicit --provenance + --tag
+// --ci mode: in-place pin + real publish via `npm publish --access public
+// --tag=<distTag>`. No --provenance (private-source repo; see header doc).
 // ---------------------------------------------------------------------------
 async function runCi(): Promise<void> {
   // NEVER add a force flag — CI-only is a security property, not a convenience.
