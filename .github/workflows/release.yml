@@ -66,8 +66,10 @@ jobs:
 
           # npm registry CDN propagation can take 15-120 seconds after publish.
           # Retry the install up to 6x with a 15s backoff before giving up.
+          # IMPORTANT: install WITHOUT --no-save so npm audit signatures sees
+          # the deps in package.json (it only audits declared dependencies).
           for attempt in 1 2 3 4 5 6; do
-            if npm install --no-save \
+            if npm install \
                 aos-harness@"$VER" \
                 @aos-harness/runtime@"$VER" \
                 @aos-harness/adapter-shared@"$VER" \
