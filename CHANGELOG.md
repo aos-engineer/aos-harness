@@ -27,6 +27,16 @@
 
 See `docs/security/profile-tools-migration.md` (new).
 
+### Release infrastructure
+
+- Packages are now published from GitHub Actions with npm provenance attestations. Consumers can verify with `npm audit signatures @aos-harness/<pkg>@<version>`.
+- Local `publish:all` is replaced by `publish:dry-run` (pack-only, no upload). Publishing from a laptop is no longer supported; use `git tag -a v<version>` + push.
+- YAML-safety lint is now AST-based (`scripts/check-yaml-safety.ts`). The previous grep-based version is removed.
+- `scripts/copy-core.ts` refuses symlink targets and paths outside `cli/core`.
+- CI workflow gained a minimum `permissions: { contents: read }` block.
+
+See `docs/security/npm-release-runbook.md` for the release process.
+
 ## [0.6.0] - 2026-04-14
 
 ### Breaking
