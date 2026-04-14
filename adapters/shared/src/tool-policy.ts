@@ -1,4 +1,4 @@
-import type { ToolsBlock, SupportedLanguage } from "../../../runtime/src/profile-schema";
+import type { ToolsBlock, SupportedLanguage } from "@aos-harness/runtime/profile-schema";
 
 export type CliToolFlags = {
   /**
@@ -39,8 +39,9 @@ export function buildToolPolicy(profile: ToolsBlock, flags: CliToolFlags): ToolP
   }
   // "all" or undefined → no change
 
+  const frozenLangs = Object.freeze(finalLangs) as readonly SupportedLanguage[] as SupportedLanguage[];
   const policy: ToolsBlock = {
-    execute_code: { enabled: finalEnabled, languages: finalLangs, max_timeout_ms: ec.max_timeout_ms },
+    execute_code: { enabled: finalEnabled, languages: frozenLangs, max_timeout_ms: ec.max_timeout_ms },
     read_file: { ...profile.read_file },
     write_file: { ...profile.write_file },
     list_directory: { ...profile.list_directory },

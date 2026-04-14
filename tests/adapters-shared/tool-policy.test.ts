@@ -1,6 +1,21 @@
 import { describe, test, expect } from "bun:test";
 import { buildToolPolicy } from "../../adapters/shared/src/tool-policy";
-import { DEFAULT_TOOL_POLICY } from "../../runtime/src/profile-schema";
+import {
+  DEFAULT_TOOL_POLICY,
+  type SupportedLanguage,
+  type ToolsBlock,
+} from "../../runtime/src/profile-schema";
+
+function makeProfile(languages: SupportedLanguage[]): ToolsBlock {
+  return {
+    ...DEFAULT_TOOL_POLICY,
+    execute_code: {
+      enabled: true,
+      languages,
+      max_timeout_ms: 30_000,
+    },
+  };
+}
 
 describe("buildToolPolicy (spec D3)", () => {
   test("no profile, no flags → default policy (execute_code disabled)", () => {
@@ -11,8 +26,8 @@ describe("buildToolPolicy (spec D3)", () => {
   });
 
   test("profile allows [python, bash] + flag=python narrows to [python]", () => {
-    const profile = { ...DEFAULT_TOOL_POLICY, execute_code: { enabled: true, languages: ["python", "bash"] as const, max_timeout_ms: 30000 } };
-    const p = buildToolPolicy(profile as any, { allowCodeExecution: ["python"] });
+    const profile = makeProfile(["python", "bash"]);
+    const p = buildToolPolicy(profile, { allowCodeExecution: ["python"] });
     expect(p.execute_code.enabled).toBe(true);
     expect(p.execute_code.languages).toEqual(["python"]);
   });
@@ -23,20 +38,20 @@ describe("buildToolPolicy (spec D3)", () => {
   });
 
   test("--allow-code-execution=none forces deny even if profile allows", () => {
-    const profile = { ...DEFAULT_TOOL_POLICY, execute_code: { enabled: true, languages: ["python"] as const, max_timeout_ms: 30000 } };
-    const p = buildToolPolicy(profile as any, { allowCodeExecution: "none" });
+    const profile = makeProfile(["python"]);
+    const p = buildToolPolicy(profile, { allowCodeExecution: "none" });
     expect(p.execute_code.enabled).toBe(false);
   });
 
   test("bare --allow-code-execution with profile allow leaves profile unchanged", () => {
-    const profile = { ...DEFAULT_TOOL_POLICY, execute_code: { enabled: true, languages: ["python"] as const, max_timeout_ms: 30000 } };
-    const p = buildToolPolicy(profile as any, { allowCodeExecution: "all" });
+    const profile = makeProfile(["python"]);
+    const p = buildToolPolicy(profile, { allowCodeExecution: "all" });
     expect(p.execute_code.languages).toEqual(["python"]);
   });
 
   test("flag requests a language not in profile's list → throws (partial mismatch)", () => {
-    const profile = { ...DEFAULT_TOOL_POLICY, execute_code: { enabled: true, languages: ["python", "bash"] as const, max_timeout_ms: 30000 } };
-    expect(() => buildToolPolicy(profile as any, { allowCodeExecution: ["ruby"] }))
+    const profile = makeProfile(["python", "bash"]);
+    expect(() => buildToolPolicy(profile, { allowCodeExecution: ["ruby"] }))
       .toThrow(/cannot widen|ruby/i);
   });
 });

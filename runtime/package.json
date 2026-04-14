@@ -26,7 +26,8 @@
     "./child-agent-manager": "./src/child-agent-manager.ts",
     "./expertise-manager": "./src/expertise-manager.ts",
     "./event-summarizer": "./src/event-summarizer.ts",
-    "./session-checkpoint": "./src/session-checkpoint.ts"
+    "./session-checkpoint": "./src/session-checkpoint.ts",
+    "./profile-schema": "./src/profile-schema.ts"
   },
   "files": ["src/", "README.md"],
   "dependencies": {
