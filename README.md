@@ -46,7 +46,7 @@ Adapters ship as separate packages. Pin to the same version as the CLI (they pub
 npm i -g @aos-harness/claude-code-adapter   # Anthropic's Claude Code
 npm i -g @aos-harness/gemini-adapter         # Google's Gemini CLI
 npm i -g @aos-harness/codex-adapter          # OpenAI's Codex CLI
-npm i -g @aos-harness/pi-adapter             # Pi (pi-ai) — direct model SDK
+npm i -g @aos-harness/pi-adapter             # Pi (https://pi.dev)
 ```
 
 ### Initialize a project
