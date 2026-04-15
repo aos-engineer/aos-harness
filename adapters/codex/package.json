@@ -1,6 +1,6 @@
 {
   "name": "@aos-harness/codex-adapter",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "AOS Harness adapter for OpenAI's Codex CLI.",
   "license": "MIT",
   "repository": {
