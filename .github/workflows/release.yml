@@ -15,6 +15,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # fetch-tags preserves annotated-tag objects; without it
+          # `git cat-file -t <tag>` returns `commit` even for annotated tags
+          # (actions/checkout peels tags to their target commits by default).
+          fetch-tags: true
 
       - uses: oven-sh/setup-bun@v2
         with:
