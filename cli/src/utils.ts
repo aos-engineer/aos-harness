@@ -2,8 +2,9 @@
  * Shared utilities for CLI commands.
  */
 
-import { join, normalize, resolve, sep } from "node:path";
-import { existsSync, readdirSync } from "node:fs";
+import { join, normalize, resolve, sep, dirname } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 
 /**
@@ -188,6 +189,22 @@ export function getPackageCoreDir(): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Read the CLI's own version from package.json at runtime. Works both in the
+ * monorepo (where import.meta.url → cli/src/utils.ts) and after npm install
+ * (where it → node_modules/aos-harness/src/utils.ts). In both cases `..`
+ * lands on the package root containing package.json.
+ */
+export function getCliVersion(): string {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const raw = readFileSync(join(here, "..", "package.json"), "utf-8");
+    return (JSON.parse(raw) as { version: string }).version ?? "unknown";
+  } catch {
+    return "unknown";
+  }
 }
 
 /**
