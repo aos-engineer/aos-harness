@@ -41,15 +41,15 @@ describe("verify-release-tag.ts (spec D2)", () => {
     } finally { rmSync(repo, { recursive: true, force: true }); }
   });
 
-  test("lightweight tag → exit 0 with warning (soft check)", async () => {
-    // actions/checkout peels annotated tags in CI, making a strict annotated
-    // check unreliable. We warn but don't fail. Real supply-chain guarantees
-    // are carried by HEAD match, version lockstep, and clean tree.
+  test("lightweight tag → exit 0 (annotation check dropped; see script header)", async () => {
+    // Annotated-tag check was dropped because actions/checkout peels
+    // annotated tags in CI, making the distinction unreliable. Real
+    // supply-chain guarantees come from HEAD match, version lockstep,
+    // clean tree, and maintainer-only tag-push permission.
     const repo = await initRepo("v0.7.0", "0.7.0", false, false);
     try {
       const r = await $`cd ${repo} && GITHUB_REF_NAME=v0.7.0 bun run ${SCRIPT}`.nothrow().quiet();
       expect(r.exitCode).toBe(0);
-      expect(r.stderr.toString()).toMatch(/warning.*no annotation/i);
     } finally { rmSync(repo, { recursive: true, force: true }); }
   });
 
