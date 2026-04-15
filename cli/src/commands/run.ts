@@ -390,7 +390,7 @@ ${c.bold(`AOS ${sessionType} Session`)}
     const adapterEntry = resolvedAdapterDir ? join(resolvedAdapterDir, "src", "index.ts") : null;
     if (!adapterEntry || !existsSync(adapterEntry)) {
       console.error(c.red(`Pi adapter not found.`));
-      console.error(c.yellow("Make sure Pi CLI is installed: https://github.com/pi-agi/pi"));
+      console.error(c.yellow("Make sure Pi CLI is installed: https://pi.dev (source: https://github.com/badlogic/pi-mono)"));
       console.error(c.dim("Install the adapter package:"));
       console.error(c.dim("  npm i -g @aos-harness/pi-adapter"));
       console.error(c.dim("  # or in a project: npm i @aos-harness/pi-adapter"));

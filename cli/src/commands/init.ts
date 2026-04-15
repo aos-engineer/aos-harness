@@ -175,7 +175,7 @@ ${c.bold("Customization")}
     Claude Code:   ${c.cyan(`npm i -g @aos-harness/claude-code-adapter@${v}`)}
     Gemini CLI:    ${c.cyan(`npm i -g @aos-harness/gemini-adapter@${v}`)}
     Codex CLI:     ${c.cyan(`npm i -g @aos-harness/codex-adapter@${v}`)}
-    Pi (pi-ai):    ${c.cyan(`npm i -g @aos-harness/pi-adapter@${v}`)}
+    Pi (pi.dev):   ${c.cyan(`npm i -g @aos-harness/pi-adapter@${v}`)}
 
   ${c.dim("Pick one (or more). Then run `aos run`.")}
 `);
