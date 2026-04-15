@@ -68,11 +68,13 @@ jobs:
           npm init -y > /dev/null
           VER="${VERSION#v}"
 
-          # npm registry CDN propagation can take 15-120 seconds after publish.
-          # Retry the install up to 6x with a 15s backoff before giving up.
+          # npm registry CDN propagation can exceed 90s for the unscoped
+          # `aos-harness` package (observed 2026-04-14 on v0.7.0-rc.2 release).
+          # Retry up to 12x with a 15s backoff = 3 minutes total window.
           # IMPORTANT: install WITHOUT --no-save so npm audit signatures sees
           # the deps in package.json (it only audits declared dependencies).
-          for attempt in 1 2 3 4 5 6; do
+          MAX_ATTEMPTS=12
+          for attempt in $(seq 1 $MAX_ATTEMPTS); do
             if npm install \
                 aos-harness@"$VER" \
                 @aos-harness/runtime@"$VER" \
@@ -84,11 +86,11 @@ jobs:
               echo "install succeeded on attempt $attempt"
               break
             fi
-            if [ "$attempt" = "6" ]; then
-              echo "install still failing after 6 attempts — registry did not propagate"
+            if [ "$attempt" = "$MAX_ATTEMPTS" ]; then
+              echo "install still failing after $MAX_ATTEMPTS attempts — registry did not propagate (packages may still have been published successfully; verify manually with \`npm view <pkg>@<version>\`)"
               exit 1
             fi
-            echo "install attempt $attempt failed; sleeping 15s for propagation"
+            echo "install attempt $attempt of $MAX_ATTEMPTS failed; sleeping 15s for propagation"
             sleep 15
           done
 
