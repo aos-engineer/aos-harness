@@ -1,6 +1,6 @@
 {
   "name": "@aos-harness/claude-code-adapter",
-  "version": "0.7.0-rc.1",
+  "version": "0.7.0-rc.2",
   "description": "AOS Harness adapter for Anthropic's Claude Code CLI.",
   "license": "MIT",
   "repository": {
