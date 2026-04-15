@@ -17,6 +17,7 @@ import { validateCommand } from "./commands/validate";
 import { listCommand } from "./commands/list";
 import { replayCommand } from "./commands/replay";
 import { c, parseArgs } from "./colors";
+import { getCliVersion } from "./utils";
 
 // ── Help ────────────────────────────────────────────────────────
 
@@ -62,6 +63,15 @@ ${c.bold("EXAMPLES")}
 async function main(): Promise<void> {
   const parsed = parseArgs(process.argv);
 
+  // --version / --v / -v all print the version read from package.json
+  if (
+    (parsed.flags.version || parsed.flags.v || parsed.flags.V) &&
+    !parsed.command
+  ) {
+    console.log(`${c.bold("AOS Harness")} v${getCliVersion()}`);
+    process.exit(0);
+  }
+
   if (parsed.flags.help && !parsed.command) {
     printHelp();
     process.exit(0);
@@ -90,7 +100,7 @@ async function main(): Promise<void> {
       const { detectProject } = await import("./utils");
       const projectDir = detectProject(process.cwd());
       if (!projectDir) {
-        console.log(`\n${c.bold("AOS Harness")} ${c.dim("v0.1.0")}\n`);
+        console.log(`\n${c.bold("AOS Harness")} ${c.dim(`v${getCliVersion()}`)}\n`);
         console.log(`  No AOS project detected in this directory.`);
         console.log(`  Would you like to initialize one? ${c.dim("(Y/n)")}\n`);
         process.stdout.write("  > ");
