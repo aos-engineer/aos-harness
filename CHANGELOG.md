@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.1 — CLI polish
+
+### Fixed
+
+- `aos --version` / `aos --v` / `aos -v` now print the real installed version (read from `package.json` at runtime). Previously the CLI hardcoded `v0.1.0` — stale since 0.2.0.
+- Pi adapter branding corrected across the CLI. Install hints and error messages now point at [pi.dev](https://pi.dev) (source: [github.com/badlogic/pi-mono](https://github.com/badlogic/pi-mono)) instead of the unrelated `pi-ai` / nonexistent `pi-agi/pi`.
+
+### Internal
+
+- New `getCliVersion()` helper in `cli/src/utils.ts` — shared between the `--version` flag handler and the no-command banner. Works in both monorepo dev and npm-installed contexts.
+
 ## 0.7.0 — Adapter Trust Model (security)
 
 ### Breaking
