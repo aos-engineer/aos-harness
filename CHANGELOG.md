@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.1 — Adapter Resolution And MemPalace Detection Fixes
+
+### Fixed
+
+- `aos init` and `aos run` now resolve globally installed adapter packages consistently instead of reporting them as installed-but-broken when the current `aos` install could not import them by package name.
+- The init scanner now falls back to explicit global package directory discovery for `@aos-harness/*-adapter` packages.
+- MemPalace readiness messaging now distinguishes between:
+  - binary installed on `PATH`
+  - socket detected and available
+- When the `mempalace` binary is present but the default socket is missing, the scanner now reports the binary path and suggests setting `MEMPALACE_SOCKET` for custom socket locations.
+
 ## 0.8.0 — Environment-aware init wizard
 
 ### Added
