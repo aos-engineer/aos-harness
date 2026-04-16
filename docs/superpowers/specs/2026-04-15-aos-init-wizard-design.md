@@ -2,12 +2,12 @@
 
 **Date:** 2026-04-15
 **Status:** Draft — awaiting review
-**Scope:** Turn `aos init` from a static config writer into a declarative-first, environment-aware installer/wizard. Detects package manager (bun vs npm), scans for installed adapter packages, asks each adapter's own readiness probe (vendor CLI presence + auth state), probes memory backend (MemPalace socket), interactively walks a new user through selections, writes `.aos/config.yaml` via non-destructive merge, and optionally executes missing-adapter installs via `--apply`. Must support non-interactive use for CI/Dockerfiles.
+**Scope:** Turn `aos init` from a static config writer into a declarative-first, environment-aware installer/wizard. Detects package manager (bun vs npm), scans vendor CLI readiness and installed AOS adapter packages separately, probes memory backend (MemPalace socket), interactively walks a new user through selections, writes `.aos/config.yaml` via non-destructive merge, and optionally executes missing-adapter installs via `--apply`. Must support non-interactive use for CI/Dockerfiles.
 **Closes:** Issue #11 (bun-vs-npm cross-store visibility — the wizard detects and routes installs to the correct store). Partially delivers on the MemPalace integration spec's `Provisioning: AOS offers setup during aos init, detects existing installs` decision.
 
 ## Goal
 
-A first-run experience that takes a user with nothing configured to a working `aos run …` in under two minutes, without the user needing to know the difference between bun and npm global stores, which vendor CLI powers which adapter, or what an MCP socket is. Declarative-first: every wizard interaction produces YAML that can be hand-edited later or generated once and replayed in CI.
+A first-run experience that takes a user with their chosen AI CLI already installed (`codex`, `claude`, `pi`, or `gemini`) to a working `aos run …` in under two minutes, without the user needing to know the difference between bun and npm global stores, which AOS adapter package augments which vendor CLI, or what an MCP socket is. Declarative-first: every wizard interaction produces YAML that can be hand-edited later or generated once and replayed in CI.
 
 ## Why
 
@@ -24,7 +24,7 @@ Together these mean a new user installing aos-harness from scratch hits three-to
 
 - **Touching authentication.** We never run `claude login`, `pi login`, `codex auth`, `gemini auth`, or any vendor auth command. Users authenticate against their chosen vendor using that vendor's own flow (subscription via Max/Advanced/ChatGPT Pro/Pi bundle, or API key — their choice). We only ASK the vendor's CLI "are you ready?" and relay the answer.
 - **Running vendor CLIs as pre-flight.** No `pi model list`, no `claude doctor`, no `gemini quota`. Out of scope; vendor tools evolve independently.
-- **Autoinstalling vendor CLIs.** We offer install hints and links (`https://pi.dev`, `https://claude.ai/code`, etc.) but never execute `brew install claude` on the user's behalf. Too many platform variants; install instructions live with the vendor.
+- **Autoinstalling vendor CLIs.** The vendor CLI is a prerequisite owned by the user. We can detect that `codex`, `claude`, `pi`, or `gemini` is missing and print the vendor's install/login hint, but we never execute `brew install claude` or similar on the user's behalf. Too many platform variants; install instructions live with the vendor.
 - **Replacing YAML with a GUI.** `.aos/config.yaml` remains the source of truth; the wizard is a convenience over it.
 - **Probing models or token budgets.** Model selection is a UX concern (defaults are sensible); probing vendor APIs for available models is out of scope for init.
 
@@ -34,7 +34,7 @@ Together these mean a new user installing aos-harness from scratch hits three-to
 
 The wizard produces a WizardResult (a structured intent object) and writes config files. It does NOT execute installs by default. Running `aos init --apply` separately (or responding `Y` to the wizard's final confirmation) triggers the applier to execute install commands.
 
-Rationale: separation of concerns maps to how CI pipelines work (describe state, apply state). Non-`--apply` runs are safe to execute anywhere, including a read-only filesystem check. The interactive wizard IS allowed to auto-execute at the end when TTY detects it, behind the final `[Y/n]` gate.
+Rationale: separation of concerns maps to how CI pipelines work (describe state, apply state). Non-`--apply` runs do not execute installs. Read-only safety is provided only by pure scan/report mode (`--non-interactive` without selection inputs); config-writing paths still require a writable project directory. The interactive wizard IS allowed to auto-execute at the end when TTY detects it, behind the final `[Y/n]` gate.
 
 ### D2 — Print-and-confirm, never silent-install
 
@@ -42,59 +42,108 @@ Even with `--apply`, every install command is printed before execution. Users se
 
 ### D3 — Full-scope environment scan (but API keys only informational)
 
-Scanner probes four dimensions:
+Scanner probes five dimensions:
 
 1. **Package manager for `aos` itself.** Detect via `process.argv[1]` / `import.meta.url`:
    - `~/.bun/bin/` or `~/.bun/install/global/` → `bun`
    - `<npm-prefix>/lib/node_modules/` → `npm`
    - Otherwise → `unknown` (fall back to printing both in hints)
 
-2. **Installed adapter packages.** For each of the four allowlisted adapter names, scan:
+2. **Vendor CLI presence + auth state.** For each allowlisted adapter family, the scanner runs a generic vendor-owned probe even if the AOS adapter package is not yet installed:
+   - `which/command -v <binary>` equivalent to discover the CLI on PATH
+   - a lightweight auth/readiness command owned by the CLI family (`codex`, `claude`, `pi`, `gemini`) with a 3s timeout
+   - report CLI binary path/version when available
+   - report auth state as `ready | needs-login | unknown`
+
+   This probe lives in the CLI scanner, not in the adapter package, because the wizard must be able to tell the user "your Codex CLI is already installed and logged in; AOS only needs the Codex adapter package."
+
+3. **Installed adapter packages.** For each of the four allowlisted adapter names, scan:
    - Bun's global store (`~/.bun/install/global/node_modules/@aos-harness/<name>-adapter`)
    - npm's global store (`<npm-prefix>/lib/node_modules/@aos-harness/<name>-adapter`)
-   - The current project's `node_modules`
-   - Report: present/absent + version + store location (closes issue #11)
+   - Report: present/absent + version + store location
 
-3. **Vendor CLI presence + auth state**, via the adapter-owned readiness probe (see D4).
+   Project-local `node_modules` is deliberately NOT considered "ready to use" for runtime resolution. The CLI's adapter loading policy remains package-manager/global-install based unless a future trust-model spec explicitly changes that policy. If a project-local adapter package is detected for informational purposes, it must be labeled `informational only: not runtime-loadable`.
 
-4. **Memory backend presence.** Check `MEMPALACE_SOCKET` env var → else default `$XDG_RUNTIME_DIR/mempalace.sock` (Linux) / `$TMPDIR/mempalace.sock` (macOS). Fast `stat()` check; if socket exists, probe is "available". If not, "not detected" (no error — expertise fallback is fine).
+4. **AOS adapter package loadability.** Detection on disk is not enough. The scanner separately asks "can THIS `aos` install actually resolve and import `@aos-harness/<name>-adapter` right now?" using the same resolver/runtime path that `aos run` will use. Report: `loadable: true | false`, `resolvedFrom?: <path>`.
+
+5. **Memory backend presence.** Check `MEMPALACE_SOCKET` env var → else default `$XDG_RUNTIME_DIR/mempalace.sock` (Linux) / `$TMPDIR/mempalace.sock` (macOS). Fast `stat()` check; if socket exists, probe is "available". If not, "not detected" (no error — expertise fallback is fine).
 
 API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, etc.) are checked ONLY for presence (`process.env.X !== undefined`), never read or logged. Used only as a supplementary signal when a vendor CLI reports "not logged in" AND an API key env var is set — then the scanner notes "vendor CLI not logged in, but $ANTHROPIC_API_KEY is set; your adapter may still work via env-var auth."
 
-### D4 — Adapter-owned readiness probe
+### D4 — Per-adapter readiness matrix
 
-Each `@aos-harness/<name>-adapter` package exports a `probeReadiness()` function. Signature:
+The wizard does not collapse readiness into a single bool. For each adapter family (`pi`, `claude-code`, `codex`, `gemini`), the scanner produces four explicit signals plus a derived status:
+
+```ts
+export type AuthState = "ready" | "needs-login" | "unknown";
+export type AdapterStatus =
+  | "ready"
+  | "needs-adapter"
+  | "needs-cli"
+  | "needs-login"
+  | "broken";
+
+export interface VendorCliReadiness {
+  present: boolean;
+  version?: string;
+  path?: string;
+  auth: {
+    state: AuthState;
+    hint?: string;
+  };
+}
+
+export interface AosAdapterReadiness {
+  installed: boolean;               // present in a supported global store
+  version?: string;
+  store?: "bun" | "npm" | "project-local" | "unknown";
+  loadable: boolean;                // this aos install can resolve/import it now
+  resolvedFrom?: string;
+}
+
+export interface AdapterReadiness {
+  adapter: string;                  // "pi" | "claude-code" | "codex" | "gemini"
+  vendorCli: VendorCliReadiness;
+  aosAdapter: AosAdapterReadiness;
+  status: AdapterStatus;
+  statusHint: string;
+  info?: Record<string, string>;
+}
+```
+
+Derived status rules:
+
+- `ready` → vendor CLI present + auth ready + AOS adapter installed + loadable
+- `needs-adapter` → vendor CLI is usable, but AOS adapter is absent or not loadable
+- `needs-cli` → AOS adapter may exist, but the vendor CLI binary is missing
+- `needs-login` → vendor CLI exists, but reports unauthenticated/not-ready
+- `broken` → contradictory or degraded state (for example: adapter installed in an unsupported store, adapter detected on disk but not loadable, or probe command crashes)
+
+The wizard copy should describe the matrix in user language:
+
+- "Codex CLI ready; install AOS Codex adapter"
+- "Claude CLI found but needs login"
+- "Gemini adapter installed in project-local node_modules only; AOS won't load that location"
+
+### D5 — Optional adapter-owned enrichment probe
+
+Installed adapters MAY export a best-effort enrichment function for adapter-specific details, but the base readiness contract above belongs to the CLI scanner and must not depend on the adapter package being present. Signature:
 
 ```ts
 // adapters/shared/src/adapter-contract.ts (new file)
 
-export type AuthState = "ready" | "needs-login" | "unknown";
-
-export interface AdapterReadiness {
-  adapter: string;              // "pi" | "claude-code" | "codex" | "gemini"
-  cli: {
-    present: boolean;           // which <cli> returned non-empty
-    version?: string;           // vendor --version output, if present
-    path?: string;              // absolute path to the binary
-  };
-  auth: {
-    state: AuthState;
-    hint?: string;              // "Run `claude login`" | "Set $CODEX_API_KEY" | ...
-  };
-  // Optional adapter-specific flags; the wizard displays these but doesn't
-  // interpret them. Adapters can surface things like "Pi's subscription
-  // provider: anthropic" for informational display.
+export interface AdapterProbeInfo {
   info?: Record<string, string>;
 }
 
-export function probeReadiness(opts?: { timeoutMs?: number }): Promise<AdapterReadiness>;
+export function probeAdapterInfo(opts?: { timeoutMs?: number }): Promise<AdapterProbeInfo>;
 ```
 
-The scanner imports each installed adapter (via `import.meta.resolve("@aos-harness/<name>-adapter")`), calls `probeReadiness({ timeoutMs: 3000 })`, and aggregates. Each adapter knows which vendor command to invoke (`pi auth status`, `claude config list`, etc.) — the scanner stays generic.
+The scanner imports each installed and loadable adapter (via the exact same resolver path `aos run` will use), calls `probeAdapterInfo({ timeoutMs: 3000 })`, and merges any returned `info`. This is enrichment only. A broken or missing adapter can never prevent the scanner from classifying the vendor CLI itself.
 
-For adapters that AREN'T installed, the scanner skips the probe and reports `cli.present: false, auth.state: "unknown"` from shared knowledge (hardcoded in the scanner's adapter map: for each allowlisted name, what's the expected binary on PATH?).
+For adapters that AREN'T installed or aren't loadable, the scanner skips the enrichment probe and still returns a full `AdapterReadiness` from its own vendor CLI + package-manager checks.
 
-### D5 — Non-destructive YAML merge on re-entry
+### D6 — Non-destructive YAML merge on re-entry
 
 When `aos init` runs in an already-initialized project:
 - Scanner runs fresh.
@@ -107,13 +156,20 @@ When `aos init` runs in an already-initialized project:
 
 A corrupted existing config.yaml aborts with a clear error, suggesting `aos init --force` which backs up the corrupted file to `config.yaml.backup.<unix-ts>` before rewriting.
 
-### D6 — TTY detection chooses mode
+### D7 — TTY detection chooses mode
 
 - `process.stdin.isTTY && process.stdout.isTTY` → interactive wizard.
-- Either is false → non-interactive mode. Required flags: `--from-yaml=<path>` (pre-made WizardResult YAML) OR `--non-interactive` (scan-only, writes `.aos/scan.json`, exits 3 if any selected adapter is missing-or-not-ready).
+- Either is false → non-interactive mode. Required flags: `--from-yaml=<path>` (pre-made WizardResult YAML) OR `--non-interactive`.
+- `--non-interactive` without adapter-selection inputs is pure scan/report mode: writes `.aos/scan.json`, performs no config writes, exits 0 unless the scan itself errors.
+- Adapter selection precedence in non-interactive apply/validate flows is:
+  1. `--adapter=<name>` / repeated `--adapter`
+  2. `--from-yaml=<path>` `enabledAdapters`
+  3. existing `.aos/config.yaml` `adapters.enabled`
+  4. existing legacy `.aos/config.yaml` `adapter`
+- Exit 3 for "selected adapter missing-or-not-ready" is valid ONLY when selection exists via the precedence above. Pure scan mode never invents a selection.
 - Non-interactive mode without either flag errors with a single-line hint pointing at both options.
 
-### D7 — Prompt library
+### D8 — Prompt library
 
 Use `@clack/prompts` (`^0.7.x`, ~15KB gzipped). Reasons:
 
@@ -123,7 +179,7 @@ Use `@clack/prompts` (`^0.7.x`, ~15KB gzipped). Reasons:
 - No native bindings; pure JS; works in Bun.
 - Added to `cli/package.json` dependencies (not root); tarball size impact is tiny compared to the UX gain.
 
-### D8 — Apply-phase action schema
+### D9 — Apply-phase action schema
 
 The wizard emits WizardResult with a typed action list. Applier executes only structural action types — no free-form shell strings from the wizard.
 
@@ -145,7 +201,7 @@ type WizardResult = {
 
 The applier's switch covers only `install-adapter` → spawn `<manager> install -g <pkg>`. The two `info-*` types are always print-only, even under `--apply`.
 
-### D9 — Config schema evolution (migration path)
+### D10 — Config schema evolution (migration path)
 
 Today's `.aos/config.yaml`:
 ```yaml
@@ -167,6 +223,13 @@ editor: code
 ```
 
 Migration: scanner detects old `adapter: <single>` key → wizard proposes migration to new shape → writes v2 on user confirmation. Back-compat read path (`run.ts`) accepts both shapes for one minor version, then v2-only. Small-user-base context (per user input) → aggressive migration acceptable.
+
+Important existing-file reconciliation:
+
+- `.aos/adapter.yaml` still exists today for adapter-specific settings (`platform`, `model_overrides`, etc.). This spec does NOT delete it.
+- During the v1 → v2 migration, `platform` in `.aos/adapter.yaml` is treated as an override/input to the default adapter selection only if `.aos/config.yaml` does not already express a clearer choice.
+- Multi-adapter support keeps `.aos/adapter.yaml` as the home for adapter-specific overrides, but the selector-of-record moves to `.aos/config.yaml` `adapters.enabled/default`.
+- `run.ts` must define an explicit precedence chain across `--adapter`, `.aos/config.yaml` v2, `.aos/config.yaml` v1, and `.aos/adapter.yaml` so current projects do not silently drift.
 
 ## Architecture
 
@@ -191,16 +254,16 @@ cli/src/
                                  utility for the scan report.
 
 adapters/shared/src/
-├── adapter-contract.ts        ← NEW. AdapterReadiness + probeReadiness()
+├── adapter-contract.ts        ← NEW. Optional adapter enrichment
 │                                contract exported from adapter-shared.
 └── index.ts                   ← MODIFY. Re-export adapter-contract types.
 
 adapters/pi/src/readiness.ts         ← NEW per adapter. Implements
-adapters/claude-code/src/readiness.ts  probeReadiness(). Each calls the
-adapters/codex/src/readiness.ts        vendor's own CLI. Bounded 3s timeout.
+adapters/claude-code/src/readiness.ts  probeAdapterInfo(). No vendor-CLI
+adapters/codex/src/readiness.ts        gating logic here; scanner owns that.
 adapters/gemini/src/readiness.ts
 
-adapters/<name>/src/index.ts   ← MODIFY per adapter. Re-export probeReadiness.
+adapters/<name>/src/index.ts   ← MODIFY per adapter. Re-export probeAdapterInfo.
 
 runtime/src/
 └── scan-schema.ts             ← NEW. TypeScript types for ScanReport,
@@ -218,13 +281,13 @@ Clean one-direction dependency graph:
 
 ```
 commands/init.ts
-   ├── env-scanner.ts ──────────── adapters/*/readiness.ts (via dynamic import)
+   ├── env-scanner.ts ──────────── adapters/*/readiness.ts (optional enrichment via dynamic import)
    ├── init-wizard.ts ── prompts.ts (@clack/prompts)
    ├── init-config-writer.ts ─── yaml (parseDocument)
    └── init-applier.ts
 ```
 
-`env-scanner` → imports adapter packages at scan time (dynamic `import()`), so it never has build-time dependency on installed adapters.
+`env-scanner` owns the base vendor CLI and adapter-package scan. It imports adapter packages only for optional enrichment, so it never has build-time dependency on installed adapters.
 
 ## Data Flow
 
@@ -246,7 +309,7 @@ commands/init.ts
             └────┬───────────┘          └───────────┬─────────────┘
                  │                                  │ WizardResult
                  │              no TTY              │
-                 │              + --from-yaml       │
+                 │     + --from-yaml or selection   │
                  └──────────────────────────────────▼
                                             ┌──────────────────────┐
                                             │ init-config-writer   │
@@ -262,6 +325,14 @@ commands/init.ts
                                │  init-applier        │ │ Print hints and │
                                │  (exec install cmds) │ │ exit 0.         │
                                └──────────────────────┘ └─────────────────┘
+
+                      no TTY + pure scan/report mode
+                                 │
+                                 ▼
+                         write `.aos/scan.json`
+                                 │
+                                 ▼
+                               exit 0
 ```
 
 ## Error Handling
@@ -269,22 +340,26 @@ commands/init.ts
 | Failure | Behavior | Exit code |
 |---|---|---|
 | Scanner can't determine package manager | Print both bun+npm hints; `package_manager: unknown` in config | 0 (non-fatal) |
-| Adapter probeReadiness timeout (>3s) | Report auth.state: "unknown", hint: "probe timed out"; wizard shows `?` marker | 0 |
-| Vendor CLI not on PATH | Report cli.present: false; wizard warns but allows selection | 0 |
+| Vendor CLI readiness probe timeout (>3s) | Report `vendorCli.auth.state: "unknown"`, hint: "probe timed out"; wizard shows `?` marker | 0 |
+| Optional adapter enrichment probe fails | Ignore enrichment, keep base readiness classification | 0 |
+| Vendor CLI not on PATH | Report `vendorCli.present: false`; wizard warns but allows selection | 0 |
+| Adapter package found but not loadable by this `aos` install | Report `status: "broken"` or `needs-adapter` with explicit hint | 0 |
 | MemPalace socket not detected | Report memory.mempalace.available: false; wizard offers mempalace anyway with install hint | 0 |
 | Corrupt existing config.yaml | Abort with parse error + suggest `aos init --force` (backs up to config.yaml.backup.<ts>) | 2 |
 | Wizard interrupted (SIGINT) | No partial writes — writes only happen after final confirmation | 130 (SIGINT) |
 | `--apply` install command fails | Log, continue remaining installs, final summary reports failures | 1 if any failed |
 | Non-TTY without `--from-yaml` or `--non-interactive` | Single-line hint: "Pass --from-yaml=<path> or --non-interactive" | 2 |
-| `--non-interactive` selected-adapter missing | `.aos/scan.json` written; list the missing adapters on stderr | 3 |
+| `--non-interactive` pure scan/report mode | `.aos/scan.json` written; no config writes; no synthetic adapter failures | 0 |
+| `--non-interactive` with explicit/derived selected-adapter missing | `.aos/scan.json` written; list the missing adapters on stderr | 3 |
 | Malformed `--from-yaml` input | Zod validation error with field path | 2 |
 
 ## Testing
 
 **`env-scanner.test.ts`** — fully mocked fs + `which`:
-- Installed adapter in bun global only → detected + store = "bun"
-- Installed in both stores → detected, report shows both with a nice note
-- Adapter probeReadiness mocked to throw → scanner aggregates auth.state: "unknown"
+- Vendor CLI present + auth ready + adapter installed/loadable → status = `ready`
+- Vendor CLI present + auth ready + adapter absent → status = `needs-adapter`
+- Vendor CLI missing + adapter installed → status = `needs-cli`
+- Adapter installed in unsupported/project-local location only → status = `broken` with hint
 - API key env var mocked present → supplementary note attached; never logs value
 - Memory socket present vs absent
 
@@ -302,15 +377,16 @@ commands/init.ts
 - Action list with two install-adapter + one info-login → shell spawn fires TWICE only (never for info-*)
 - Mock spawn returns non-zero for one → applier continues; final return value flags partial failure
 
-**`readiness.test.ts`** (adapters-shared) — contract compliance:
-- Stub adapter exports probeReadiness conforming to contract
-- probeReadiness honors timeoutMs → returns "unknown" on timeout
-- Real adapter tests (pi/claude-code/codex/gemini) call through to actual vendor CLI; skipped by default, runnable with `BUN_TEST_REAL_ADAPTERS=1`
+**`readiness.test.ts`** (adapters-shared) — enrichment contract compliance:
+- Stub adapter exports `probeAdapterInfo` conforming to contract
+- `probeAdapterInfo` honors timeoutMs → returns no enrichment on timeout/failure
+- Real adapter enrichment tests (pi/claude-code/codex/gemini) are optional and skipped by default with `BUN_TEST_REAL_ADAPTERS=1`
 
 **`init-integration.test.ts`** — end-to-end, no network:
 - Tempdir + `--from-yaml=<fixture>` + no `--apply` → asserts exact YAML bytes written
 - Re-run same inputs → zero-diff
-- `--non-interactive` with no adapters installed → exit 3, scan.json contents asserted
+- `--non-interactive` with no selection inputs → exit 0, scan.json contents asserted
+- `--non-interactive --adapter=pi` with no matching ready adapter → exit 3
 - `--apply` with mocked applier → verified action list handed off; no real spawns
 
 All existing CLI tests (allowlist, confined-resolve, create-name, platform-url, no-project-local-adapters) must continue to pass — we're adding, not rewriting.

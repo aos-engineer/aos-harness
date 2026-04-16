@@ -1,9 +1,11 @@
 # AOS Harness — Manual Testing Checklist
 
-**Date:** 2026-03-24
+**Date:** 2026-04-15
 **Tester:** _______________
-**Pi Version:** _______________
-**Auth Mode:** API Key / Subscription (circle one)
+**Vendor CLI Under Test:** Claude Code / Codex / Gemini / Pi (circle one)
+**Vendor CLI Version:** _______________
+**Adapter Package Version:** _______________
+**Auth Mode:** Subscription / Vendor login / API key env var (circle one)
 
 ---
 
@@ -11,11 +13,11 @@
 
 | # | Test | Command | Expected | Severity |
 |---|------|---------|----------|----------|
-| 1.1 | Pi CLI installed | `which pi && pi --version` | Path and version printed | Critical |
+| 1.1 | Vendor CLI installed | `which <vendor-cli> && <vendor-cli> --version` | Path and version printed | Critical |
 | 1.2 | Bun installed | `bun --version` | Version printed (1.x+) | Critical |
-| 1.3 | Auth configured | `echo $ANTHROPIC_API_KEY` or Pi subscription active | Key present or subscription active | Critical |
+| 1.3 | Vendor auth configured | Run the vendor CLI's own auth/status command | Vendor CLI reports ready or authenticated | Critical |
 | 1.4 | Runtime deps installed | `cd runtime && bun install` | No errors | Critical |
-| 1.5 | Pi adapter deps installed | `cd adapters/pi && bun install` | No errors | Critical |
+| 1.5 | Adapter package deps installed | `cd adapters/<adapter> && bun install` | No errors | Critical |
 | 1.6 | Runtime tests pass | `cd runtime && bun test` | 65+ tests pass, 0 fail | Critical |
 | 1.7 | Config validation passes | `bun run tests/integration/validate-config.ts` | 22 passed, 0 failed | Critical |
 
@@ -41,8 +43,9 @@ All commands run from project root: `cd /path/to/aos-harness`
 | 2.4 | Create agent | `bun run cli/src/index.ts create agent test-check` | Files created at core/agents/custom/test-check/ | Important |
 | 2.5 | Create profile | `bun run cli/src/index.ts create profile test-check` | Files created at core/profiles/test-check/ | Important |
 | 2.6 | Create domain | `bun run cli/src/index.ts create domain test-check` | Files created at core/domains/test-check/ | Important |
-| 2.7 | Init | `bun run cli/src/index.ts init --adapter pi` | .aos/config.yaml created | Important |
-| 2.8 | Cleanup | `rm -r core/agents/custom/test-check core/profiles/test-check core/domains/test-check .aos/ 2>/dev/null` | Test artifacts removed | — |
+| 2.7 | Init | `bun run cli/src/index.ts init` | `.aos/config.yaml`, `.aos/memory.yaml`, and `.aos/scan.json` created | Important |
+| 2.8 | Scan-only init | `bun run cli/src/index.ts init --non-interactive` | `.aos/scan.json` updated, exits 0 | Important |
+| 2.9 | Cleanup | `rm -r core/agents/custom/test-check core/profiles/test-check core/domains/test-check .aos/ 2>/dev/null` | Test artifacts removed | — |
 
 - [ ] 2.1 Pass
 - [ ] 2.2 Pass — Agents: ___ Profiles: ___ Domains: ___
@@ -51,11 +54,14 @@ All commands run from project root: `cd /path/to/aos-harness`
 - [ ] 2.5 Pass
 - [ ] 2.6 Pass
 - [ ] 2.7 Pass
-- [ ] 2.8 Cleaned
+- [ ] 2.8 Pass
+- [ ] 2.9 Cleaned
 
 ---
 
-## 3. Pi Extension Load (no API calls)
+## 3. Pi Runtime Adapter Load (skip if validating a non-Pi adapter)
+
+This section remains Pi-specific because the Pi adapter exposes the richest local TUI workflow today. For Claude Code, Codex, and Gemini, validate the adapter through `aos init`, `aos run`, and the adapter's own readiness checks instead.
 
 | # | Test | Command | Expected | Failure Indicator | Severity |
 |---|------|---------|----------|-------------------|----------|
@@ -73,7 +79,7 @@ All commands run from project root: `cd /path/to/aos-harness`
 
 ---
 
-## 4. Strategic Council Deliberation (estimated cost: $3-10)
+## 4. Strategic Council Deliberation (Pi path example, estimated cost: $3-10)
 
 Launch: `cd adapters/pi && pi -e src/index.ts` then `/aos-run`
 
@@ -125,7 +131,7 @@ Launch: `cd adapters/pi && pi -e src/index.ts` then `/aos-run`
 
 ---
 
-## 5. Additional Profiles (estimated cost: $3-8 each)
+## 5. Additional Profiles (Pi path example, estimated cost: $3-8 each)
 
 For each profile, create an appropriate brief first.
 

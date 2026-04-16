@@ -10,6 +10,7 @@ import type { TranscriptEntry } from "@aos-harness/runtime/types";
 import { runAdapterSession } from "../adapter-session";
 import { readAdapterConfig } from "../adapter-config";
 import { buildToolPolicy, type ToolPolicy } from "@aos-harness/adapter-shared";
+import { getPlatformUrlFromConfig, resolveAdapterSelection } from "../aos-config";
 
 function createEventBuffer(platformUrl: string, sessionId: string) {
   const buffer: TranscriptEntry[] = [];
@@ -273,8 +274,8 @@ export async function runCommand(args: ParsedArgs): Promise<void> {
     let workflowSection = "";
     if (isExecutionProfile && workflowConfig) {
       const stepSummary = workflowConfig.steps
-        .map((s: { id: string; name: string; action: string; review_gate?: boolean }) =>
-          `    ${s.id.padEnd(20)} ${s.name.padEnd(30)} ${s.action}${s.review_gate ? " [gate]" : ""}`
+        .map((s) =>
+          `    ${s.id.padEnd(20)} ${(s.name ?? s.id).padEnd(30)} ${s.action}${s.review_gate ? " [gate]" : ""}`
         )
         .join("\n");
       const gateCount = workflowConfig.gates?.length || 0;
@@ -348,20 +349,13 @@ ${c.bold(`AOS ${sessionType} Session`)}
   Output:   ${c.cyan(deliberationDir)}
 `);
 
-  // Determine adapter: --adapter flag > .aos/config.yaml > default "pi"
+  // Determine adapter with shared precedence so init/run agree:
+  // --adapter > config v2 > config v1 > .aos/adapter.yaml > default "pi"
   let platformUrl = (args.flags["platform-url"] as string) || null;
-  const aosConfigPath = join(process.cwd(), ".aos", "config.yaml");
-  let adapter = "pi";
-  if (existsSync(aosConfigPath)) {
-    const yaml = await import("js-yaml");
-    const configText = await Bun.file(aosConfigPath).text();
-    const config = yaml.load(configText, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown>;
-    adapter = (config.adapter as string) || "pi";
-    if (!platformUrl && config?.platform && (config.platform as Record<string, unknown>)?.enabled && (config.platform as Record<string, unknown>)?.url) {
-      platformUrl = (config.platform as Record<string, unknown>).url as string;
-    }
+  const { adapter } = resolveAdapterSelection(process.cwd(), args.flags["adapter"]);
+  if (!platformUrl) {
+    platformUrl = getPlatformUrlFromConfig(process.cwd());
   }
-  if (args.flags["adapter"]) adapter = args.flags["adapter"] as string;
 
   // Validate platform URL (spec D5). Fires for both --platform-url flag
   // and .aos/config.yaml platform.url after both sources are merged.

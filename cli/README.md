@@ -19,6 +19,13 @@ npm i -g aos-harness
 
 ### 2. Install an adapter
 
+Install the vendor CLI you want to drive first, then install the matching AOS adapter package. The adapter is the AOS integration layer on top of the vendor CLI:
+
+- `claude` + `@aos-harness/claude-code-adapter`
+- `codex` + `@aos-harness/codex-adapter`
+- `gemini` + `@aos-harness/gemini-adapter`
+- `pi` + `@aos-harness/pi-adapter`
+
 Pick the AI CLI you'll drive agents with and install the matching adapter. You can install more than one. Versions are lockstep — pin the adapter to the same version as the CLI.
 
 ```bash
@@ -33,6 +40,12 @@ npm i -g @aos-harness/pi-adapter             # Pi (https://pi.dev)
 ```bash
 # Initialize a project (writes .aos/ and copies core/ into the project)
 aos init
+
+# Or scan only in CI / automation
+aos init --non-interactive
+
+# Or install missing adapter packages after config generation
+aos init --apply
 
 # Run a strategic deliberation
 aos run strategic-council --brief brief.md
@@ -58,7 +71,7 @@ aos validate
 | 0 | Success |
 | 1 | Uncaught runtime error |
 | 2 | Invalid input (unknown adapter, bad path, bad URL, missing adapter package) |
-| 3 | Profile tool-policy error (malformed `tools:` block, flag cannot widen profile) |
+| 3 | Validation failure that requires user action (`aos init --non-interactive --adapter ...` selected adapter not ready, or profile tool-policy widening failure) |
 
 ## What It Does
 

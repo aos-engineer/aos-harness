@@ -12,3 +12,4 @@ export { composeAdapter } from "./compose";
 export { discoverAgents, createFlatAgentsDir, findProjectRoot } from "./agent-discovery";
 export { buildToolPolicy } from "./tool-policy";
 export type { ToolPolicy, CliToolFlags } from "./tool-policy";
+export { probeAdapterInfo, type AdapterProbeInfo } from "./adapter-contract";

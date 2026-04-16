@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.8.0 — Environment-aware init wizard
+
+### Added
+
+- `aos init` now scans two separate readiness signals per adapter family:
+  - vendor CLI readiness (`claude`, `codex`, `gemini`, `pi`)
+  - AOS adapter-package readiness (`@aos-harness/<name>-adapter`)
+- Interactive init wizard backed by `@clack/prompts`.
+- Non-interactive scan/report mode:
+  - `aos init --non-interactive` writes `.aos/scan.json` and exits without config writes when no adapter selection is present.
+  - `aos init --non-interactive --adapter <name>` validates the selected adapter and exits `3` if it is not ready.
+- `aos init --apply` installs missing adapter packages after config generation.
+- New v2 `.aos/config.yaml` shape:
+  ```yaml
+  api_version: aos/config/v2
+  adapters:
+    enabled: [pi, codex]
+    default: codex
+  package_manager: bun
+  ```
+
+### Changed
+
+- `aos run` and `aos init` now share the same adapter precedence:
+  1. `--adapter`
+  2. `.aos/config.yaml` v2 `adapters.default`
+  3. legacy `.aos/config.yaml` `adapter`
+  4. `.aos/adapter.yaml` `platform`
+  5. fallback `pi`
+- Config migration during init now preserves comments via `yaml.parseDocument`.
+- Docs and Astro site getting-started flows now describe vendor-CLI-first setup and the new init behavior.
+
+### Migration
+
+- Re-run `aos init` in existing projects to migrate `.aos/config.yaml` from v1 (`adapter: pi`) to v2 (`adapters.enabled/default`).
+- `.aos/adapter.yaml` remains supported for adapter-specific overrides such as `model_overrides`.
+
 ## 0.7.1 — CLI polish
 
 ### Fixed

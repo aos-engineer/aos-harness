@@ -6,11 +6,28 @@ export interface BridgeHandlers {
   end: (params: { closing_message: string }) => Promise<unknown>;
 }
 
+function parseListenTarget(target: string): { host: string; port: number } | { path: string } {
+  if (!target.startsWith("tcp://")) {
+    return { path: target };
+  }
+
+  const url = new URL(target);
+  const port = Number.parseInt(url.port, 10);
+  if (!url.hostname || Number.isNaN(port)) {
+    throw new Error(`Invalid bridge listen target: ${target}`);
+  }
+
+  return { host: url.hostname, port };
+}
+
 export async function startBridgeServer(
   socketPath: string,
   handlers: BridgeHandlers,
 ): Promise<() => Promise<void>> {
-  if (existsSync(socketPath)) unlinkSync(socketPath);
+  const listenTarget = parseListenTarget(socketPath);
+  const isUnixSocket = "path" in listenTarget;
+
+  if (isUnixSocket && existsSync(listenTarget.path)) unlinkSync(listenTarget.path);
 
   const open = new Set<Socket>();
 
@@ -43,12 +60,16 @@ export async function startBridgeServer(
 
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(socketPath, () => resolve());
+    if ("path" in listenTarget) {
+      server.listen(listenTarget.path, () => resolve());
+      return;
+    }
+    server.listen(listenTarget.port, listenTarget.host, () => resolve());
   });
 
   return async () => {
     for (const s of open) s.destroy();
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    if (existsSync(socketPath)) unlinkSync(socketPath);
+    if (isUnixSocket && existsSync(listenTarget.path)) unlinkSync(listenTarget.path);
   };
 }

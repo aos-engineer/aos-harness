@@ -1,43 +1,38 @@
-# Astro Starter Kit: Minimal
+# AOS Docs Site
 
-```sh
-bun create astro@latest -- --template minimal
+This directory contains the public Astro site for AOS Harness, including the landing page and the docs pages published at `aos.engineer`.
+
+## Local Development
+
+Run commands from this directory:
+
+```bash
+bun install
+bun dev
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+The dev server starts on `http://localhost:4321`.
 
-## 🚀 Project Structure
+## Key Commands
 
-Inside of your Astro project, you'll see the following folders and files:
+| Command | Action |
+|---|---|
+| `bun dev` | Start the local Astro dev server |
+| `bun build` | Build the production site into `dist/` |
+| `bun preview` | Preview the built site locally |
+| `bun astro check` | Run Astro's project checks |
 
-```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
-```
+## Content Areas
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+| Path | Purpose |
+|---|---|
+| `src/pages/index.astro` | Marketing homepage |
+| `src/pages/docs/` | Public documentation pages |
+| `src/layouts/` | Shared page layouts |
+| `public/` | Static assets |
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+## Documentation Expectations
 
-Any static assets, like images, can be placed in the `public/` directory.
-
-## 🧞 Commands
-
-All commands are run from the root of the project, from a terminal:
-
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `bun install`             | Installs dependencies                            |
-| `bun dev`             | Starts local dev server at `localhost:4321`      |
-| `bun build`           | Build your production site to `./dist/`          |
-| `bun preview`         | Preview your build locally, before deploying     |
-| `bun astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `bun astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+- Keep the install flow aligned with the current CLI behavior: vendor CLI first, matching `@aos-harness/*-adapter` second, then `aos init`.
+- Prefer commands that match the real shipped interface.
+- When changing product behavior, update the matching docs page and any homepage snippets in the same change.

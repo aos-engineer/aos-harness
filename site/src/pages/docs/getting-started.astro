@@ -4,6 +4,7 @@ import Base from '../../layouts/Base.astro';
 const sidebarLinks = [
   { id: 'prerequisites', label: 'Prerequisites' },
   { id: 'install', label: 'Install' },
+  { id: 'initialize', label: 'Initialize' },
   { id: 'first-deliberation', label: 'Run Your First Deliberation' },
   { id: 'execution-profile', label: 'Run an Execution Profile' },
   { id: 'dev-execution', label: 'Dev Execution' },
@@ -57,7 +58,7 @@ const sidebarLinks = [
 
         <!-- Page Header -->
         <h1 class="text-4xl md:text-[48px] font-extrabold text-[var(--color-text)] leading-tight tracking-tight">Getting Started</h1>
-        <p class="text-[15px] text-[var(--color-text-secondary)] mt-2 mb-12">Set up AOS Harness in 5 minutes</p>
+        <p class="text-[15px] text-[var(--color-text-secondary)] mt-2 mb-12">Install the CLI, connect it to the AI CLI you already use, and run your first session.</p>
 
         <!-- Prerequisites -->
         <section id="prerequisites" class="mb-12">
@@ -71,11 +72,11 @@ const sidebarLinks = [
             </div>
             <div class="flex items-start gap-3">
               <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--color-success)] text-white text-[12px] font-bold mt-0.5 shrink-0">&#10003;</span>
-              <span class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed"><strong class="text-[var(--color-text)]">An API key</strong> for at least one LLM provider (OpenAI, Anthropic, or Google)</span>
+              <span class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed"><strong class="text-[var(--color-text)]">A terminal</strong> &mdash; macOS, Linux, or WSL on Windows</span>
             </div>
             <div class="flex items-start gap-3">
               <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[var(--color-success)] text-white text-[12px] font-bold mt-0.5 shrink-0">&#10003;</span>
-              <span class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed"><strong class="text-[var(--color-text)]">A terminal</strong> &mdash; macOS, Linux, or WSL on Windows</span>
+              <span class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed"><strong class="text-[var(--color-text)]">A supported vendor CLI</strong> already installed and authenticated: <code>claude</code>, <code>codex</code>, <code>gemini</code>, or <code>pi</code></span>
             </div>
           </div>
         </section>
@@ -85,20 +86,41 @@ const sidebarLinks = [
           <div class="border-t border-[var(--color-border)] pt-12 mb-6">
             <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Install</h2>
           </div>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Clone the repository and install dependencies:</p>
-          <pre><code>git clone https://github.com/aos-engineer/aos-harness.git
-cd aos-harness
-bun install</code></pre>
-
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">Set your API key:</p>
-          <pre><code>export ANTHROPIC_API_KEY="sk-ant-..."
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Install the CLI globally:</p>
+          <pre><code>npm i -g aos-harness
 # or
-export OPENAI_API_KEY="sk-..."</code></pre>
+bun add -g aos-harness</code></pre>
+
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">Install the adapter package that matches the vendor CLI you already use:</p>
+          <pre><code>npm i -g @aos-harness/claude-code-adapter
+npm i -g @aos-harness/codex-adapter
+npm i -g @aos-harness/gemini-adapter
+npm i -g @aos-harness/pi-adapter</code></pre>
 
           <div class="mt-6 bg-[var(--color-bg)] border-l-4 border-[var(--color-signal)] rounded-r-lg px-5 py-4">
             <p class="text-[12px] font-semibold uppercase text-[var(--color-signal)] mb-1">Tip</p>
-            <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">AOS supports multiple providers. Set any combination of <code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>, or <code>GOOGLE_API_KEY</code>. The harness selects the appropriate provider based on each agent's model configuration.</p>
+            <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">AOS adapters augment the vendor CLI you already use. The init flow will scan both the vendor CLI and the matching <code>@aos-harness/*-adapter</code> package before writing config.</p>
           </div>
+        </section>
+
+        <!-- Initialize -->
+        <section id="initialize" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Initialize</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Initialize AOS inside the project you want to work on:</p>
+          <pre><code>cd your-project
+aos init</code></pre>
+
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">The init flow scans environment readiness and writes:</p>
+          <pre><code>.aos/config.yaml
+.aos/memory.yaml
+.aos/scan.json</code></pre>
+
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">Useful variants:</p>
+          <pre><code>aos init --apply
+aos init --non-interactive
+aos init --non-interactive --adapter codex</code></pre>
         </section>
 
         <!-- Run Your First Deliberation -->
@@ -106,8 +128,8 @@ export OPENAI_API_KEY="sk-..."</code></pre>
           <div class="border-t border-[var(--color-border)] pt-12 mb-6">
             <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Run Your First Deliberation</h2>
           </div>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Run the built-in Strategic Council with a sample brief:</p>
-          <pre><code>aos run strategic-council --brief briefs/sample-brief.md</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Run the built-in Strategic Council with the sample brief:</p>
+          <pre><code>aos run strategic-council --brief core/briefs/sample-product-decision/brief.md</code></pre>
 
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6">
             This assembles 11 specialist agents &mdash; Catalyst, Sentinel, Architect, Provocateur, Navigator, Advocate, Pathfinder, Strategist, Operator, Steward, and Auditor &mdash; under a neutral Arbiter. The agents debate your brief from opposing perspectives. Tension pairs (Catalyst vs. Sentinel, Architect vs. Pathfinder) create productive conflict.
@@ -121,8 +143,7 @@ export OPENAI_API_KEY="sk-..."</code></pre>
             <li>Concrete next actions</li>
           </ul>
 
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Output is saved to:</p>
-          <pre><code>output/memos/2026-03-25-sample-brief-abc123/memo.md</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Output is saved under <code>output/</code>, and the transcript is appended under <code>.aos/sessions/</code>.</p>
         </section>
 
         <!-- Run an Execution Profile -->
@@ -131,7 +152,7 @@ export OPENAI_API_KEY="sk-..."</code></pre>
             <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Run an Execution Profile</h2>
           </div>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Execution profiles go beyond deliberation &mdash; they produce implementation-ready artifacts:</p>
-          <pre><code>aos run cto-execution --brief briefs/feature-brief.md</code></pre>
+          <pre><code>aos run cto-execution --brief core/briefs/sample-cto-execution/brief.md</code></pre>
 
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">The CTO Execution profile uses a structured 8-step workflow:</p>
           <ol class="space-y-2 text-[15px] text-[var(--color-text-secondary)] leading-relaxed list-decimal list-inside">

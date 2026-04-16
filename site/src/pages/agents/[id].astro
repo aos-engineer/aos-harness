@@ -20,8 +20,8 @@ const riskBadgeColor = (risk: string) => {
   return 'background: rgba(52,199,89,0.1); color: #166534;';
 };
 
-const convincedBy = agent.persona.evidence_standard?.convinced_by ?? agent.persona.evidence_standard?.convincing ?? [];
-const notConvincedBy = agent.persona.evidence_standard?.not_convinced_by ?? agent.persona.evidence_standard?.unconvincing ?? [];
+const convincedBy = agent.persona.evidence_standard?.convinced_by ?? [];
+const notConvincedBy = agent.persona.evidence_standard?.not_convinced_by ?? [];
 ---
 
 <Base title={agent.name} description={agent.cognition.objective_function}>

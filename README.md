@@ -40,6 +40,13 @@ npm i -g aos-harness
 
 ### Install at least one adapter
 
+Before you do this, make sure you already have the matching vendor CLI installed and authenticated. AOS adapters augment the CLI you already use:
+
+- `claude` CLI + `@aos-harness/claude-code-adapter`
+- `codex` CLI + `@aos-harness/codex-adapter`
+- `gemini` CLI + `@aos-harness/gemini-adapter`
+- `pi` CLI + `@aos-harness/pi-adapter`
+
 Adapters ship as separate packages. Pin to the same version as the CLI (they publish lockstep):
 
 ```bash
@@ -57,6 +64,13 @@ aos init
 ```
 
 `aos init` prints the adapter install commands at the end as a reminder.
+It also scans vendor CLI readiness, writes v2 `.aos/config.yaml`, and supports:
+
+```bash
+aos init --apply                 # install missing adapter packages
+aos init --non-interactive       # scan only, write .aos/scan.json
+aos init --non-interactive --adapter codex
+```
 
 ### Run a deliberation
 
@@ -85,7 +99,7 @@ aos list                          # List all agents, profiles, domains, skills
 aos replay <transcript.jsonl>     # Replay a session transcript
 ```
 
-**Requirements:** [Bun](https://bun.sh) (v1.0+), and an API key for your chosen model provider.
+**Requirements:** [Bun](https://bun.sh) (v1.0+), plus at least one supported vendor CLI already installed.
 
 ---
 
@@ -150,8 +164,10 @@ aos-harness/
                       # workflow runner, template resolver, config loader, output renderer
     tests/            # 393 tests across 25 files
   adapters/           # Platform-specific implementations
-    pi/               # Pi CLI adapter (primary — full 4-layer implementation)
-    claude-code/      # Claude Code adapter (static artifact generator)
+    pi/               # Pi CLI adapter
+    claude-code/      # Claude Code adapter
+    codex/            # Codex CLI adapter
+    gemini/           # Gemini CLI adapter
   cli/                # CLI tooling (init, run, create, validate, list, replay)
   docs/               # Specs, plans, getting-started guides
 ```
@@ -205,8 +221,11 @@ AOS Harness includes advanced features for production orchestration:
 # Run tests
 bun run test
 
-# Type check
+# Type check runtime
 bun run typecheck
+
+# Type check CLI
+bun x tsc --noEmit --project cli/tsconfig.json
 
 # Validate all configs
 bun run validate

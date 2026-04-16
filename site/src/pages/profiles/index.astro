@@ -1,10 +1,8 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { loadAllProfiles, loadAllAgents } from '../../lib/content';
+import { loadAllProfiles } from '../../lib/content';
 
 const profiles = loadAllProfiles();
-const agents = loadAllAgents();
-const agentMap = new Map(agents.map(a => [a.id, a]));
 
 const heroProfiles = profiles.filter(p => ['strategic-council', 'cto-execution'].includes(p.id));
 const listProfiles = profiles.filter(p => !['strategic-council', 'cto-execution'].includes(p.id));

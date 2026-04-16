@@ -1,0 +1,151 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import yaml from "js-yaml";
+import { readAdapterConfig } from "./adapter-config";
+import { ADAPTER_ALLOWLIST, type AdapterName, isValidAdapter } from "./utils";
+import type { InitModels } from "./init-types";
+
+export interface AosConfigV2 {
+  api_version?: string;
+  adapters?: {
+    enabled?: string[];
+    default?: string;
+  };
+  package_manager?: string;
+  models?: Partial<InitModels>;
+  editor?: string;
+  platform?: {
+    enabled?: boolean;
+    url?: string;
+  };
+}
+
+export interface AosConfigV1 {
+  adapter?: string;
+  models?: Partial<InitModels>;
+  editor?: string;
+  platform?: {
+    enabled?: boolean;
+    url?: string;
+  };
+}
+
+export type AosConfig = AosConfigV1 & AosConfigV2 & Record<string, unknown>;
+
+export interface AdapterResolution {
+  adapter: AdapterName;
+  source: "flag" | "config-v2" | "config-v1" | "adapter-yaml" | "default";
+}
+
+export function readAosConfig(root: string): AosConfig | null {
+  const path = join(root, ".aos", "config.yaml");
+  if (!existsSync(path)) return null;
+  const parsed = yaml.load(readFileSync(path, "utf-8"), { schema: yaml.JSON_SCHEMA }) as AosConfig | null;
+  if (!parsed || typeof parsed !== "object") return null;
+  return parsed;
+}
+
+export function isAosConfigV2(config: AosConfig | null): boolean {
+  return !!config && config.api_version === "aos/config/v2";
+}
+
+export function parseAdapterList(value: unknown): AdapterName[] {
+  if (typeof value !== "string") return [];
+  const seen = new Set<AdapterName>();
+  for (const raw of value.split(",")) {
+    const candidate = raw.trim();
+    if (isValidAdapter(candidate)) seen.add(candidate);
+  }
+  return [...seen];
+}
+
+export function getEnabledAdaptersFromConfig(config: AosConfig | null): AdapterName[] {
+  if (!config) return [];
+  if (isAosConfigV2(config)) {
+    const enabled = Array.isArray(config.adapters?.enabled) ? config.adapters?.enabled : [];
+    return enabled.filter((value): value is AdapterName => isValidAdapter(value));
+  }
+  return typeof config.adapter === "string" && isValidAdapter(config.adapter) ? [config.adapter] : [];
+}
+
+export function getDefaultAdapterFromConfig(config: AosConfig | null): AdapterName | null {
+  if (!config) return null;
+  if (isAosConfigV2(config)) {
+    if (typeof config.adapters?.default === "string" && isValidAdapter(config.adapters.default)) {
+      return config.adapters.default;
+    }
+    const enabled = getEnabledAdaptersFromConfig(config);
+    return enabled[0] ?? null;
+  }
+  return typeof config.adapter === "string" && isValidAdapter(config.adapter) ? config.adapter : null;
+}
+
+export function resolveAdapterSelection(root: string, flagAdapter?: string | boolean): AdapterResolution {
+  if (typeof flagAdapter === "string" && isValidAdapter(flagAdapter)) {
+    return { adapter: flagAdapter, source: "flag" };
+  }
+
+  const aosConfig = readAosConfig(root);
+  if (aosConfig) {
+    const v2Default = isAosConfigV2(aosConfig) ? getDefaultAdapterFromConfig(aosConfig) : null;
+    if (v2Default) return { adapter: v2Default, source: "config-v2" };
+
+    if (typeof aosConfig.adapter === "string" && isValidAdapter(aosConfig.adapter)) {
+      return { adapter: aosConfig.adapter, source: "config-v1" };
+    }
+  }
+
+  const adapterConfig = readAdapterConfig(root);
+  if (typeof adapterConfig?.platform === "string" && isValidAdapter(adapterConfig.platform)) {
+    return { adapter: adapterConfig.platform, source: "adapter-yaml" };
+  }
+
+  return { adapter: "pi", source: "default" };
+}
+
+export function getSelectedAdaptersForInit(root: string, flagAdapter?: string | boolean): AdapterName[] {
+  const explicit = parseAdapterList(flagAdapter);
+  if (explicit.length > 0) return explicit;
+
+  const config = readAosConfig(root);
+  const fromConfig = getEnabledAdaptersFromConfig(config);
+  if (fromConfig.length > 0) return fromConfig;
+
+  const adapterConfig = readAdapterConfig(root);
+  if (typeof adapterConfig?.platform === "string" && isValidAdapter(adapterConfig.platform)) {
+    return [adapterConfig.platform];
+  }
+
+  return [];
+}
+
+export function getPlatformUrlFromConfig(root: string): string | null {
+  const config = readAosConfig(root);
+  if (!config?.platform?.enabled) return null;
+  return typeof config.platform.url === "string" ? config.platform.url : null;
+}
+
+export const DEFAULT_INIT_MODELS: InitModels = {
+  economy: "anthropic/claude-haiku-4-5",
+  standard: "anthropic/claude-sonnet-4-6",
+  premium: "anthropic/claude-opus-4-6",
+};
+
+export function getInitModels(root: string): InitModels {
+  const config = readAosConfig(root);
+  const models = config?.models ?? {};
+  return {
+    economy: typeof models.economy === "string" ? models.economy : DEFAULT_INIT_MODELS.economy,
+    standard: typeof models.standard === "string" ? models.standard : DEFAULT_INIT_MODELS.standard,
+    premium: typeof models.premium === "string" ? models.premium : DEFAULT_INIT_MODELS.premium,
+  };
+}
+
+export function getInitEditor(root: string): string {
+  const config = readAosConfig(root);
+  return typeof config?.editor === "string" ? config.editor : "code";
+}
+
+export function listKnownAdapters(): readonly AdapterName[] {
+  return ADAPTER_ALLOWLIST;
+}

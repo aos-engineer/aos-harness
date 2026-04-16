@@ -18,6 +18,7 @@ import { AOSEngine } from "@aos-harness/runtime";
 import type { AOSAdapter, ConstraintState, ProfileConfig } from "@aos-harness/runtime/types";
 import { resolveTemplate } from "@aos-harness/runtime/template-resolver";
 import { validateBrief } from "@aos-harness/runtime/config-loader";
+export { probeAdapterInfo } from "@aos-harness/adapter-shared";
 
 // ── Helpers ─────────────────────────────────────────────────────
 

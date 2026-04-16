@@ -3,7 +3,6 @@ import Base from '../../layouts/Base.astro';
 import { loadAllAgents } from '../../lib/content';
 
 const agents = loadAllAgents();
-const categories = ['orchestrator', 'perspective', 'operational'] as const;
 const categoryLabels: Record<string, string> = { orchestrator: 'Orchestrators', perspective: 'Perspectives', operational: 'Operational' };
 const categoryColors: Record<string, string> = { orchestrator: 'var(--color-orchestrator)', perspective: 'var(--color-perspective)', operational: 'var(--color-operational)' };
 const categoryBadge: Record<string, string> = { orchestrator: 'badge-orchestrator', perspective: 'badge-perspective', operational: 'badge-operational' };

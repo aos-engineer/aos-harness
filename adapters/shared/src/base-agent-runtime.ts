@@ -312,8 +312,39 @@ export abstract class BaseAgentRuntime implements AgentRuntimeAdapter {
 
   async spawnSubAgent(parentId: string, config: ChildAgentConfig, sessionId: string): Promise<AgentHandle> {
     const agentConfig = {
-      ...config,
-      model: config.model ?? { tier: "standard" as ModelTier, thinking: "on" as ThinkingMode },
+      schema: "aos/agent/v1",
+      id: config.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "child-agent",
+      name: config.name,
+      role: config.role,
+      cognition: {
+        objective_function: config.role,
+        time_horizon: {
+          primary: "session",
+          secondary: "task",
+          peripheral: "follow-up",
+        },
+        core_bias: "delegated execution",
+        risk_tolerance: "moderate",
+        default_stance: "pragmatic",
+      },
+      persona: {
+        temperament: ["focused"],
+        thinking_patterns: ["task-oriented"],
+        heuristics: [],
+        evidence_standard: {
+          convinced_by: ["clear task instructions", "concrete evidence"],
+          not_convinced_by: ["vague assumptions"],
+        },
+        red_lines: [],
+      },
+      tensions: [],
+      report: { structure: "markdown" },
+      tools: null,
+      skills: [],
+      expertise: [],
+      model: { tier: config.modelTier ?? ("standard" as ModelTier), thinking: "on" as ThinkingMode },
+      systemPrompt: config.systemPrompt,
+      domain: config.domainRules,
     } as AgentConfig;
     const handle = await this.spawnAgent(agentConfig, sessionId);
     handle.parentAgentId = parentId;

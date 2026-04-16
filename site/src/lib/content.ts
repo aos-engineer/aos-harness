@@ -130,8 +130,8 @@ export function loadAllProfiles(): ProfileData[] {
   if (!existsSync(profilesDir)) return [];
 
   return readdirSync(profilesDir)
-    .filter(name => existsSync(join(profilesDir, name, 'profile.yaml')))
-    .map(name => {
+    .filter((name: string) => existsSync(join(profilesDir, name, 'profile.yaml')))
+    .map((name: string) => {
       const data = loadYaml<any>(join(profilesDir, name, 'profile.yaml'));
       return {
         id: data.id,
@@ -145,15 +145,15 @@ export function loadAllProfiles(): ProfileData[] {
         output: data.output ?? { format: 'memo' },
       };
     })
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a: ProfileData, b: ProfileData) => a.name.localeCompare(b.name));
 }
 
 export interface SkillData {
   id: string;
   name: string;
   description: string;
-  input: { required?: any[]; optional?: any[] };
-  output: { artifacts?: any[]; structured_result?: boolean };
+  input: { required: any[]; optional: any[] };
+  output: { artifacts: any[]; structured_result?: boolean };
   compatible_agents: string[];
 }
 
@@ -162,19 +162,25 @@ export function loadAllSkills(): SkillData[] {
   if (!existsSync(skillsDir)) return [];
 
   return readdirSync(skillsDir)
-    .filter(name => existsSync(join(skillsDir, name, 'skill.yaml')))
-    .map(name => {
+    .filter((name: string) => existsSync(join(skillsDir, name, 'skill.yaml')))
+    .map((name: string) => {
       const data = loadYaml<any>(join(skillsDir, name, 'skill.yaml'));
       return {
         id: data.id ?? name,
         name: data.name ?? name,
         description: data.description ?? '',
-        input: data.input ?? {},
-        output: data.output ?? {},
+        input: {
+          required: data.input?.required ?? [],
+          optional: data.input?.optional ?? [],
+        },
+        output: {
+          artifacts: data.output?.artifacts ?? [],
+          structured_result: data.output?.structured_result,
+        },
         compatible_agents: data.compatible_agents ?? [],
       };
     })
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a: SkillData, b: SkillData) => a.name.localeCompare(b.name));
 }
 
 export function loadWorkflow(workflowId: string): any {
@@ -190,8 +196,8 @@ export function loadAllDomains(): DomainData[] {
   if (!existsSync(domainsDir)) return [];
 
   return readdirSync(domainsDir)
-    .filter(name => existsSync(join(domainsDir, name, 'domain.yaml')))
-    .map(name => {
+    .filter((name: string) => existsSync(join(domainsDir, name, 'domain.yaml')))
+    .map((name: string) => {
       const data = loadYaml<any>(join(domainsDir, name, 'domain.yaml'));
       return {
         id: data.id ?? name,
@@ -205,5 +211,5 @@ export function loadAllDomains(): DomainData[] {
         },
       };
     })
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a: DomainData, b: DomainData) => a.name.localeCompare(b.name));
 }

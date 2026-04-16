@@ -990,7 +990,7 @@ All `yaml.load()` calls use `JSON_SCHEMA` (the safest parsing mode), preventing 
 
 | Command | Description |
 |---------|-------------|
-| `aos init [--adapter pi]` | Initialize AOS in the current project directory |
+| `aos init` | Initialize AOS in the current project directory, scan vendor CLI readiness, and write project config |
 | `aos run [profile]` | Run a deliberation or execution session |
 | `aos create agent\|profile\|domain\|skill <name>` | Scaffold new configuration files |
 | `aos validate` | Validate all configuration files with cross-references |

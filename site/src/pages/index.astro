@@ -185,26 +185,31 @@ const listAgents = agents.filter(a => ['catalyst', 'sentinel', 'architect', 'pro
     </div>
   </section>
 
-  <!-- Multi-Platform -->
+  <!-- Supported CLIs -->
   <section class="px-6 py-20">
     <div class="mx-auto max-w-[1200px] text-center">
-      <h2 class="text-[28px] font-bold text-[var(--color-text)]">Multi-Platform</h2>
-      <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Run AOS anywhere you work with AI.</p>
-      <div class="mt-10 grid grid-cols-1 md:grid-cols-3 gap-4 max-w-[900px] mx-auto text-left">
+      <h2 class="text-[28px] font-bold text-[var(--color-text)]">Supported CLIs</h2>
+      <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Bring the AI CLI you already use. AOS adds orchestration on top.</p>
+      <div class="mt-10 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 max-w-[1100px] mx-auto text-left">
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 card-hover">
           <h3 class="text-[17px] font-semibold text-[var(--color-text)]">Pi CLI</h3>
-          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Native terminal experience. Run deliberations and executions from your command line with full control over profiles, domains, and output.</p>
-          <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> pi council run strategic-council</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Keep Pi installed, add the Pi adapter, and run the same AOS profiles from the harness CLI.</p>
+          <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> npm i -g @aos-harness/pi-adapter</code></pre>
         </div>
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 card-hover">
           <h3 class="text-[17px] font-semibold text-[var(--color-text)]">Claude Code</h3>
-          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Use AOS agents directly inside Claude Code sessions. Slash commands trigger deliberations with full agent orchestration.</p>
-          <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code>/aos strategic-council</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Use your existing Claude Code installation and add the Claude Code adapter as the AOS integration layer.</p>
+          <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> npm i -g @aos-harness/claude-code-adapter</code></pre>
+        </div>
+        <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 card-hover">
+          <h3 class="text-[17px] font-semibold text-[var(--color-text)]">Codex CLI</h3>
+          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Pair Codex CLI with the Codex adapter, then let <code>aos init</code> wire project config and readiness checks.</p>
+          <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> aos init --apply</code></pre>
         </div>
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 card-hover">
           <h3 class="text-[17px] font-semibold text-[var(--color-text)]">Gemini CLI</h3>
-          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Run AOS workflows through the Gemini CLI adapter. Same agents, same profiles, different model backend.</p>
-          <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> gemini-cli aos run strategic-council</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Run the same deliberation and execution profiles through Gemini after the matching adapter package is installed.</p>
+          <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> aos run strategic-council --brief brief.md</code></pre>
         </div>
       </div>
     </div>
