@@ -5,6 +5,7 @@
 import { join, normalize, resolve, sep, dirname } from "node:path";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
 
 
 /**
@@ -129,7 +130,65 @@ export function detectProject(startDir: string): string | null {
  *    (via import.meta.resolve). Post-0.6.0 this is the primary path —
  *    the CLI no longer bundles adapter source.
  */
-export function getAdapterDir(adapterName: string): string | null {
+function resolvePackageRootFromEntry(pkgName: string, entryRef: string): string | null {
+  const pathRef = entryRef.startsWith("file://") ? fileURLToPath(entryRef) : entryRef;
+  let dir = resolve(pathRef, "..");
+  const fsRoot = resolve("/");
+
+  while (dir !== fsRoot) {
+    const pkgJson = join(dir, "package.json");
+    if (existsSync(pkgJson)) {
+      try {
+        const contents = JSON.parse(readFileSync(pkgJson, "utf-8")) as { name?: string };
+        if (contents.name === pkgName) {
+          return dir;
+        }
+      } catch {
+        // Keep walking up.
+      }
+    }
+    const parent = resolve(dir, "..");
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  return null;
+}
+
+function getGlobalPackageDir(pkgName: string, env: Record<string, string | undefined> = process.env): string | null {
+  const searchRoots = [
+    env.AOS_BUN_GLOBAL_DIR,
+    join(homedir(), ".bun", "install", "global", "node_modules"),
+    env.AOS_NPM_GLOBAL_DIR,
+    env.npm_config_prefix ? join(env.npm_config_prefix, "lib", "node_modules") : null,
+  ].filter((value): value is string => typeof value === "string" && value.length > 0);
+
+  if (!env.AOS_NPM_GLOBAL_DIR && !env.npm_config_prefix) {
+    const npmPrefix = Bun.spawnSync(["npm", "prefix", "-g"], {
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+    const out = npmPrefix.stdout.toString().trim();
+    if (out) {
+      searchRoots.push(join(out, "lib", "node_modules"));
+    }
+  }
+
+  const seen = new Set<string>();
+  for (const root of searchRoots) {
+    if (seen.has(root)) continue;
+    seen.add(root);
+    const candidate = join(root, pkgName);
+    if (existsSync(join(candidate, "package.json"))) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+export function getAdapterDir(adapterName: string, env: Record<string, string | undefined> = process.env): string | null {
   // 1. Monorepo dev layout
   const monorepoDir = resolve(import.meta.dir, "../..", "adapters", adapterName);
   if (existsSync(join(monorepoDir, "src", "index.ts"))) {
@@ -137,42 +196,24 @@ export function getAdapterDir(adapterName: string): string | null {
   }
 
   // 2. Installed @aos-harness/<name>-adapter package
+  const pkgName = `@aos-harness/${adapterName}-adapter`;
   try {
-    const pkgName = `@aos-harness/${adapterName}-adapter`;
     const resolver = (import.meta as any).resolve;
-    if (typeof resolver !== "function") return null;
-    // import.meta.resolve returns a file:// URL to the package's main entry
-    // (e.g., .../node_modules/@aos-harness/pi-adapter/src/index.ts). Strip
-    // to the package root.
-    const mainUrl: string = resolver(pkgName);
-    if (!mainUrl.startsWith("file://")) return null;
-    const mainPath = mainUrl.slice("file://".length);
-    // Walk up until we find a package.json with the matching name
-    let dir = resolve(mainPath, "..");
-    const fsRoot = resolve("/");
-    while (dir !== fsRoot) {
-      const pkgJson = join(dir, "package.json");
-      if (existsSync(pkgJson)) {
-        try {
-          // Confirm it's the right package; if so, return dir.
-          const contents = JSON.parse(
-            require("node:fs").readFileSync(pkgJson, "utf-8"),
-          ) as { name?: string };
-          if (contents.name === pkgName) {
-            if (existsSync(join(dir, "src", "index.ts"))) return dir;
-          }
-        } catch {
-          // Fall through — keep walking up.
-        }
+    if (typeof resolver === "function") {
+      const resolvedDir = resolvePackageRootFromEntry(pkgName, resolver(pkgName));
+      if (resolvedDir && existsSync(join(resolvedDir, "src", "index.ts"))) {
+        return resolvedDir;
       }
-      const parent = resolve(dir, "..");
-      if (parent === dir) break;
-      dir = parent;
     }
   } catch {
-    // import.meta.resolve throws if the package isn't installed.
-    return null;
+    // Fall through to explicit global package directory detection.
   }
+
+  const globalDir = getGlobalPackageDir(pkgName, env);
+  if (globalDir && existsSync(join(globalDir, "src", "index.ts"))) {
+    return globalDir;
+  }
+
   return null;
 }
 

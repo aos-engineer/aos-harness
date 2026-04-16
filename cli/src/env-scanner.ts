@@ -63,6 +63,7 @@ export interface ScanEnvironmentOptions {
   npmGlobalDir?: string | null;
   probeVendorCli?: (adapter: AdapterName, meta: AdapterMetadata) => Promise<VendorCliReadiness>;
   resolveAdapterDir?: (adapter: AdapterName) => string | null;
+  findBinary?: (name: string) => string | null;
 }
 
 function detectPackageManager(): PackageManager {
@@ -310,6 +311,7 @@ export async function scanEnvironment(options: ScanEnvironmentOptions = {}): Pro
   const resolveAdapterDir = options.resolveAdapterDir ?? getAdapterDir;
   const bunGlobalDir = getBunGlobalDir(env, options.bunGlobalDir);
   const npmGlobalDir = getNpmGlobalDir(env, options.npmGlobalDir);
+  const findBinary = options.findBinary ?? ((name: string) => Bun.which(name) ?? null);
 
   const adapters = {} as Record<AdapterName, AdapterReadiness>;
   const notes: string[] = [];
@@ -341,6 +343,10 @@ export async function scanEnvironment(options: ScanEnvironmentOptions = {}): Pro
   }
 
   const socketPath = getMempalaceSocket(env);
+  const mempalaceBinary = findBinary("mempalace");
+  if (mempalaceBinary && !existsSync(socketPath)) {
+    notes.push(`mempalace: binary found at ${mempalaceBinary}, but socket ${socketPath} was not detected. Set MEMPALACE_SOCKET if MemPalace uses a custom socket path.`);
+  }
 
   return {
     packageManager: detectPackageManager(),
@@ -349,6 +355,8 @@ export async function scanEnvironment(options: ScanEnvironmentOptions = {}): Pro
       mempalace: {
         available: existsSync(socketPath),
         socketPath,
+        binaryInstalled: !!mempalaceBinary,
+        binaryPath: mempalaceBinary ?? undefined,
       },
     },
     notes,

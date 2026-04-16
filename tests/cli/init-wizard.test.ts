@@ -39,6 +39,7 @@ const scan: ScanReport = {
     mempalace: {
       available: false,
       socketPath: "/tmp/mempalace.sock",
+      binaryInstalled: false,
     },
   },
   notes: [],

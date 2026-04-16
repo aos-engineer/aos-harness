@@ -38,6 +38,11 @@ function formatAdapterLine(adapter: AdapterName, readiness: AdapterReadiness): s
 }
 
 export function renderScanReport(scan: ScanReport): string {
+  const memorySummary = scan.memory.mempalace.available
+    ? `available (${scan.memory.mempalace.socketPath})`
+    : scan.memory.mempalace.binaryInstalled
+      ? `installed at ${scan.memory.mempalace.binaryPath}; socket not detected at ${scan.memory.mempalace.socketPath}`
+      : `not-detected (${scan.memory.mempalace.socketPath})`;
   const lines = [
     `Package manager: ${scan.packageManager}`,
     "",
@@ -49,9 +54,7 @@ export function renderScanReport(scan: ScanReport): string {
   }
 
   lines.push("");
-  lines.push(
-    `Memory: mempalace ${scan.memory.mempalace.available ? "available" : "not-detected"} (${scan.memory.mempalace.socketPath})`,
-  );
+  lines.push(`Memory: mempalace ${memorySummary}`);
 
   if (scan.notes.length > 0) {
     lines.push("");

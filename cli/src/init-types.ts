@@ -39,6 +39,8 @@ export interface AdapterReadiness {
 export interface MemoryBackendScan {
   available: boolean;
   socketPath: string;
+  binaryInstalled: boolean;
+  binaryPath?: string;
 }
 
 export interface ScanReport {

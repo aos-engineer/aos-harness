@@ -14,6 +14,7 @@
 
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 import { readFileSync } from "node:fs";
 import readline from "node:readline";
@@ -31,6 +32,7 @@ import { loadAgent } from "@aos-harness/runtime/config-loader";
 import { resolveTemplate } from "@aos-harness/runtime/template-resolver";
 import { startBridgeServer } from "./bridge-server";
 import { renderTextGauge, renderRoundOneLiner } from "./gauges";
+import { getAdapterDir } from "./utils";
 
 export interface AdapterSessionConfig {
   platform: string; // "claude-code" | "gemini" | "codex"
@@ -147,29 +149,30 @@ async function loadAdapterRuntime(platform: string): Promise<any> {
   const entry = ADAPTER_MAP[platform];
   if (!entry) throw new Error(`Unknown adapter: ${platform}`);
 
-  async function readAdapterVersion(fromPath: string): Promise<string> {
-    try {
-      const pkgUrl = new URL("../package.json", fromPath).href;
-      const { readFile } = await import("node:fs/promises");
-      const raw = await readFile(new URL(pkgUrl), "utf-8");
-      return (JSON.parse(raw) as { version: string }).version ?? "unknown";
-    } catch {
-      return "unknown";
-    }
+  const adapterDir = getAdapterDir(platform);
+  if (!adapterDir) {
+    printMissingAdapterError(entry.package);
+    process.exit(2);
   }
 
   let mod: any;
   try {
-    mod = await import(entry.package);
+    mod = await import(pathToFileURL(join(adapterDir, "src", "index.ts")).href);
   } catch (err) {
     if (isModuleNotFound(err)) {
       printMissingAdapterError(entry.package);
       process.exit(2);
     }
-    throw err; // real load error — surface it
+    throw err;
   }
-  const resolved = (import.meta as any).resolve?.(entry.package) ?? entry.package;
-  const version = await readAdapterVersion(resolved);
+
+  let version = "unknown";
+  try {
+    const raw = readFileSync(join(adapterDir, "package.json"), "utf-8");
+    version = (JSON.parse(raw) as { version?: string }).version ?? "unknown";
+  } catch {
+    version = "unknown";
+  }
   console.error(`[adapter] loaded ${entry.package}@${version}`);
   maybeWarnVersionMismatch(entry.package, version);
   return mod[entry.className];

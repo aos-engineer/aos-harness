@@ -87,4 +87,25 @@ describe("env-scanner readiness matrix", () => {
     expect(scan.adapters.gemini.status).toBe("broken");
     expect(scan.adapters.gemini.aosAdapter.store).toBe("project-local");
   });
+
+  test("scanEnvironment reports mempalace binary even when socket is missing", async () => {
+    const root = mkdtempSync(join(tmpdir(), "aos-scan-"));
+    const scan = await scanEnvironment({
+      cwd: root,
+      env: { TMPDIR: join(root, "tmp") },
+      bunGlobalDir: null,
+      npmGlobalDir: null,
+      probeVendorCli: async () => ({
+        present: false,
+        auth: { state: "unknown" },
+      }),
+      resolveAdapterDir: () => null,
+      findBinary: (name) => (name === "mempalace" ? "/Users/test/.local/bin/mempalace" : null),
+    });
+
+    expect(scan.memory.mempalace.available).toBe(false);
+    expect(scan.memory.mempalace.binaryInstalled).toBe(true);
+    expect(scan.memory.mempalace.binaryPath).toBe("/Users/test/.local/bin/mempalace");
+    expect(scan.notes.some((note) => note.includes("MEMPALACE_SOCKET"))).toBe(true);
+  });
 });
