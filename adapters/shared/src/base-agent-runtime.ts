@@ -304,8 +304,17 @@ export abstract class BaseAgentRuntime implements AgentRuntimeAdapter {
           resolve({ text: accumulatedText, tokensIn, tokensOut, cost, contextTokens, model, status: "aborted", error: "Agent call was aborted" });
           return;
         }
-        if (code !== 0 && !finalResponse && !accumulatedText) {
-          resolve({ text: "", tokensIn, tokensOut, cost, contextTokens, model, status: "failed", error: `Process exited with code ${code}: ${stderr.slice(0, 500)}` });
+        if (code !== 0) {
+          resolve({
+            text: finalResponse || accumulatedText,
+            tokensIn,
+            tokensOut,
+            cost,
+            contextTokens,
+            model,
+            status: "failed",
+            error: `Process exited with code ${code}: ${stderr.slice(0, 500)}`,
+          });
           return;
         }
         resolve({ text: finalResponse || accumulatedText, tokensIn, tokensOut, cost, contextTokens, model, status: "success" });

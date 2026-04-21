@@ -67,6 +67,36 @@ export interface AdapterSessionConfig {
   platformUrl?: string;
 }
 
+function createStreamingPrinter() {
+  let printedLength = 0;
+  let printedAny = false;
+
+  return {
+    push(partial: string) {
+      if (partial.length <= printedLength) return;
+      const delta = partial.slice(printedLength);
+      printedLength = partial.length;
+      if (!delta) return;
+      printedAny = true;
+      process.stdout.write(delta);
+    },
+    flushFinal(text: string): boolean {
+      if (!printedAny) return false;
+      if (text.length > printedLength) {
+        process.stdout.write(text.slice(printedLength));
+        printedLength = text.length;
+      }
+      if (!text.endsWith("\n")) {
+        process.stdout.write("\n");
+      }
+      return true;
+    },
+    hasOutput() {
+      return printedAny;
+    },
+  };
+}
+
 const ADAPTER_MAP: Record<string, { package: string; className: string }> = {
   "claude-code": {
     package: "@aos-harness/claude-code-adapter",
@@ -479,16 +509,33 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
           `Tool calls will stream as rounds complete. ` +
           `Bridge socket: ${sockPath}\n`,
       );
-      const response = await adapter.sendMessage(arbiterHandle, kickoff, {
-        extraArgs: mcpArgs,
-      });
+      const printer = createStreamingPrinter();
+      const startedAt = Date.now();
+      const heartbeat = setInterval(() => {
+        if (printer.hasOutput()) return;
+        const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
+        console.error(
+          `[arbiter] waiting for ${config.platform} response... ${elapsedSeconds}s elapsed`,
+        );
+      }, 15000);
+      let response;
+      try {
+        response = await adapter.sendMessage(arbiterHandle, kickoff, {
+          extraArgs: mcpArgs,
+          onStream: (partial) => printer.push(partial),
+        });
+      } finally {
+        clearInterval(heartbeat);
+      }
       if ((response as any).status !== "success") {
         console.error(
           `\n[arbiter] call failed: status=${(response as any).status} ` +
             `error=${(response as any).error ?? "(none)"}`,
         );
       }
-      console.log("\n" + response.text);
+      if (!printer.flushFinal(response.text)) {
+        console.log("\n" + response.text);
+      }
     } finally {
       rl.close();
       await closeBridge();
