@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.8.4 — Release hardening and adapter preflight
+
+### Added
+
+- Preflight adapter-readiness checks in `aos run` for non-Pi adapters before session startup.
+- Claude Code live auth probe when `ANTHROPIC_API_KEY` is forcing external API-key auth, so invalid keys fail fast before arbiter startup.
+- npm release propagation guard in CI via `scripts/wait-for-npm-release.ts`.
+
+### Changed
+
+- `aos run` now warns about adapter/CLI version drift before launching non-Pi sessions.
+- Session startup output now streams arbiter partial text when available and emits a waiting heartbeat during silent vendor CLI periods.
+- Site deployment metadata and release versioning are bumped in lockstep to `0.8.4`.
+
+### Fixed
+
+- Non-zero adapter subprocess exits are now surfaced as failed arbiter calls even when the vendor CLI emitted text before exiting.
+- Claude Code runs no longer appear to hang silently when auth is broken; invalid external API keys are reported up front.
+- Release verification no longer fails spuriously when npm package propagation lags after publish.
+
 ## 0.8.3 — Adapter defaults, current CLI compatibility, and docs hardening
 
 ### Added

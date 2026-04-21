@@ -91,9 +91,9 @@ aos init
 
 Release line:
 
-- Current repo version: `0.8.3`
+- Current repo version: `0.8.4`
 - npm latest is published separately via the tag-driven release workflow
-- Site image tag: `novashock/aos-harness-site:0.8.3-20260421`
+- Site image tag: `novashock/aos-harness-site:0.8.4-20260421`
 
 `aos init` prints the adapter install commands at the end as a reminder.
 It also scans vendor CLI readiness, writes v2 `.aos/config.yaml`, and supports:
