@@ -59,6 +59,11 @@ jobs:
           GITHUB_ACTIONS: "true"
         run: bun run scripts/publish.ts --ci --dist-tag=${{ steps.disttag.outputs.dist_tag }}
 
+      - name: Wait for npm registry propagation
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: bun run scripts/wait-for-npm-release.ts
+
       - name: Verify registry signatures (install-then-audit)
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -68,14 +73,15 @@ jobs:
           npm init -y > /dev/null
           VER="${VERSION#v}"
 
-          # npm registry CDN propagation can exceed 90s for the unscoped
-          # `aos-harness` package (observed 2026-04-14 on v0.7.0-rc.2 release).
-          # Retry up to 12x with a 15s backoff = 3 minutes total window.
+          # Use a fresh cache each attempt so npm does not reuse stale 404
+          # metadata during the install-and-audit verification step.
           # IMPORTANT: install WITHOUT --no-save so npm audit signatures sees
           # the deps in package.json (it only audits declared dependencies).
-          MAX_ATTEMPTS=12
+          MAX_ATTEMPTS=6
           for attempt in $(seq 1 $MAX_ATTEMPTS); do
-            if npm install \
+            CACHE_DIR="/tmp/npm-verify-cache-$attempt"
+            rm -rf "$CACHE_DIR"
+            if npm install --prefer-online --cache "$CACHE_DIR" \
                 aos-harness@"$VER" \
                 @aos-harness/runtime@"$VER" \
                 @aos-harness/adapter-shared@"$VER" \
@@ -87,11 +93,11 @@ jobs:
               break
             fi
             if [ "$attempt" = "$MAX_ATTEMPTS" ]; then
-              echo "install still failing after $MAX_ATTEMPTS attempts — registry did not propagate (packages may still have been published successfully; verify manually with \`npm view <pkg>@<version>\`)"
+              echo "install still failing after $MAX_ATTEMPTS attempts even after registry propagation wait"
               exit 1
             fi
-            echo "install attempt $attempt of $MAX_ATTEMPTS failed; sleeping 15s for propagation"
-            sleep 15
+            echo "install attempt $attempt of $MAX_ATTEMPTS failed; sleeping 20s before retry"
+            sleep 20
           done
 
           # Without --provenance, this verifies only the registry's built-in

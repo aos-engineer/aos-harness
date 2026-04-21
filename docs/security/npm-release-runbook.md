@@ -25,7 +25,10 @@ git push origin v<version>
 gh release create v<version> --title "v<version>" --notes-file /tmp/release-notes.md
 # 5. Release workflow starts. Post the link in #releases (or equivalent)
 #    and @mention a reviewer from the npm-publish environment.
-# 6. Reviewer approves. Publish completes in ~3–5 min.
+# 6. Reviewer approves. Publish completes in ~3–10 min.
+#    The workflow now waits for npm registry propagation before running the
+#    final install-and-signature audit, so scoped package CDN lag will not
+#    incorrectly fail the release after publish has already succeeded.
 # 7. Verify on a consumer machine:
 mkdir /tmp/verify && cd /tmp/verify
 npm init -y > /dev/null
