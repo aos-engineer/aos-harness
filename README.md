@@ -15,8 +15,8 @@ AOS Harness is a language-agnostic orchestration system for multi-agent AI workf
 
 The harness ships with:
 
-- 13 agent personas with distinct cognitive biases and reasoning frameworks
-- 6 orchestration profiles (strategic-council, cto-execution, security-review, delivery-ops, architecture-review, incident-response)
+- 15 agent personas with distinct cognitive biases and reasoning frameworks
+- 8 orchestration profiles, including strategic-council, cto-execution, security-review, delivery-ops, architecture-review, incident-response, dev-execution, and design-variations
 - 5 domain packs (SaaS, healthcare, fintech, platform-engineering, personal-decisions)
 - 5 skill definitions (code-review, security-scan, task-decomposition, mempalace-read-write, mempalace-admin)
 - Platform adapters for Pi CLI, Claude Code, Codex, Gemini, and other compatible runtimes
@@ -88,6 +88,12 @@ aos init
 # local install: bunx aos init
 # local install with npm: npx aos init
 ```
+
+Release line:
+
+- Current repo version: `0.8.2`
+- npm latest is published separately via the tag-driven release workflow
+- Site image tag: `novashock/aos-harness-site:0.8.2-20260421`
 
 `aos init` prints the adapter install commands at the end as a reminder.
 It also scans vendor CLI readiness, writes v2 `.aos/config.yaml`, and supports:
@@ -170,6 +176,8 @@ Brief → Requirements (Advocate + Strategist) → Architecture (Architect)
 | **Operator** | Operational | Execution reality, capacity | Execution |
 | **Steward** | Operational | Ethics, compliance, governance | Compliance |
 | **Auditor** | Operational | Retrospective, institutional memory | Learning |
+| **Engineering Lead** | Operational | Domain-scoped implementation orchestration | Delivery throughput |
+| **Artifact Renderer** | Perspective | Output shaping, packaging, presentation quality | Communication fidelity |
 
 ---
 
@@ -178,11 +186,11 @@ Brief → Requirements (Advocate + Strategist) → Architecture (Architect)
 ```
 aos-harness/
   core/               # Language-agnostic config (YAML + Markdown)
-    agents/           # 13 agent personas (orchestrators, perspectives, operational)
-    profiles/         # 6 orchestration profiles
+    agents/           # 15 agent personas (orchestrators, perspectives, operational)
+    profiles/         # 8 orchestration profiles
     domains/          # 5 domain knowledge packs
     skills/           # 5 skill definitions (aos/skill/v1)
-    workflows/        # 7 workflow definitions
+    workflows/        # 9 workflow definitions
     schema/           # JSON Schema for validation
     briefs/           # Sample briefs
   runtime/            # Minimal TypeScript engine (~2000 lines)
