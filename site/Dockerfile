@@ -3,7 +3,7 @@ ARG SITE_BUILD_ID=local
 ARG BUILD_DATE=unknown
 
 # === Build stage ===
-FROM oven/bun:1 AS build
+FROM oven/bun:1.3.11 AS build
 
 ARG SITE_VERSION
 ARG SITE_BUILD_ID
@@ -26,7 +26,7 @@ RUN printf '{\n  "version": "%s",\n  "buildId": "%s",\n  "buildDate": "%s"\n}\n'
 RUN bun run build
 
 # === Production stage ===
-FROM nginx:alpine AS production
+FROM nginxinc/nginx-unprivileged:stable-alpine AS production
 
 ARG SITE_VERSION
 ARG SITE_BUILD_ID
@@ -42,12 +42,12 @@ LABEL org.opencontainers.image.title="aos-harness-site" \
 COPY site/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built static files
-COPY --from=build /app/site/dist /usr/share/nginx/html
+COPY --from=build --chown=101:101 /app/site/dist /usr/share/nginx/html
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -q --spider http://localhost:80/ || exit 1
+  CMD wget -q --spider http://localhost:8080/ || exit 1
 
-EXPOSE 80
+EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]

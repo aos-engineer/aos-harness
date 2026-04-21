@@ -3,7 +3,13 @@ import { join } from "node:path";
 import yaml from "js-yaml";
 import { readAdapterConfig } from "./adapter-config";
 import { ADAPTER_ALLOWLIST, type AdapterName, isValidAdapter } from "./utils";
-import type { InitModels } from "./init-types";
+import type { AdapterModelDefaults, InitModels } from "./init-types";
+import type { ModelTier } from "@aos-harness/runtime/types";
+
+export interface AdapterModelSettings {
+  use_vendor_default_model?: boolean;
+  models?: Partial<InitModels>;
+}
 
 export interface AosConfigV2 {
   api_version?: string;
@@ -11,6 +17,7 @@ export interface AosConfigV2 {
     enabled?: string[];
     default?: string;
   };
+  adapter_defaults?: Partial<Record<AdapterName, AdapterModelSettings>>;
   package_manager?: string;
   models?: Partial<InitModels>;
   editor?: string;
@@ -35,6 +42,12 @@ export type AosConfig = AosConfigV1 & AosConfigV2 & Record<string, unknown>;
 export interface AdapterResolution {
   adapter: AdapterName;
   source: "flag" | "config-v2" | "config-v1" | "adapter-yaml" | "default";
+}
+
+export interface RuntimeAdapterModelConfig {
+  useVendorDefaultModel: boolean;
+  modelOverrides?: Partial<Record<ModelTier, string>>;
+  source: "config-v2" | "config-v1-pi-models" | "adapter-yaml" | "default";
 }
 
 export function readAosConfig(root: string): AosConfig | null {
@@ -128,7 +141,7 @@ export function getPlatformUrlFromConfig(root: string): string | null {
 export const DEFAULT_INIT_MODELS: InitModels = {
   economy: "anthropic/claude-haiku-4-5",
   standard: "anthropic/claude-sonnet-4-6",
-  premium: "anthropic/claude-opus-4-6",
+  premium: "anthropic/claude-opus-4-7",
 };
 
 export function getInitModels(root: string): InitModels {
@@ -160,4 +173,113 @@ export function getInitMemoryProvider(root: string): "expertise" | "mempalace" |
 
 export function listKnownAdapters(): readonly AdapterName[] {
   return ADAPTER_ALLOWLIST;
+}
+
+export function getRecommendedModelsForAdapter(adapter: AdapterName): InitModels {
+  switch (adapter) {
+    case "pi":
+      return {
+        economy: "anthropic/claude-haiku-4-5",
+        standard: "anthropic/claude-sonnet-4-6",
+        premium: "anthropic/claude-opus-4-7",
+      };
+    case "claude-code":
+      return {
+        economy: "claude-haiku-4-5",
+        standard: "claude-sonnet-4-6",
+        premium: "claude-opus-4-7",
+      };
+    case "codex":
+      return {
+        economy: "gpt-5.1-codex-mini",
+        standard: "gpt-5.2-codex",
+        premium: "gpt-5.2-codex",
+      };
+    case "gemini":
+      return {
+        economy: "gemini-2.5-flash-lite",
+        standard: "gemini-2.5-flash",
+        premium: "gemini-2.5-pro",
+      };
+    default:
+      return DEFAULT_INIT_MODELS;
+  }
+}
+
+export function buildAdapterDefaults(
+  adapters: AdapterName[],
+  options: { legacyPiModels?: Partial<InitModels> } = {},
+): Partial<Record<AdapterName, AdapterModelDefaults>> {
+  return Object.fromEntries(
+    adapters.map((adapter) => {
+      if (adapter === "pi") {
+        const recommended = getRecommendedModelsForAdapter(adapter);
+        return [
+          adapter,
+          {
+            use_vendor_default_model: false,
+            models: {
+              economy: options.legacyPiModels?.economy ?? recommended.economy,
+              standard: options.legacyPiModels?.standard ?? recommended.standard,
+              premium: options.legacyPiModels?.premium ?? recommended.premium,
+            },
+          },
+        ];
+      }
+      return [adapter, { use_vendor_default_model: true }];
+    }),
+  );
+}
+
+function normalizeModels(models?: Partial<InitModels> | null): Partial<Record<ModelTier, string>> | undefined {
+  if (!models) return undefined;
+  const normalized: Partial<Record<ModelTier, string>> = {};
+  if (typeof models.economy === "string" && models.economy.trim()) normalized.economy = models.economy;
+  if (typeof models.standard === "string" && models.standard.trim()) normalized.standard = models.standard;
+  if (typeof models.premium === "string" && models.premium.trim()) normalized.premium = models.premium;
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+export function getRuntimeAdapterModelConfig(root: string, adapter: AdapterName): RuntimeAdapterModelConfig {
+  const config = readAosConfig(root);
+  if (config && isAosConfigV2(config)) {
+    const adapterSettings = config.adapter_defaults?.[adapter];
+    if (adapterSettings) {
+      const modelOverrides = normalizeModels(adapterSettings.models);
+      return {
+        useVendorDefaultModel: adapterSettings.use_vendor_default_model ?? (adapter !== "pi" && !modelOverrides),
+        modelOverrides,
+        source: "config-v2",
+      };
+    }
+
+    // Legacy v2 top-level `models` was originally written by `aos init`
+    // without adapter scoping. Only honor it for Pi, where those IDs were
+    // historically valid.
+    if (adapter === "pi") {
+      const modelOverrides = normalizeModels(config.models);
+      if (modelOverrides) {
+        return {
+          useVendorDefaultModel: false,
+          modelOverrides,
+          source: "config-v1-pi-models",
+        };
+      }
+    }
+  }
+
+  const adapterConfig = readAdapterConfig(root);
+  if (adapterConfig && typeof adapterConfig.platform === "string" && adapterConfig.platform === adapter) {
+    const modelOverrides = normalizeModels(adapterConfig.model_overrides as Partial<InitModels> | undefined);
+    return {
+      useVendorDefaultModel: adapterConfig.use_vendor_default_model ?? (adapter !== "pi" && !modelOverrides),
+      modelOverrides,
+      source: "adapter-yaml",
+    };
+  }
+
+  return {
+    useVendorDefaultModel: adapter !== "pi",
+    source: "default",
+  };
 }

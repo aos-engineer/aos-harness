@@ -1,26 +1,33 @@
 ## AOS Harness — Production Docker Compose (Dokploy)
 ##
 ## Architecture:
-##   harness.aos.engineer → site (static Astro site, nginx, port 80)
+##   harness.aos.engineer → site (static Astro site, nginx, port 8080)
 ##
 ## Routing: Managed via Dokploy Domains UI (not Traefik labels).
 ## No database, no env vars required — pure static site.
 
 services:
   site:
-    image: novashock/aos-harness-site:0.8.2-20260421
+    image: novashock/aos-harness-site:0.8.3-20260421
     build:
       context: .
       dockerfile: site/Dockerfile
       args:
-        SITE_VERSION: "0.8.2"
-        SITE_BUILD_ID: "2026-04-21-install-docs-refresh"
+        SITE_VERSION: "0.8.3"
+        SITE_BUILD_ID: "2026-04-21-adapter-defaults-release"
         BUILD_DATE: "2026-04-21T00:00:00Z"
     restart: unless-stopped
     expose:
-      - "80"
+      - "8080"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

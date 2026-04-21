@@ -29,7 +29,8 @@ const listAgents = agents.filter(a => ['catalyst', 'sentinel', 'architect', 'pro
       <div class="mt-12 max-w-[480px] mx-auto text-left">
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4 px-5">
           <pre class="!bg-transparent !border-0 !p-0 text-sm"><code><span class="text-[var(--color-text-muted)]">$</span> bun add aos-harness
-<span class="text-[var(--color-text-muted)]">$</span> bunx aos run strategic-council</code></pre>
+<span class="text-[var(--color-text-muted)]">$</span> bunx aos init
+<span class="text-[var(--color-text-muted)]">$</span> bunx aos run strategic-council --adapter codex</code></pre>
           <p class="text-xs text-[var(--color-text-muted)] mt-2 font-['JetBrains_Mono',monospace]"># local install or global CLI. {agents.length} agents. {profiles.length} profiles.</p>
         </div>
       </div>
@@ -190,7 +191,7 @@ const listAgents = agents.filter(a => ['catalyst', 'sentinel', 'architect', 'pro
   <section class="px-6 py-20">
     <div class="mx-auto max-w-[1200px] text-center">
       <h2 class="text-[28px] font-bold text-[var(--color-text)]">Supported CLIs</h2>
-      <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Bring the AI CLI you already use. Install the matching adapter, then optionally add the host-native surface for that runtime.</p>
+      <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Bring the AI CLI you already use. Install the matching adapter, keep Pi pinned to explicit tier models, and let Codex, Claude Code, and Gemini use their vendor-default models unless you intentionally override them.</p>
       <div class="mt-10 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 max-w-[1100px] mx-auto text-left">
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 card-hover">
           <h3 class="text-[17px] font-semibold text-[var(--color-text)]">Pi CLI</h3>
@@ -199,19 +200,19 @@ const listAgents = agents.filter(a => ['catalyst', 'sentinel', 'architect', 'pro
         </div>
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 card-hover">
           <h3 class="text-[17px] font-semibold text-[var(--color-text)]">Claude Code</h3>
-          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Use your existing Claude Code installation, add the adapter, then optionally install the project command pack.</p>
+          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Use your existing Claude Code installation, add the adapter, then optionally install the project command pack. Readiness checks surface when <code>ANTHROPIC_API_KEY</code> is overriding Claude auth.</p>
           <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> npm i -g @aos-harness/claude-code-adapter
 <span class="text-[var(--color-text-muted)]">$</span> bash plugins/aos-harness/claude-code/install.sh</code></pre>
         </div>
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 card-hover">
           <h3 class="text-[17px] font-semibold text-[var(--color-text)]">Codex CLI</h3>
-          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Pair Codex CLI with the Codex adapter, then optionally install the local Codex plugin bundle on top.</p>
+          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Pair Codex CLI with the Codex adapter, then optionally install the local Codex plugin bundle on top. By default, AOS defers model choice to Codex unless you pin a tier model.</p>
           <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> npm i -g @aos-harness/codex-adapter
 <span class="text-[var(--color-text-muted)]">$</span> aos init --apply</code></pre>
         </div>
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 card-hover">
           <h3 class="text-[17px] font-semibold text-[var(--color-text)]">Gemini CLI</h3>
-          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Run the same deliberation and execution profiles through Gemini after installing the matching adapter package.</p>
+          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Run the same deliberation and execution profiles through Gemini after installing the matching adapter package. Current account-level Gemini failures are surfaced directly instead of hidden behind stale flags.</p>
           <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> npm i -g @aos-harness/gemini-adapter</code></pre>
         </div>
       </div>

@@ -15,6 +15,10 @@
         "premium": { "type": "string" }
       }
     },
+    "use_vendor_default_model": {
+      "type": "boolean",
+      "description": "When true, AOS omits explicit --model flags and lets the vendor CLI choose its default model."
+    },
     "theme": { "type": "string" },
     "editor": { "type": "string" }
   }

@@ -37,6 +37,7 @@ export function mergeConfig(
     enabled: wizardResult.enabledAdapters,
     default: wizardResult.defaultAdapter,
   });
+  doc.set("adapter_defaults", wizardResult.adapterDefaults);
 
   if (preservedComment && doc.contents.items.length > 0) {
     const updatedItems = doc.contents.items as Array<{ key?: { commentBefore?: string } }>;

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { c, type ParsedArgs } from "../colors";
 import { getHarnessRoot, getPackageCoreDir, isValidAdapter } from "../utils";
-import { getInitEditor, getInitModels, getSelectedAdaptersForInit, parseAdapterList } from "../aos-config";
+import { buildAdapterDefaults, getInitEditor, getInitModels, getSelectedAdaptersForInit, parseAdapterList } from "../aos-config";
 import { scanEnvironment } from "../env-scanner";
 import { mergeConfig, generateMemoryYaml } from "../init-config-writer";
 import { applyActions } from "../init-applier";
@@ -75,6 +75,7 @@ function parseWizardResultFile(path: string): WizardResult {
       provider: parsed.memory?.provider === "mempalace" ? "mempalace" : "expertise",
     },
     models: parsed.models ?? getInitModels(process.cwd()),
+    adapterDefaults: parsed.adapterDefaults ?? buildAdapterDefaults(enabledAdapters, { legacyPiModels: parsed.models }),
     editor: typeof parsed.editor === "string" ? parsed.editor : getInitEditor(process.cwd()),
     actions: Array.isArray(parsed.actions) ? parsed.actions : [],
   };

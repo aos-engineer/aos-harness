@@ -69,7 +69,8 @@ function mockPromptContext(): PromptContext {
 
 describe("init-wizard", () => {
   test("builds actions from readiness matrix", async () => {
-    const result = await runWizard(scan, process.cwd(), undefined, mockPromptContext());
+    const root = mkdtempSync(join(tmpdir(), "aos-init-wizard-"));
+    const result = await runWizard(scan, root, undefined, mockPromptContext());
     expect(result).not.toBeNull();
     if (!result) {
       throw new Error("Expected wizard result");
@@ -77,6 +78,8 @@ describe("init-wizard", () => {
     expect(result.enabledAdapters).toEqual(["pi", "claude-code", "codex"]);
     expect(result.defaultAdapter).toBe("pi");
     expect(result.memory.provider).toBe("expertise");
+    expect(result.adapterDefaults.pi?.use_vendor_default_model).toBe(false);
+    expect(result.adapterDefaults.codex?.use_vendor_default_model).toBe(true);
     expect(result.actions.some((action) => action.type === "install-adapter" && action.packageName === "@aos-harness/codex-adapter")).toBe(true);
     expect(result.actions.some((action) => action.type === "info-login" && action.adapter === "claude-code")).toBe(true);
   });

@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { CodexAgentRuntime } from "../src/agent-runtime";
 import { BaseEventBus } from "@aos-harness/adapter-shared";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // Minimal stub for BaseEventBus
 class StubEventBus extends BaseEventBus {}
@@ -31,35 +34,41 @@ describe("CodexAgentRuntime", () => {
       lastContextTokens: 0,
     };
 
-    it("first call includes --full-auto, --model, --system-prompt, and message", () => {
+    it("first call uses codex exec json mode and inlines system/context into the prompt", () => {
       const rt = new CodexAgentRuntime(new StubEventBus());
       const args = rt.buildArgs(state, "Hello world", true);
 
+      expect(args[0]).toBe("exec");
+      expect(args).toContain("--json");
       expect(args).toContain("--full-auto");
       expect(args).toContain("--model");
-      expect(args).toContain("--system-prompt");
-      expect(args).toContain("You are a helpful assistant.");
-      // Message should be the last argument
-      expect(args[args.length - 1]).toBe("Hello world");
+      expect(args.join("\n")).toContain("<system>");
+      expect(args.join("\n")).toContain("You are a helpful assistant.");
+      expect(args[args.length - 1]).toContain("Hello world");
     });
 
-    it("first call includes --file for context files", () => {
+    it("first call inlines context file contents instead of passing --file", () => {
+      const root = mkdtempSync(join(tmpdir(), "codex-ctx-"));
+      const contextFile = join(root, "context.md");
+      writeFileSync(contextFile, "Context file body");
       const rt = new CodexAgentRuntime(new StubEventBus());
-      const args = rt.buildArgs(state, "Hello", true);
+      const args = rt.buildArgs({ ...state, contextFiles: [contextFile] }, "Hello", true);
 
-      expect(args).toContain("--file");
-      expect(args).toContain("/tmp/context.md");
+      expect(args).not.toContain("--file");
+      expect(args.join("\n")).toContain("Context file body");
     });
 
-    it("subsequent call includes --session and no --system-prompt", () => {
+    it("subsequent call resumes via codex exec resume", () => {
+      const root = mkdtempSync(join(tmpdir(), "codex-session-"));
+      const sessionFile = join(root, "session.txt");
+      writeFileSync(sessionFile, "thread_123\n");
       const rt = new CodexAgentRuntime(new StubEventBus());
-      const args = rt.buildArgs(state, "Follow-up message", false);
+      const args = rt.buildArgs({ ...state, sessionFile }, "Follow-up message", false);
 
-      expect(args).toContain("--full-auto");
+      expect(args[0]).toBe("exec");
+      expect(args[1]).toBe("resume");
+      expect(args).toContain("thread_123");
       expect(args).toContain("--model");
-      expect(args).toContain("--session");
-      expect(args).toContain("/tmp/test-session.jsonl");
-      expect(args).not.toContain("--system-prompt");
       expect(args[args.length - 1]).toBe("Follow-up message");
     });
   });
@@ -67,30 +76,23 @@ describe("CodexAgentRuntime", () => {
   describe("parseEventLine", () => {
     const rt = new CodexAgentRuntime(new StubEventBus());
 
-    it("parses result type → message_end", () => {
+    it("parses thread.started → session_update", () => {
       const line = JSON.stringify({
-        type: "result",
-        result: "Hello from Codex",
-        usage: { input_tokens: 100, output_tokens: 50 },
-        cost_usd: 0.002,
-        model: "o3",
+        type: "thread.started",
+        thread_id: "thread_123",
       });
       const event = rt.parseEventLine(line);
       expect(event).not.toBeNull();
-      expect(event!.type).toBe("message_end");
-      if (event!.type === "message_end") {
-        expect(event.text).toBe("Hello from Codex");
-        expect(event.tokensIn).toBe(100);
-        expect(event.tokensOut).toBe(50);
-        expect(event.cost).toBe(0.002);
-        expect(event.model).toBe("o3");
+      expect(event!.type).toBe("session_update");
+      if (event!.type === "session_update") {
+        expect(event.sessionId).toBe("thread_123");
       }
     });
 
-    it("parses content_block_delta → text_delta", () => {
+    it("parses item.completed agent_message → text_delta", () => {
       const line = JSON.stringify({
-        type: "content_block_delta",
-        delta: { text: "streaming text" },
+        type: "item.completed",
+        item: { type: "agent_message", text: "streaming text" },
       });
       const event = rt.parseEventLine(line);
       expect(event).not.toBeNull();
@@ -100,33 +102,20 @@ describe("CodexAgentRuntime", () => {
       }
     });
 
-    it("parses OpenAI choices streaming delta → text_delta", () => {
+    it("parses turn.completed → message_end", () => {
       const line = JSON.stringify({
-        choices: [{ delta: { content: "streamed chunk" } }],
-        model: "o3",
-      });
-      const event = rt.parseEventLine(line);
-      expect(event).not.toBeNull();
-      expect(event!.type).toBe("text_delta");
-      if (event!.type === "text_delta") {
-        expect(event.text).toBe("streamed chunk");
-      }
-    });
-
-    it("parses OpenAI choices message format → message_end", () => {
-      const line = JSON.stringify({
-        choices: [{ message: { content: "Full response text" } }],
-        usage: { prompt_tokens: 80, completion_tokens: 40 },
-        model: "o3",
+        type: "turn.completed",
+        usage: { input_tokens: 80, output_tokens: 40 },
+        model: "gpt-5.2-codex",
       });
       const event = rt.parseEventLine(line);
       expect(event).not.toBeNull();
       expect(event!.type).toBe("message_end");
       if (event!.type === "message_end") {
-        expect(event.text).toBe("Full response text");
+        expect(event.text).toBe("");
         expect(event.tokensIn).toBe(80);
         expect(event.tokensOut).toBe(40);
-        expect(event.model).toBe("o3");
+        expect(event.model).toBe("gpt-5.2-codex");
       }
     });
 
@@ -172,12 +161,12 @@ describe("CodexAgentRuntime", () => {
     });
   });
 
-  it("defaultModelMap returns o4-mini/o3/o3", () => {
+  it("defaultModelMap returns current Codex family defaults", () => {
     const rt = new CodexAgentRuntime(new StubEventBus());
     const map = rt.defaultModelMap();
-    expect(map.economy).toBe("o4-mini");
-    expect(map.standard).toBe("o3");
-    expect(map.premium).toBe("o3");
+    expect(map.economy).toBe("gpt-5.1-codex-mini");
+    expect(map.standard).toBe("gpt-5.2-codex");
+    expect(map.premium).toBe("gpt-5.2-codex");
   });
 
   describe("getAuthMode", () => {

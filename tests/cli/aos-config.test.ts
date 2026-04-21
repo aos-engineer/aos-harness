@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import {
   getEnabledAdaptersFromConfig,
   getPlatformUrlFromConfig,
+  getRuntimeAdapterModelConfig,
   getSelectedAdaptersForInit,
   resolveAdapterSelection,
 } from "../../cli/src/aos-config";
@@ -63,5 +64,35 @@ platform:
     );
 
     expect(getPlatformUrlFromConfig(root)).toBe("https://example.com");
+  });
+
+  test("getRuntimeAdapterModelConfig reads adapter-scoped runtime settings", () => {
+    const root = mkdtempSync(join(tmpdir(), "aos-config-"));
+    mkdirSync(join(root, ".aos"), { recursive: true });
+    writeFileSync(
+      join(root, ".aos", "config.yaml"),
+      `api_version: aos/config/v2
+adapters:
+  enabled: [codex, pi]
+  default: codex
+adapter_defaults:
+  codex:
+    use_vendor_default_model: true
+  pi:
+    use_vendor_default_model: false
+    models:
+      economy: anthropic/claude-haiku-4-5
+      standard: anthropic/claude-sonnet-4-6
+      premium: anthropic/claude-opus-4-7
+`,
+    );
+
+    const codexConfig = getRuntimeAdapterModelConfig(root, "codex");
+    expect(codexConfig.useVendorDefaultModel).toBe(true);
+    expect(codexConfig.modelOverrides).toBeUndefined();
+
+    const piConfig = getRuntimeAdapterModelConfig(root, "pi");
+    expect(piConfig.useVendorDefaultModel).toBe(false);
+    expect(piConfig.modelOverrides?.premium).toBe("anthropic/claude-opus-4-7");
   });
 });

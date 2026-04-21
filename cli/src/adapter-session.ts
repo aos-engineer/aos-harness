@@ -47,6 +47,7 @@ export interface AdapterSessionConfig {
   workflowConfig: any | null;
   workflowsDir: string;
   modelOverrides?: Partial<Record<string, string>>;
+  useVendorDefaultModel?: boolean;
   /**
    * Tool policy resolved by the CLI from the profile's `tools:` block narrowed
    * (optionally) by the `--allow-code-execution` flag. Passed straight into
@@ -271,7 +272,9 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
 
   // ── Layer composition ──────────────────────────────────────
   const eventBus = new BaseEventBus();
-  const agentRuntime = new RuntimeClass(eventBus, config.modelOverrides);
+  const agentRuntime = new RuntimeClass(eventBus, config.modelOverrides, {
+    useVendorDefaultModel: config.useVendorDefaultModel,
+  });
   const ui = new TerminalUI();
   const workflow = new BaseWorkflow(agentRuntime, config.root, {
     toolPolicy: config.toolPolicy,

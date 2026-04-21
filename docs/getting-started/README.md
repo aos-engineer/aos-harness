@@ -82,6 +82,7 @@ npx aos init
 - scans vendor CLI readiness
 - scans AOS adapter-package readiness
 - writes `.aos/config.yaml` in v2 format
+- writes adapter-scoped model settings under `.aos/config.yaml` `adapter_defaults`
 - writes `.aos/memory.yaml`
 - writes `.aos/scan.json`
 - can optionally install missing adapter packages with `--apply`
@@ -93,6 +94,18 @@ aos init --apply
 aos init --non-interactive
 aos init --non-interactive --adapter codex
 ```
+
+Model behavior:
+
+- `pi` uses explicit tier models from config by default
+- `codex`, `claude-code`, and `gemini` use the vendor CLI default model unless you pin a tier model
+- existing v2 configs without `adapter_defaults` are backfilled automatically on `aos run`
+
+Claude Code auth note:
+
+- readiness checks now use `claude auth status --json`
+- if Claude Code is running through `ANTHROPIC_API_KEY`, AOS will surface that in the init/readiness hint
+- if a Claude run fails with `Invalid API key`, unset or refresh `ANTHROPIC_API_KEY`, or switch back to `claude login` auth
 
 ### 4. Validate and inspect
 

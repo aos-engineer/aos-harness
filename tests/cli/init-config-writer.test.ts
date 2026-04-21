@@ -12,7 +12,20 @@ const RESULT: WizardResult = {
   models: {
     economy: "anthropic/claude-haiku-4-5",
     standard: "anthropic/claude-sonnet-4-6",
-    premium: "anthropic/claude-opus-4-6",
+    premium: "anthropic/claude-opus-4-7",
+  },
+  adapterDefaults: {
+    pi: {
+      use_vendor_default_model: false,
+      models: {
+        economy: "anthropic/claude-haiku-4-5",
+        standard: "anthropic/claude-sonnet-4-6",
+        premium: "anthropic/claude-opus-4-7",
+      },
+    },
+    codex: {
+      use_vendor_default_model: true,
+    },
   },
   editor: "code",
   actions: [],
@@ -29,6 +42,8 @@ describe("init-config-writer", () => {
     expect(yaml).toContain("- pi");
     expect(yaml).toContain("- codex");
     expect(yaml).toContain("default: codex");
+    expect(yaml).toContain("adapter_defaults:");
+    expect(yaml).toContain("use_vendor_default_model: true");
   });
 
   test("preserves existing comments while migrating v1 adapter key", () => {

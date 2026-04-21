@@ -7,6 +7,8 @@ const sidebarLinks = [
   { id: 'connect-runtime', label: 'Connect a Runtime' },
   { id: 'optional-host-installs', label: 'Optional Host Installs' },
   { id: 'initialize', label: 'Initialize' },
+  { id: 'model-selection', label: 'Model Selection' },
+  { id: 'auth-troubleshooting', label: 'Auth Troubleshooting' },
   { id: 'verify-setup', label: 'Verify Setup' },
   { id: 'first-deliberation', label: 'Run Your First Deliberation' },
   { id: 'execution-profile', label: 'Run an Execution Profile' },
@@ -162,10 +164,47 @@ npx aos init</code></pre>
 .aos/memory.yaml
 .aos/scan.json</code></pre>
 
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6">Existing v2 configs that do not yet contain <code>adapter_defaults</code> are backfilled automatically on <code>aos run</code>.</p>
+
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">Useful variants:</p>
           <pre><code>aos init --apply
 aos init --non-interactive
 aos init --non-interactive --adapter codex</code></pre>
+        </section>
+
+        <section id="model-selection" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Model Selection</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">AOS now resolves models per adapter instead of treating every runtime the same:</p>
+          <ul class="mt-2 mb-4 space-y-2 text-[15px] text-[var(--color-text-secondary)] leading-relaxed list-disc list-inside">
+            <li><strong class="text-[var(--color-text)]">Pi</strong> keeps explicit tier models by default.</li>
+            <li><strong class="text-[var(--color-text)]">Codex, Claude Code, and Gemini</strong> defer to the vendor CLI default model unless you pin one explicitly.</li>
+            <li>Adapter-scoped settings live in <code>.aos/config.yaml</code> under <code>adapter_defaults</code>.</li>
+            <li>Legacy <code>.aos/adapter.yaml</code> still works for adapter-specific overrides.</li>
+          </ul>
+          <pre><code>adapter_defaults:
+  codex:
+    use_vendor_default_model: true
+  pi:
+    use_vendor_default_model: false
+    models:
+      economy: anthropic/claude-haiku-4-5
+      standard: anthropic/claude-sonnet-4-6
+      premium: anthropic/claude-opus-4-7</code></pre>
+        </section>
+
+        <section id="auth-troubleshooting" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Auth Troubleshooting</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">AOS now surfaces runtime auth failures more directly:</p>
+          <ul class="mt-2 mb-4 space-y-2 text-[15px] text-[var(--color-text-secondary)] leading-relaxed list-disc list-inside">
+            <li><strong class="text-[var(--color-text)]">Claude Code</strong> readiness uses <code>claude auth status --json</code>.</li>
+            <li>If Claude is running through <code>ANTHROPIC_API_KEY</code>, AOS will tell you in the readiness hint.</li>
+            <li>If Claude runs fail with <code>Invalid API key</code>, unset or refresh <code>ANTHROPIC_API_KEY</code>, or switch back to <code>claude login</code>.</li>
+            <li><strong class="text-[var(--color-text)]">Gemini</strong> account-level 403 failures are now surfaced directly instead of appearing as stale argument errors.</li>
+          </ul>
         </section>
 
         <!-- Verify setup -->

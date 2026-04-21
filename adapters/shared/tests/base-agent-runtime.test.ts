@@ -179,4 +179,9 @@ describe("BaseAgentRuntime", () => {
     const modelId = runtime.resolveModelId("economy");
     expect(modelId).toBe("echo-small");
   });
+
+  it("resolveModelId returns null when vendor default mode is enabled and no override exists", () => {
+    const vendorDefaultRuntime = new EchoRuntime(eventBus, undefined, { useVendorDefaultModel: true });
+    expect(vendorDefaultRuntime.resolveModelId("standard")).toBeNull();
+  });
 });

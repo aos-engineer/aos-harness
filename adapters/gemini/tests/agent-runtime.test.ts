@@ -4,6 +4,9 @@ import { GeminiAgentRuntime } from "../src/agent-runtime";
 import type { BaseEventBus } from "@aos-harness/adapter-shared";
 import type { HandleState } from "@aos-harness/adapter-shared";
 import type { AgentConfig } from "@aos-harness/runtime/types";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // Minimal stub EventBus
 const mockEventBus: BaseEventBus = {
@@ -50,32 +53,36 @@ describe("GeminiAgentRuntime", () => {
 
   // Test 3: buildArgs for first call
   it("buildArgs builds correct args for first call", () => {
+    const root = mkdtempSync(join(tmpdir(), "gemini-ctx-"));
+    const contextFile = join(root, "context.md");
+    writeFileSync(contextFile, "Context body");
     const state = makeState({
-      contextFiles: ["/path/to/context.md"],
+      contextFiles: [contextFile],
     });
     const args = runtime.buildArgs(state, "Hello world", true);
 
-    expect(args[0]).toBe("--json");
+    expect(args[0]).toBe("--output-format");
+    expect(args[1]).toBe("stream-json");
     expect(args).toContain("--model");
-    expect(args).toContain("--system-instruction");
-    expect(args).toContain("You are a test agent.");
-    expect(args).toContain("--file");
-    expect(args).toContain("/path/to/context.md");
-    expect(args[args.length - 1]).toBe("Hello world");
+    expect(args).toContain("--prompt");
+    expect(args.join("\n")).toContain("You are a test agent.");
+    expect(args.join("\n")).toContain("Context body");
+    expect(args[args.length - 1]).toContain("Hello world");
   });
 
   // Test 4: buildArgs for subsequent call
   it("buildArgs builds correct args for subsequent call", () => {
-    const state = makeState();
+    const root = mkdtempSync(join(tmpdir(), "gemini-session-"));
+    const sessionFile = join(root, "session.txt");
+    writeFileSync(sessionFile, "latest\n");
+    const state = makeState({ sessionFile });
     const args = runtime.buildArgs(state, "Follow up", false);
 
-    expect(args[0]).toBe("--json");
+    expect(args[0]).toBe("--output-format");
     expect(args).toContain("--model");
-    expect(args).toContain("--session");
-    expect(args).toContain("/tmp/session.jsonl");
-    expect(args).not.toContain("--system-instruction");
-    expect(args).not.toContain("--file");
-    expect(args[args.length - 1]).toBe("Follow up");
+    expect(args).toContain("--resume");
+    expect(args).toContain("latest");
+    expect(args[args.length - 1]).toContain("Follow up");
   });
 
   // Test 5: parseEventLine handles result → message_end
@@ -96,6 +103,16 @@ describe("GeminiAgentRuntime", () => {
       expect(event.tokensOut).toBe(50);
       expect(event.cost).toBe(0.005);
       expect(event.model).toBe("gemini-2.5-pro");
+    }
+  });
+
+  it("parseEventLine handles sessionId → session_update", () => {
+    const line = JSON.stringify({ sessionId: "latest" });
+    const event = runtime.parseEventLine(line);
+    expect(event).not.toBeNull();
+    expect(event!.type).toBe("session_update");
+    if (event!.type === "session_update") {
+      expect(event.sessionId).toBe("latest");
     }
   });
 
@@ -127,8 +144,8 @@ describe("GeminiAgentRuntime", () => {
   // Test 7: defaultModelMap
   it("defaultModelMap returns correct models", () => {
     const map = runtime.defaultModelMap();
-    expect(map.economy).toBe("gemini-2.0-flash");
-    expect(map.standard).toBe("gemini-2.5-pro");
+    expect(map.economy).toBe("gemini-2.5-flash-lite");
+    expect(map.standard).toBe("gemini-2.5-flash");
     expect(map.premium).toBe("gemini-2.5-pro");
   });
 

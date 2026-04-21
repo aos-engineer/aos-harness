@@ -7,6 +7,7 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   site: 'https://aos.engineer',
   output: 'static',
+  compressHTML: true,
   integrations: [
     react(),
     mdx(),

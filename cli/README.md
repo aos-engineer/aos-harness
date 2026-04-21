@@ -82,6 +82,43 @@ aos create profile my-review
 aos validate
 ```
 
+### Adapter Model Selection
+
+`aos run` resolves model settings in this order:
+
+1. adapter-scoped settings in `.aos/config.yaml` `adapter_defaults`
+2. legacy `.aos/adapter.yaml`
+3. `AOS_MODEL_ECONOMY` / `AOS_MODEL_STANDARD` / `AOS_MODEL_PREMIUM`
+4. adapter defaults
+
+Default behavior:
+
+- `pi` pins explicit tier models by default
+- `codex`, `claude-code`, and `gemini` let the vendor CLI choose its default model unless you set explicit tier models
+
+Example:
+
+```yaml
+api_version: aos/config/v2
+adapters:
+  enabled: [codex, pi]
+  default: codex
+adapter_defaults:
+  codex:
+    use_vendor_default_model: true
+  pi:
+    use_vendor_default_model: false
+    models:
+      economy: anthropic/claude-haiku-4-5
+      standard: anthropic/claude-sonnet-4-6
+      premium: anthropic/claude-opus-4-7
+```
+
+Claude Code note:
+
+- `aos init` now checks `claude auth status --json`.
+- If Claude Code is being forced through `ANTHROPIC_API_KEY`, the readiness scan will tell you. If sessions fail with `Invalid API key`, unset or refresh that key, or switch back to `claude login` auth.
+
 ## Exit Codes
 
 | Code | Meaning |

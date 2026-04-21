@@ -5,6 +5,28 @@ import { tmpdir } from "node:os";
 import { deriveAdapterStatus, scanEnvironment } from "../../cli/src/env-scanner";
 
 describe("env-scanner readiness matrix", () => {
+  test("deriveAdapterStatus carries Claude API-key warning into ready status", () => {
+    const status = deriveAdapterStatus(
+      "claude-code",
+      {
+        present: true,
+        path: "/usr/local/bin/claude",
+        auth: {
+          state: "ready",
+          hint: "Claude Code is using ANTHROPIC_API_KEY. If runs fail with 'Invalid API key', unset or refresh the key.",
+        },
+      },
+      {
+        installed: true,
+        loadable: true,
+        store: "bun",
+      },
+    );
+
+    expect(status.status).toBe("ready");
+    expect(status.statusHint).toContain("ANTHROPIC_API_KEY");
+  });
+
   test("deriveAdapterStatus => needs-adapter when vendor CLI is ready but adapter missing", () => {
     const status = deriveAdapterStatus(
       "codex",

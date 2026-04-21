@@ -27,8 +27,12 @@ export interface McpBridgeOptions {
 // ── ClaudeCodeAgentRuntime ────────────────────────────────────────
 
 export class ClaudeCodeAgentRuntime extends BaseAgentRuntime {
-  constructor(eventBus: BaseEventBus, modelOverrides?: Partial<Record<ModelTier, string>>) {
-    super(eventBus, modelOverrides);
+  constructor(
+    eventBus: BaseEventBus,
+    modelOverrides?: Partial<Record<ModelTier, string>>,
+    options: { useVendorDefaultModel?: boolean } = {},
+  ) {
+    super(eventBus, modelOverrides, options);
   }
 
   cliBinary(): string {
@@ -40,35 +44,26 @@ export class ClaudeCodeAgentRuntime extends BaseAgentRuntime {
   }
 
   buildArgs(state: HandleState, message: string, isFirstCall: boolean, opts?: MessageOpts): string[] {
-    const args: string[] = ["--print", "--output-format", "json", "--verbose"];
+    const args: string[] = ["--print", "--output-format", "stream-json", "--verbose"];
+    const modelId = this.resolveModelId(state.modelConfig.tier);
+    if (modelId) {
+      args.push("--model", modelId);
+    }
 
     if (isFirstCall) {
-      // System prompt
       const systemPrompt = state.config.systemPrompt || "";
       if (systemPrompt) {
         args.push("--system-prompt", systemPrompt);
       }
-
-      // Model
-      args.push("--model", this.resolveModelId(state.modelConfig.tier));
-
-      // Context files
-      const contextFiles = opts?.contextFiles?.length
-        ? opts.contextFiles
-        : state.contextFiles;
-      for (const file of contextFiles) {
-        args.push("--add-file", file);
-      }
-    } else {
-      // Resume session
-      args.push("--resume", state.sessionFile);
     }
 
-    // Extra args (e.g. MCP flags) are spliced in before the positional message
-    args.push(...(opts?.extraArgs ?? []));
+    const sessionId = !isFirstCall ? this.getStoredSessionId(state) : null;
+    if (sessionId) {
+      args.push("--resume", sessionId);
+    }
 
-    // Message is always the final argument
-    args.push(message);
+    args.push(...(opts?.extraArgs ?? []));
+    args.push(this.formatPromptWithContext(state, message, opts, false));
     return args;
   }
 
@@ -80,7 +75,14 @@ export class ClaudeCodeAgentRuntime extends BaseAgentRuntime {
       return null;
     }
 
-    // Final result with usage stats
+    if ((event.type === "system" || event.type === "session") && typeof event.session_id === "string") {
+      return { type: "session_update", sessionId: event.session_id };
+    }
+
+    if (event.type === "assistant" && typeof event.message?.content?.[0]?.text === "string") {
+      return { type: "text_delta", text: event.message.content[0].text };
+    }
+
     if (event.type === "result") {
       const usage = event.usage ?? {};
       return {
@@ -158,7 +160,7 @@ export class ClaudeCodeAgentRuntime extends BaseAgentRuntime {
     return {
       economy: "claude-haiku-4-5",
       standard: "claude-sonnet-4-6",
-      premium: "claude-opus-4-6",
+      premium: "claude-opus-4-7",
     };
   }
 
@@ -172,8 +174,8 @@ export class ClaudeCodeAgentRuntime extends BaseAgentRuntime {
   getModelCost(tier: ModelTier): ModelCost {
     const pricing: Record<ModelTier, ModelCost> = {
       economy: {
-        inputPerMillionTokens: 0.80,
-        outputPerMillionTokens: 4.00,
+        inputPerMillionTokens: 1.00,
+        outputPerMillionTokens: 5.00,
         currency: "USD",
       },
       standard: {
@@ -182,8 +184,8 @@ export class ClaudeCodeAgentRuntime extends BaseAgentRuntime {
         currency: "USD",
       },
       premium: {
-        inputPerMillionTokens: 15.00,
-        outputPerMillionTokens: 75.00,
+        inputPerMillionTokens: 5.00,
+        outputPerMillionTokens: 25.00,
         currency: "USD",
       },
     };

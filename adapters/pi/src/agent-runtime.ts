@@ -17,7 +17,7 @@ export function resolveModelId(tier: ModelTier): string {
   const map: Record<ModelTier, string> = {
     economy: process.env.AOS_MODEL_ECONOMY || "anthropic/claude-haiku-4-5",
     standard: process.env.AOS_MODEL_STANDARD || "anthropic/claude-sonnet-4-6",
-    premium: process.env.AOS_MODEL_PREMIUM || "anthropic/claude-opus-4-6",
+    premium: process.env.AOS_MODEL_PREMIUM || "anthropic/claude-opus-4-7",
   };
   return map[tier];
 }
@@ -25,8 +25,12 @@ export function resolveModelId(tier: ModelTier): string {
 // ── PiAgentRuntime ───────────────────────────────────────────────
 
 export class PiAgentRuntime extends BaseAgentRuntime {
-  constructor(eventBus: BaseEventBus, modelOverrides?: Partial<Record<ModelTier, string>>) {
-    super(eventBus, modelOverrides);
+  constructor(
+    eventBus: BaseEventBus,
+    modelOverrides?: Partial<Record<ModelTier, string>>,
+    options: { useVendorDefaultModel?: boolean } = {},
+  ) {
+    super(eventBus, modelOverrides, options);
   }
 
   cliBinary(): string {
@@ -55,7 +59,10 @@ export class PiAgentRuntime extends BaseAgentRuntime {
       if (systemPrompt) {
         args.push("--system-prompt", systemPrompt);
       }
-      args.push("--model", this.resolveModelId(state.modelConfig.tier));
+      const modelId = this.resolveModelId(state.modelConfig.tier);
+      if (modelId) {
+        args.push("--model", modelId);
+      }
 
       // Inject context files via @file syntax
       const contextFiles = opts?.contextFiles?.length
@@ -149,7 +156,7 @@ export class PiAgentRuntime extends BaseAgentRuntime {
     return {
       economy: "anthropic/claude-haiku-4-5",
       standard: "anthropic/claude-sonnet-4-6",
-      premium: "anthropic/claude-opus-4-6",
+      premium: "anthropic/claude-opus-4-7",
     };
   }
 
@@ -163,8 +170,8 @@ export class PiAgentRuntime extends BaseAgentRuntime {
   getModelCost(tier: ModelTier): ModelCost {
     const pricing: Record<ModelTier, ModelCost> = {
       economy: {
-        inputPerMillionTokens: 0.80,
-        outputPerMillionTokens: 4.00,
+        inputPerMillionTokens: 1.00,
+        outputPerMillionTokens: 5.00,
         currency: "USD",
       },
       standard: {
@@ -173,8 +180,8 @@ export class PiAgentRuntime extends BaseAgentRuntime {
         currency: "USD",
       },
       premium: {
-        inputPerMillionTokens: 15.00,
-        outputPerMillionTokens: 75.00,
+        inputPerMillionTokens: 5.00,
+        outputPerMillionTokens: 25.00,
         currency: "USD",
       },
     };

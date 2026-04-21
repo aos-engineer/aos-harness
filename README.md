@@ -91,9 +91,9 @@ aos init
 
 Release line:
 
-- Current repo version: `0.8.2`
+- Current repo version: `0.8.3`
 - npm latest is published separately via the tag-driven release workflow
-- Site image tag: `novashock/aos-harness-site:0.8.2-20260421`
+- Site image tag: `novashock/aos-harness-site:0.8.3-20260421`
 
 `aos init` prints the adapter install commands at the end as a reminder.
 It also scans vendor CLI readiness, writes v2 `.aos/config.yaml`, and supports:
@@ -103,6 +103,14 @@ aos init --apply                 # install missing adapter packages
 aos init --non-interactive       # scan only, write .aos/scan.json
 aos init --non-interactive --adapter codex
 ```
+
+Model selection rules:
+
+- `pi` keeps explicit tier models in config by default.
+- `codex`, `claude-code`, and `gemini` now default to the vendor CLI's default model unless you pin tier models explicitly.
+- Adapter-scoped runtime settings live under `.aos/config.yaml` `adapter_defaults`.
+- Legacy `.aos/adapter.yaml` still works for adapter-specific overrides.
+- Existing v2 configs are backfilled automatically on `aos run` if `adapter_defaults` is missing.
 
 ### Run a deliberation
 

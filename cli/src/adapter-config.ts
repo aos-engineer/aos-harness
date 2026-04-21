@@ -5,6 +5,7 @@ import yaml from "js-yaml";
 export interface AdapterConfig {
   platform?: string;
   model_overrides?: Partial<Record<string, string>>;
+  use_vendor_default_model?: boolean;
   theme?: string;
   editor?: string;
 }

@@ -27,8 +27,12 @@ export interface McpBridgeOptions {
 // ── CodexAgentRuntime ─────────────────────────────────────────────
 
 export class CodexAgentRuntime extends BaseAgentRuntime {
-  constructor(eventBus: BaseEventBus, modelOverrides?: Partial<Record<ModelTier, string>>) {
-    super(eventBus, modelOverrides);
+  constructor(
+    eventBus: BaseEventBus,
+    modelOverrides?: Partial<Record<ModelTier, string>>,
+    options: { useVendorDefaultModel?: boolean } = {},
+  ) {
+    super(eventBus, modelOverrides, options);
   }
 
   cliBinary(): string {
@@ -40,32 +44,25 @@ export class CodexAgentRuntime extends BaseAgentRuntime {
   }
 
   buildArgs(state: HandleState, message: string, isFirstCall: boolean, opts?: MessageOpts): string[] {
-    const args: string[] = ["--full-auto", "--model", this.resolveModelId(state.modelConfig.tier)];
+    const modelId = this.resolveModelId(state.modelConfig.tier);
+    const sessionId = !isFirstCall ? this.getStoredSessionId(state) : null;
+    const args: string[] = sessionId
+      ? ["exec", "resume", "--json", "--full-auto"]
+      : ["exec", "--json", "--full-auto"];
 
-    if (isFirstCall) {
-      // System prompt
-      const systemPrompt = state.config.systemPrompt || "";
-      if (systemPrompt) {
-        args.push("--system-prompt", systemPrompt);
-      }
-
-      // Context files
-      const contextFiles = opts?.contextFiles?.length
-        ? opts.contextFiles
-        : state.contextFiles;
-      for (const file of contextFiles) {
-        args.push("--file", file);
-      }
-    } else {
-      // Resume session
-      args.push("--session", state.sessionFile);
+    if (modelId) {
+      args.push("--model", modelId);
     }
 
-    // Extra args (e.g. MCP flags) are spliced in before the positional message
     args.push(...(opts?.extraArgs ?? []));
 
-    // Message is always the final argument
-    args.push(message);
+    if (sessionId) {
+      args.push(sessionId);
+      args.push(message);
+      return args;
+    }
+
+    args.push(this.formatPromptWithContext(state, message, opts, true));
     return args;
   }
 
@@ -77,52 +74,29 @@ export class CodexAgentRuntime extends BaseAgentRuntime {
       return null;
     }
 
-    // Codex result format with usage stats
-    if (event.type === "result") {
+    if (event.type === "thread.started" && typeof event.thread_id === "string") {
+      return { type: "session_update", sessionId: event.thread_id };
+    }
+
+    if (event.type === "item.completed" && event.item?.type === "agent_message") {
+      return { type: "text_delta", text: event.item.text ?? "" };
+    }
+
+    if (event.type === "turn.completed") {
       const usage = event.usage ?? {};
       return {
         type: "message_end",
-        text: event.result ?? "",
-        tokensIn: usage.input_tokens ?? 0,
-        tokensOut: usage.output_tokens ?? 0,
-        cost: event.cost_usd ?? 0,
-        contextTokens: (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0),
+        text: "",
+        tokensIn: usage.input_tokens ?? usage.inputTokens ?? 0,
+        tokensOut: usage.output_tokens ?? usage.outputTokens ?? 0,
+        cost: event.cost_usd ?? usage.total_cost_usd ?? 0,
+        contextTokens: (usage.input_tokens ?? usage.inputTokens ?? 0) + (usage.output_tokens ?? usage.outputTokens ?? 0),
         model: event.model ?? "",
       };
     }
 
-    // Streaming text delta (Anthropic-style)
-    if (event.type === "content_block_delta" && event.delta?.text !== undefined) {
-      return { type: "text_delta", text: event.delta.text };
-    }
-
-    // OpenAI streaming choices format
-    if (Array.isArray(event.choices)) {
-      const choice = event.choices[0];
-
-      // Streaming delta with content
-      if (choice?.delta?.content !== undefined && choice.delta.content !== null) {
-        return { type: "text_delta", text: choice.delta.content };
-      }
-
-      // Non-streaming message with full content and usage
-      if (choice?.message?.content !== undefined) {
-        const usage = event.usage ?? {};
-        return {
-          type: "message_end",
-          text: choice.message.content ?? "",
-          tokensIn: usage.prompt_tokens ?? 0,
-          tokensOut: usage.completion_tokens ?? 0,
-          cost: 0,
-          contextTokens: (usage.prompt_tokens ?? 0) + (usage.completion_tokens ?? 0),
-          model: event.model ?? "",
-        };
-      }
-    }
-
-    // Tool call / function call
-    if (event.type === "tool_call" || event.type === "function_call") {
-      return { type: "tool_call", name: event.name ?? "unknown", input: event.input ?? event.args ?? {} };
+    if (event.msg?.type === "tool_call" || event.type === "tool_call" || event.type === "function_call") {
+      return { type: "tool_call", name: event.name ?? event.msg?.name ?? "unknown", input: event.input ?? event.args ?? event.msg?.input ?? {} };
     }
 
     return { type: "ignored" };
@@ -171,9 +145,9 @@ export class CodexAgentRuntime extends BaseAgentRuntime {
 
   defaultModelMap(): Record<ModelTier, string> {
     return {
-      economy: "o4-mini",
-      standard: "o3",
-      premium: "o3",
+      economy: "gpt-5.1-codex-mini",
+      standard: "gpt-5.2-codex",
+      premium: "gpt-5.2-codex",
     };
   }
 

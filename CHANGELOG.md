@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.8.3 — Adapter defaults, current CLI compatibility, and docs hardening
+
+### Added
+
+- Adapter-scoped runtime model configuration in `.aos/config.yaml` under `adapter_defaults`.
+- Automatic backfill of `adapter_defaults` for existing v2 configs during `aos run`.
+- `use_vendor_default_model` support for adapters and legacy `.aos/adapter.yaml`.
+- Claude readiness scanning via `claude auth status --json`, with explicit hints when `ANTHROPIC_API_KEY` is forcing Claude Code into API-key mode.
+
+### Changed
+
+- Runtime model selection now prefers adapter-scoped config, then legacy adapter config, then env vars, then adapter defaults.
+- Default behavior is now adapter-aware:
+  - `pi` keeps explicit tier models by default
+  - `codex`, `claude-code`, and `gemini` use the vendor CLI default model unless explicitly pinned
+- Codex adapter updated to the current CLI contract:
+  - `codex exec`
+  - `codex exec resume`
+  - current JSON event parsing
+- Claude Code adapter updated to:
+  - `--output-format stream-json`
+  - inline context instead of removed `--add-file`
+- Gemini adapter updated to current headless flags:
+  - `--prompt`
+  - `--output-format stream-json`
+  - `--resume`
+- Recommended model families refreshed across adapters and docs.
+- Public docs, package READMEs, and Astro pages now describe adapter-scoped model behavior, vendor-default model selection, and current auth troubleshooting paths.
+- Site deployment metadata and release versioning are bumped in lockstep to `0.8.3`.
+
+### Fixed
+
+- `aos run --adapter codex ...` no longer fails on the removed `--system-prompt` flag.
+- Claude Code readiness no longer relies on `claude config list`, which could surface unrelated invalid-key failures during scanning.
+- Existing configs without `adapter_defaults` now migrate forward without requiring a manual re-run of `aos init`.
+
 ## 0.8.2 — Local install docs and release alignment
 
 ### Added

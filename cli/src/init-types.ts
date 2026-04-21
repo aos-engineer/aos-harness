@@ -58,6 +58,11 @@ export interface InitModels {
   premium: string;
 }
 
+export interface AdapterModelDefaults {
+  use_vendor_default_model: boolean;
+  models?: Partial<InitModels>;
+}
+
 export interface WizardAction {
   type: "install-adapter" | "info-login" | "info-install-vendor-cli";
   packageName?: string;
@@ -75,6 +80,7 @@ export interface WizardResult {
     provider: "expertise" | "mempalace";
   };
   models: InitModels;
+  adapterDefaults: Partial<Record<AdapterName, AdapterModelDefaults>>;
   editor: string;
   actions: WizardAction[];
 }

@@ -3,7 +3,7 @@
 // Concrete implementations override CLI-specific methods.
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type {
   AgentRuntimeAdapter,
@@ -18,7 +18,7 @@ import type {
   ThinkingMode,
   ContextUsage,
 } from "@aos-harness/runtime/types";
-import type { HandleState, ParsedEvent, StdoutFormat, ModelInfo } from "./types";
+import type { HandleState, ParsedEvent, StdoutFormat, ModelInfo, RuntimeBehaviorOptions } from "./types";
 import type { BaseEventBus } from "./base-event-bus";
 
 export abstract class BaseAgentRuntime implements AgentRuntimeAdapter {
@@ -27,12 +27,18 @@ export abstract class BaseAgentRuntime implements AgentRuntimeAdapter {
   protected orchestratorPrompt: string | undefined;
   protected eventBus: BaseEventBus;
   protected modelOverrides: Partial<Record<ModelTier, string>> = {};
+  protected useVendorDefaultModel = false;
   private cachedModels: ModelInfo[] | null = null;
   private cleanupRegistered = false;
 
-  constructor(eventBus: BaseEventBus, modelOverrides?: Partial<Record<ModelTier, string>>) {
+  constructor(
+    eventBus: BaseEventBus,
+    modelOverrides?: Partial<Record<ModelTier, string>>,
+    options: RuntimeBehaviorOptions = {},
+  ) {
     this.eventBus = eventBus;
     if (modelOverrides) this.modelOverrides = modelOverrides;
+    this.useVendorDefaultModel = options.useVendorDefaultModel === true;
     this.registerCleanup();
   }
 
@@ -65,7 +71,7 @@ export abstract class BaseAgentRuntime implements AgentRuntimeAdapter {
 
   // ── Model resolution ───────────────────────────────────────────
 
-  resolveModelId(tier: ModelTier): string {
+  resolveModelId(tier: ModelTier): string | null {
     if (this.modelOverrides[tier]) return this.modelOverrides[tier]!;
     const envKeys: Record<ModelTier, string> = {
       economy: "AOS_MODEL_ECONOMY",
@@ -74,7 +80,58 @@ export abstract class BaseAgentRuntime implements AgentRuntimeAdapter {
     };
     const envVal = process.env[envKeys[tier]];
     if (envVal) return envVal;
+    if (this.useVendorDefaultModel) return null;
     return this.defaultModelMap()[tier];
+  }
+
+  protected resolveModelOrFallback(tier: ModelTier): string {
+    return this.resolveModelId(tier) ?? this.defaultModelMap()[tier];
+  }
+
+  protected getStoredSessionId(state: HandleState): string | null {
+    if (!existsSync(state.sessionFile)) return null;
+    try {
+      const value = readFileSync(state.sessionFile, "utf-8").trim();
+      return value || null;
+    } catch {
+      return null;
+    }
+  }
+
+  protected storeSessionId(state: HandleState, sessionId: string): void {
+    writeFileSync(state.sessionFile, `${sessionId}\n`, "utf-8");
+  }
+
+  protected readContextFiles(opts: MessageOpts | undefined, state: HandleState): string[] {
+    return opts?.contextFiles?.length ? opts.contextFiles : state.contextFiles;
+  }
+
+  protected formatPromptWithContext(
+    state: HandleState,
+    message: string,
+    opts?: MessageOpts,
+    includeSystemPrompt: boolean = true,
+  ): string {
+    const sections: string[] = [];
+
+    if (includeSystemPrompt) {
+      const systemPrompt = state.config.systemPrompt?.trim();
+      if (systemPrompt) {
+        sections.push(["<system>", systemPrompt, "</system>"].join("\n"));
+      }
+    }
+
+    for (const file of this.readContextFiles(opts, state)) {
+      try {
+        const content = readFileSync(file, "utf-8");
+        sections.push([`<context_file path="${file}">`, content, "</context_file>"].join("\n"));
+      } catch (err: any) {
+        sections.push([`<context_file_error path="${file}">`, err?.message ?? "Unable to read file", "</context_file_error>"].join("\n"));
+      }
+    }
+
+    sections.push(message);
+    return sections.join("\n\n");
   }
 
   async getAvailableModels(): Promise<ModelInfo[]> {
@@ -164,7 +221,7 @@ export abstract class BaseAgentRuntime implements AgentRuntimeAdapter {
       let accumulatedText = "";
       let finalResponse = "";
       let tokensIn = 0, tokensOut = 0, cost = 0, contextTokens = 0;
-      let model = this.resolveModelId(state.modelConfig.tier);
+      let model = this.resolveModelOrFallback(state.modelConfig.tier);
       let wasAborted = false;
 
       const processEvent = (event: ParsedEvent) => {
@@ -180,6 +237,9 @@ export abstract class BaseAgentRuntime implements AgentRuntimeAdapter {
             cost += event.cost;
             contextTokens = event.contextTokens;
             if (event.model) model = event.model;
+            break;
+          case "session_update":
+            this.storeSessionId(state, event.sessionId);
             break;
           case "tool_call":
             this.eventBus.fireToolCall(event.name, event.input);

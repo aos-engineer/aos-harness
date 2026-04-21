@@ -29,6 +29,8 @@ Model tier mapping is controlled via environment variables. Each tier correspond
 
 Set any of these in your shell or a `.env` file before launching Pi.
 
+Pi differs from the other adapters: it keeps explicit tier models by default instead of deferring to the vendor CLI.
+
 ## User Controls During Deliberation
 
 Once a session is running, the following inputs are recognised in the TUI:

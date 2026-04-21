@@ -9,6 +9,15 @@ Part of the [AOS Harness](https://aos.engineer) monorepo. Adapters are versioned
 - Bun ≥ 1.0.0
 - Codex CLI installed and authenticated on the host
 
+## Model Selection
+
+By default, the Codex adapter lets the Codex CLI choose its own default model. If you want to pin AOS tiers explicitly, use either:
+
+- `.aos/config.yaml` `adapter_defaults.codex.models`
+- legacy `.aos/adapter.yaml` `model_overrides`
+
+If you do not pin a model, AOS does not pass `--model`.
+
 ## Host Surface
 
 The Codex-native install surface in this repo lives under [plugins/aos-harness](../../plugins/aos-harness/). That plugin wraps the shared CLI and launches this adapter; it does not replace the adapter layer.

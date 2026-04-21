@@ -21,10 +21,12 @@ Publishing requires (a) a tag push by a maintainer, plus (b) approval from a rev
 git tag -a v<version> -m "v<version>"
 git push origin main
 git push origin v<version>
-# 4. Release workflow starts. Post the link in #releases (or equivalent)
+# 4. Create the GitHub release:
+gh release create v<version> --title "v<version>" --notes-file /tmp/release-notes.md
+# 5. Release workflow starts. Post the link in #releases (or equivalent)
 #    and @mention a reviewer from the npm-publish environment.
-# 5. Reviewer approves. Publish completes in ~3–5 min.
-# 6. Verify on a consumer machine:
+# 6. Reviewer approves. Publish completes in ~3–5 min.
+# 7. Verify on a consumer machine:
 mkdir /tmp/verify && cd /tmp/verify
 npm init -y > /dev/null
 npm install @aos-harness/pi-adapter@<version>

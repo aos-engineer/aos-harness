@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { ClaudeCodeAgentRuntime } from "../src/agent-runtime";
 import { BaseEventBus } from "@aos-harness/adapter-shared";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // Minimal stub for BaseEventBus
 class StubEventBus extends BaseEventBus {}
@@ -46,46 +49,63 @@ describe("ClaudeCodeAgentRuntime", () => {
       lastContextTokens: 0,
     };
 
-    it("first call includes --print, --output-format, --system-prompt, --model, and message", () => {
+    it("first call uses stream-json and keeps the system prompt flag", () => {
       const rt = new ClaudeCodeAgentRuntime(new StubEventBus());
       const args = rt.buildArgs(state, "Hello world", true);
 
       expect(args).toContain("--print");
       expect(args).toContain("--output-format");
-      expect(args).toContain("json");
+      expect(args).toContain("stream-json");
       expect(args).toContain("--verbose");
       expect(args).toContain("--system-prompt");
       expect(args).toContain("You are a helpful assistant.");
       expect(args).toContain("--model");
-      // Message should be the last argument
-      expect(args[args.length - 1]).toBe("Hello world");
+      expect(args[args.length - 1]).toContain("Hello world");
     });
 
-    it("first call includes --add-file for context files", () => {
+    it("first call inlines context instead of passing --add-file", () => {
+      const root = mkdtempSync(join(tmpdir(), "claude-ctx-"));
+      const contextFile = join(root, "context.md");
+      writeFileSync(contextFile, "Context body");
       const rt = new ClaudeCodeAgentRuntime(new StubEventBus());
-      const args = rt.buildArgs(state, "Hello", true);
+      const args = rt.buildArgs({ ...state, contextFiles: [contextFile] }, "Hello", true);
 
-      expect(args).toContain("--add-file");
-      expect(args).toContain("/tmp/context.md");
+      expect(args).not.toContain("--add-file");
+      expect(args.join("\n")).toContain("Context body");
     });
 
-    it("subsequent call includes --resume and no --system-prompt", () => {
+    it("subsequent call includes --resume when a stored session id exists", () => {
+      const root = mkdtempSync(join(tmpdir(), "claude-session-"));
+      const sessionFile = join(root, "session.txt");
+      writeFileSync(sessionFile, "11111111-1111-1111-1111-111111111111\n");
       const rt = new ClaudeCodeAgentRuntime(new StubEventBus());
-      const args = rt.buildArgs(state, "Follow-up message", false);
+      const args = rt.buildArgs({ ...state, sessionFile }, "Follow-up message", false);
 
       expect(args).toContain("--print");
       expect(args).toContain("--output-format");
-      expect(args).toContain("json");
+      expect(args).toContain("stream-json");
       expect(args).toContain("--verbose");
       expect(args).toContain("--resume");
-      expect(args).toContain("/tmp/test-session.jsonl");
-      expect(args).not.toContain("--system-prompt");
-      expect(args[args.length - 1]).toBe("Follow-up message");
+      expect(args).toContain("11111111-1111-1111-1111-111111111111");
+      expect(args[args.length - 1]).toContain("Follow-up message");
     });
   });
 
   describe("parseEventLine", () => {
     const rt = new ClaudeCodeAgentRuntime(new StubEventBus());
+
+    it("parses system/session event → session_update", () => {
+      const line = JSON.stringify({
+        type: "system",
+        session_id: "11111111-1111-1111-1111-111111111111",
+      });
+      const event = rt.parseEventLine(line);
+      expect(event).not.toBeNull();
+      expect(event!.type).toBe("session_update");
+      if (event!.type === "session_update") {
+        expect(event.sessionId).toBe("11111111-1111-1111-1111-111111111111");
+      }
+    });
 
     it("parses result type → message_end", () => {
       const line = JSON.stringify({
@@ -104,6 +124,19 @@ describe("ClaudeCodeAgentRuntime", () => {
         expect(event.tokensOut).toBe(50);
         expect(event.cost).toBe(0.002);
         expect(event.model).toBe("claude-sonnet-4-6");
+      }
+    });
+
+    it("parses assistant event → text_delta", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: { content: [{ text: "streaming text" }] },
+      });
+      const event = rt.parseEventLine(line);
+      expect(event).not.toBeNull();
+      expect(event!.type).toBe("text_delta");
+      if (event!.type === "text_delta") {
+        expect(event.text).toBe("streaming text");
       }
     });
 
@@ -167,7 +200,7 @@ describe("ClaudeCodeAgentRuntime", () => {
     const map = rt.defaultModelMap();
     expect(map.economy).toBe("claude-haiku-4-5");
     expect(map.standard).toBe("claude-sonnet-4-6");
-    expect(map.premium).toBe("claude-opus-4-6");
+    expect(map.premium).toBe("claude-opus-4-7");
   });
 
   describe("getAuthMode", () => {

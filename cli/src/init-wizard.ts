@@ -1,4 +1,5 @@
 import {
+  buildAdapterDefaults,
   getDefaultAdapterFromConfig,
   getInitEditor,
   getInitMemoryProvider,
@@ -238,6 +239,8 @@ export async function runWizard(
 
   promptContext.outro("Init choices captured.");
 
+  const adapterDefaults = buildAdapterDefaults(enabled, { legacyPiModels: getInitModels(cwd) });
+
   return {
     enabledAdapters: enabled,
     defaultAdapter,
@@ -245,6 +248,7 @@ export async function runWizard(
       provider: memoryProvider,
     },
     models: getInitModels(cwd),
+    adapterDefaults,
     editor: getInitEditor(cwd),
     actions,
   };

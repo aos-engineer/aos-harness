@@ -7,9 +7,9 @@ import { join, resolve, basename } from "node:path";
 import { c, type ParsedArgs } from "../colors";
 import { getHarnessRoot, discoverDirs, promptSelect, getAdapterDir, ADAPTER_ALLOWLIST, isValidAdapter, validatePlatformUrl, parseAllowCodeExecutionFlag } from "../utils";
 import { runAdapterSession } from "../adapter-session";
-import { readAdapterConfig } from "../adapter-config";
 import { buildToolPolicy, type ToolPolicy } from "@aos-harness/adapter-shared";
-import { getPlatformUrlFromConfig, resolveAdapterSelection } from "../aos-config";
+import { getPlatformUrlFromConfig, getRuntimeAdapterModelConfig, resolveAdapterSelection } from "../aos-config";
+import { backfillAdapterDefaults } from "../config-migration";
 
 const HELP = `
 ${c.bold("aos run")} — Run a deliberation or execution session
@@ -68,6 +68,10 @@ export async function runCommand(args: ParsedArgs): Promise<void> {
 
   const root = getHarnessRoot();
   const coreDir = join(root, "core");
+  const migration = backfillAdapterDefaults(root);
+  if (migration.changed) {
+    console.error(c.dim(`Migrated ${migration.path} to add adapter_defaults.`));
+  }
 
   // ── Resolve profile ──────────────────────────────────────────
   let profileName = args.positional[0] || null;
@@ -401,7 +405,7 @@ ${c.bold(`AOS ${sessionType} Session`)}
     }
     process.exit(exitCode);
   } else {
-    const adapterConfig = readAdapterConfig(root);
+    const runtimeModelConfig = getRuntimeAdapterModelConfig(root, adapter);
     await runAdapterSession({
       platform: adapter,
       profileDir: profileDir!,
@@ -413,7 +417,8 @@ ${c.bold(`AOS ${sessionType} Session`)}
       verbose: !!args.flags.verbose,
       workflowConfig: isExecutionProfile ? workflowConfig : null,
       workflowsDir,
-      modelOverrides: adapterConfig?.model_overrides,
+      modelOverrides: runtimeModelConfig.modelOverrides,
+      useVendorDefaultModel: runtimeModelConfig.useVendorDefaultModel,
       toolPolicy,
       platformUrl: platformUrl ?? undefined,
     });

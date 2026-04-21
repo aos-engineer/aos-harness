@@ -19,6 +19,7 @@ export type ParsedEvent =
       contextTokens: number;
       model: string;
     }
+  | { type: "session_update"; sessionId: string }
   | { type: "tool_call"; name: string; input: unknown }
   | { type: "tool_result"; name: string; input: unknown; result: unknown }
   | { type: "ignored" };
@@ -40,4 +41,8 @@ export interface HandleState {
   contextFiles: string[];
   modelConfig: { tier: ModelTier; thinking: ThinkingMode };
   lastContextTokens: number;
+}
+
+export interface RuntimeBehaviorOptions {
+  useVendorDefaultModel?: boolean;
 }

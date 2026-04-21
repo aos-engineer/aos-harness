@@ -35,7 +35,7 @@ export const ADAPTER_METADATA: Record<AdapterName, AdapterMetadata> = {
     label: "Claude Code",
     packageName: "@aos-harness/claude-code-adapter",
     cliBinary: "claude",
-    authCommand: ["claude", "config", "list"],
+    authCommand: ["claude", "auth", "status", "--json"],
     loginHint: "Run `claude login`",
     installUrl: "https://claude.ai/code",
   },
@@ -133,11 +133,29 @@ async function defaultVendorCliProbe(adapter: AdapterName, meta: AdapterMetadata
   let hint: string | undefined;
   if (authResult.timedOut) {
     hint = "Readiness probe timed out";
+  } else if (adapter === "claude-code" && authResult.exitCode === 0) {
+    try {
+      const parsed = JSON.parse(authResult.stdout) as {
+        loggedIn?: boolean;
+        apiKeySource?: string | null;
+      };
+      authState = parsed.loggedIn === false ? "needs-login" : "ready";
+      if (parsed.apiKeySource === "ANTHROPIC_API_KEY") {
+        hint = "Claude Code is using ANTHROPIC_API_KEY. If runs fail with 'Invalid API key', unset or refresh the key, or switch back to `claude login` auth.";
+      }
+    } catch {
+      authState = "ready";
+    }
   } else if (authResult.exitCode === 0) {
     authState = "ready";
   } else if (/login|log in|not logged|not authenticated|auth/i.test(combined)) {
     authState = "needs-login";
     hint = meta.loginHint;
+  } else if (/invalid api key|api key/i.test(combined)) {
+    authState = "needs-login";
+    hint = adapter === "claude-code"
+      ? "Claude Code is configured with an invalid ANTHROPIC_API_KEY. Refresh or unset the key, then run `claude login` if you want subscription auth."
+      : meta.loginHint;
   }
 
   return {
@@ -320,13 +338,17 @@ export function deriveAdapterStatus(
   if (vendorCli.auth.state === "unknown") {
     return {
       status: "ready",
-      statusHint: `${meta.label} CLI and AOS adapter are present; auth could not be confirmed.`,
-    };
+      statusHint: vendorCli.auth.hint
+        ? `${meta.label} CLI and AOS adapter are present; auth could not be confirmed. ${vendorCli.auth.hint}`
+        : `${meta.label} CLI and AOS adapter are present; auth could not be confirmed.`,
+      };
   }
 
   return {
     status: "ready",
-    statusHint: `${meta.label} CLI and AOS adapter are ready.`,
+    statusHint: vendorCli.auth.hint
+      ? `${meta.label} CLI and AOS adapter are ready. ${vendorCli.auth.hint}`
+      : `${meta.label} CLI and AOS adapter are ready.`,
   };
 }
 
