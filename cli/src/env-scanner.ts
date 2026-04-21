@@ -210,26 +210,42 @@ function scanAdapterPackage(
   const bunPath = bunGlobalDir ? join(bunGlobalDir, meta.packageName) : null;
   const npmPath = npmGlobalDir ? join(npmGlobalDir, meta.packageName) : null;
   const projectLocalPath = join(cwd, "node_modules", meta.packageName);
+  const resolvedFrom = resolveAdapterDir(adapter) ?? undefined;
 
-  if (bunPath && existsSync(bunPath)) {
-    const resolvedFrom = resolveAdapterDir(adapter) ?? undefined;
+  if (resolvedFrom) {
+    let store: AosAdapterReadiness["store"] = "unknown";
+    if (resolvedFrom.includes("/adapters/")) {
+      store = "workspace";
+    } else if (bunPath && resolvedFrom.startsWith(bunPath)) {
+      store = "bun";
+    } else if (npmPath && resolvedFrom.startsWith(npmPath)) {
+      store = "npm";
+    }
+
     return {
       installed: true,
-      version: readPackageVersion(bunPath),
-      store: "bun",
-      loadable: !!resolvedFrom,
+      version: readPackageVersion(resolvedFrom),
+      store,
+      loadable: true,
       resolvedFrom,
     };
   }
 
+  if (bunPath && existsSync(bunPath)) {
+    return {
+      installed: true,
+      version: readPackageVersion(bunPath),
+      store: "bun",
+      loadable: false,
+    };
+  }
+
   if (npmPath && existsSync(npmPath)) {
-    const resolvedFrom = resolveAdapterDir(adapter) ?? undefined;
     return {
       installed: true,
       version: readPackageVersion(npmPath),
       store: "npm",
-      loadable: !!resolvedFrom,
-      resolvedFrom,
+      loadable: false,
     };
   }
 
@@ -239,17 +255,6 @@ function scanAdapterPackage(
       version: readPackageVersion(projectLocalPath),
       store: "project-local",
       loadable: false,
-    };
-  }
-
-  const resolvedFrom = resolveAdapterDir(adapter) ?? undefined;
-  if (resolvedFrom) {
-    return {
-      installed: true,
-      version: readPackageVersion(resolvedFrom),
-      store: resolvedFrom.includes("/adapters/") ? "workspace" : "unknown",
-      loadable: true,
-      resolvedFrom,
     };
   }
 

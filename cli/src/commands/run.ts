@@ -2,7 +2,7 @@
  * aos run — Launch a deliberation or execution session.
  */
 
-import { existsSync, readdirSync, mkdirSync } from "node:fs";
+import { existsSync, readdirSync, mkdirSync, readFileSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { c, type ParsedArgs } from "../colors";
 import { getHarnessRoot, discoverDirs, promptSelect, getAdapterDir, ADAPTER_ALLOWLIST, isValidAdapter, validatePlatformUrl, parseAllowCodeExecutionFlag } from "../utils";
@@ -10,6 +10,7 @@ import { runAdapterSession } from "../adapter-session";
 import { buildToolPolicy, type ToolPolicy } from "@aos-harness/adapter-shared";
 import { getPlatformUrlFromConfig, getRuntimeAdapterModelConfig, resolveAdapterSelection } from "../aos-config";
 import { backfillAdapterDefaults } from "../config-migration";
+import { ADAPTER_METADATA, scanEnvironment } from "../env-scanner";
 
 const HELP = `
 ${c.bold("aos run")} — Run a deliberation or execution session
@@ -48,6 +49,63 @@ ${c.bold("EXAMPLES")}
   aos run strategic-council --dry-run --brief core/briefs/sample-product-decision/brief.md
   aos run  # interactive profile selection
 `;
+
+function readCliVersion(): string {
+  try {
+    const raw = readFileSync(join(import.meta.dir, "..", "..", "package.json"), "utf-8");
+    return (JSON.parse(raw) as { version?: string }).version ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+function versionMismatchSeverity(cliVer: string, adapterVer?: string): "none" | "warn" {
+  if (!adapterVer) return "none";
+  const [cliMaj, cliMin] = cliVer.split(".").map(Number);
+  const [adaMaj, adaMin] = adapterVer.split(".").map(Number);
+  if (Number.isNaN(cliMaj) || Number.isNaN(adaMaj)) return "none";
+  if (cliMaj !== adaMaj) return "warn";
+  if (cliMin !== adaMin) return "warn";
+  return "none";
+}
+
+async function probeClaudeExternalApiKey(): Promise<{ ok: boolean; hint?: string }> {
+  const proc = Bun.spawn(["claude", "--print", "Reply with OK."], {
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    proc.kill();
+  }, 15000);
+
+  try {
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+    const combined = `${stdout}\n${stderr}`.trim();
+    if (timedOut) {
+      return { ok: true, hint: "Claude auth probe timed out; continuing without blocking launch." };
+    }
+    if (exitCode === 0) {
+      return { ok: true };
+    }
+    if (/invalid api key|fix external api key|api key/i.test(combined)) {
+      return {
+        ok: false,
+        hint: "Claude Code external API-key auth failed. Unset or refresh ANTHROPIC_API_KEY, or switch back to `claude login` auth before running AOS.",
+      };
+    }
+    return { ok: true, hint: combined ? `Claude auth probe returned: ${combined.split("\n")[0]}` : undefined };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 export async function runCommand(args: ParsedArgs): Promise<void> {
   if (args.flags.help) {
@@ -224,7 +282,6 @@ export async function runCommand(args: ParsedArgs): Promise<void> {
 
   // ── Dry-run mode ─────────────────────────────────────────────
   if (args.flags["dry-run"]) {
-    const { readFileSync } = await import("node:fs");
     const briefContent = readFileSync(briefPath, "utf-8");
     const briefSections = briefContent.match(/^##\s+.+/gm) || [];
 
@@ -301,22 +358,6 @@ ${c.green("All configuration validated successfully. Ready to launch.")}
     process.exit(0);
   }
 
-  // ── Set up deliberation directory for artifact storage ──────
-  const sessionId = `${new Date().toISOString().slice(0, 10)}-${profileName}-${Date.now().toString(36)}`;
-  const deliberationDir = join(root, ".aos", "sessions", sessionId);
-  mkdirSync(deliberationDir, { recursive: true });
-
-  // ── Launch adapter ───────────────────────────────────────────
-  const sessionType = isExecutionProfile ? "Execution" : "Deliberation";
-  console.log(`
-${c.bold(`AOS ${sessionType} Session`)}
-  Profile:  ${c.cyan(profileName!)}
-  Type:     ${isExecutionProfile ? c.magenta("execution") : c.cyan("deliberation")}${isExecutionProfile && workflowConfig ? `\n  Workflow: ${c.magenta(workflowConfig.id)} (${workflowConfig.steps.length} steps)` : ""}
-  Domain:   ${c.cyan(domainName || "none")}
-  Brief:    ${c.cyan(briefPath)}
-  Output:   ${c.cyan(deliberationDir)}
-`);
-
   // Determine adapter with shared precedence so init/run agree:
   // --adapter > config v2 > config v1 > .aos/adapter.yaml > default "pi"
   let platformUrl = (args.flags["platform-url"] as string) || null;
@@ -342,11 +383,68 @@ ${c.bold(`AOS ${sessionType} Session`)}
     process.exit(2);
   }
 
+  if (adapter !== "pi") {
+    const scan = await scanEnvironment({ cwd: process.cwd() });
+    const readiness = scan.adapters[adapter];
+    const meta = ADAPTER_METADATA[adapter];
+
+    if (readiness.status !== "ready") {
+      console.error(c.red(`${meta.label} is not ready for \`aos run\`.`));
+      console.error(c.red(`  ${readiness.statusHint}`));
+      if (scan.notes.length > 0) {
+        for (const note of scan.notes.filter((entry) => entry.startsWith(`${adapter}:`))) {
+          console.error(c.dim(`  ${note}`));
+        }
+      }
+      process.exit(2);
+    }
+
+    const cliVersion = readCliVersion();
+    if (versionMismatchSeverity(cliVersion, readiness.aosAdapter.version) === "warn") {
+      const installHint = readiness.aosAdapter.store === "bun"
+        ? `bun add -g ${meta.packageName}@${cliVersion}`
+        : `npm i -g ${meta.packageName}@${cliVersion}`;
+      console.error(c.yellow(`⚠ Version mismatch before launch: aos-harness@${cliVersion} and ${meta.packageName}@${readiness.aosAdapter.version}`));
+      console.error(c.dim(`  Install matching versions: ${installHint}`));
+    }
+
+    if (readiness.statusHint.includes("ANTHROPIC_API_KEY")) {
+      console.error(c.yellow(`⚠ ${readiness.statusHint}`));
+      if (adapter === "claude-code") {
+        const authProbe = await probeClaudeExternalApiKey();
+        if (!authProbe.ok) {
+          console.error(c.red(`Claude Code auth preflight failed.`));
+          console.error(c.red(`  ${authProbe.hint}`));
+          process.exit(2);
+        }
+        if (authProbe.hint) {
+          console.error(c.dim(`  ${authProbe.hint}`));
+        }
+      }
+    }
+  }
+
   const adapterName = adapter;
   // Resolve from monorepo dev layout (CLI's own import.meta.dir) or installed
   // @aos-harness/<name>-adapter. Project-local override is intentionally absent
   // (spec D1 — workspace-trust hardening).
   const resolvedAdapterDir = getAdapterDir(adapterName);
+
+  // ── Set up deliberation directory for artifact storage ──────
+  const sessionId = `${new Date().toISOString().slice(0, 10)}-${profileName}-${Date.now().toString(36)}`;
+  const deliberationDir = join(root, ".aos", "sessions", sessionId);
+  mkdirSync(deliberationDir, { recursive: true });
+
+  // ── Launch adapter ───────────────────────────────────────────
+  const sessionType = isExecutionProfile ? "Execution" : "Deliberation";
+  console.log(`
+${c.bold(`AOS ${sessionType} Session`)}
+  Profile:  ${c.cyan(profileName!)}
+  Type:     ${isExecutionProfile ? c.magenta("execution") : c.cyan("deliberation")}${isExecutionProfile && workflowConfig ? `\n  Workflow: ${c.magenta(workflowConfig.id)} (${workflowConfig.steps.length} steps)` : ""}
+  Domain:   ${c.cyan(domainName || "none")}
+  Brief:    ${c.cyan(briefPath)}
+  Output:   ${c.cyan(deliberationDir)}
+`);
 
   if (adapter === "pi") {
     const adapterEntry = resolvedAdapterDir ? join(resolvedAdapterDir, "src", "index.ts") : null;
