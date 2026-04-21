@@ -4,7 +4,7 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: read
+  contents: write
   # id-token: write omitted: provenance requires public source, repo is private
 
 jobs:
@@ -98,3 +98,19 @@ jobs:
           # signature (npm signs every published tarball). No SLSA attestation
           # assertion — that requires public source.
           npm audit signatures
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          PRE_FLAG=""
+          if [[ "$TAG_NAME" == *"-rc."* ]]; then
+            PRE_FLAG="--prerelease"
+          fi
+
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release edit "$TAG_NAME" --title "$TAG_NAME" --latest --generate-notes
+          else
+            gh release create "$TAG_NAME" --title "$TAG_NAME" --verify-tag --latest --generate-notes $PRE_FLAG
+          fi
