@@ -24,9 +24,17 @@ AOS Harness orchestrates specialized AI agents into structured deliberation and 
 ### 1. Install the CLI
 
 ```bash
-npm i -g aos-harness
-# or
 bun add -g aos-harness
+# or
+npm i -g aos-harness
+```
+
+If you prefer a project-local install:
+
+```bash
+bun add aos-harness
+# or
+npm install aos-harness
 ```
 
 ### 2. Install at least one adapter
@@ -34,13 +42,21 @@ bun add -g aos-harness
 Adapters are separate packages that augment the vendor CLI you already use:
 
 ```bash
-npm i -g @aos-harness/claude-code-adapter
-npm i -g @aos-harness/codex-adapter
-npm i -g @aos-harness/gemini-adapter
-npm i -g @aos-harness/pi-adapter
+bun add -g @aos-harness/claude-code-adapter
+bun add -g @aos-harness/codex-adapter
+bun add -g @aos-harness/gemini-adapter
+bun add -g @aos-harness/pi-adapter
 ```
 
 Versions publish lockstep with the CLI, so pin adapter and CLI versions together in CI or automated setup.
+
+Project-local adapter install is also supported:
+
+```bash
+bun add @aos-harness/codex-adapter
+# or
+npm install @aos-harness/codex-adapter
+```
 
 ### Optional host-native installs
 
@@ -55,6 +71,10 @@ Adapters remain the runtime boundary. You can optionally add host-native install
 ```bash
 cd your-project
 aos init
+# local install via Bun
+bunx aos init
+# local install via npm
+npx aos init
 ```
 
 `aos init` now:

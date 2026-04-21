@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.2 — Local install docs and release alignment
+
+### Added
+
+- Getting-started docs now show both global and project-local install flows for `aos-harness`, including:
+  - `bun add aos-harness`
+  - `npm install aos-harness`
+  - `bunx aos ...`
+  - `npx aos ...`
+- The Astro homepage and getting-started page now surface the package-install flow directly instead of implying global install only.
+
+### Changed
+
+- Release versions are bumped in lockstep to `0.8.2` across the CLI, runtime, and adapter packages.
+- Site deployment metadata now points at the `0.8.2` site image tag.
+
 ## 0.8.1 — Adapter Resolution And MemPalace Detection Fixes
 
 ### Fixed

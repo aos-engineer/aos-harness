@@ -28,8 +28,9 @@ const listAgents = agents.filter(a => ['catalyst', 'sentinel', 'architect', 'pro
       </div>
       <div class="mt-12 max-w-[480px] mx-auto text-left">
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4 px-5">
-          <pre class="!bg-transparent !border-0 !p-0 text-sm"><code><span class="text-[var(--color-text-muted)]">$</span> aos run strategic-council</code></pre>
-          <p class="text-xs text-[var(--color-text-muted)] mt-2 font-['JetBrains_Mono',monospace]"># {agents.length} agents. {profiles.length} profiles. One deliberation.</p>
+          <pre class="!bg-transparent !border-0 !p-0 text-sm"><code><span class="text-[var(--color-text-muted)]">$</span> bun add aos-harness
+<span class="text-[var(--color-text-muted)]">$</span> bunx aos run strategic-council</code></pre>
+          <p class="text-xs text-[var(--color-text-muted)] mt-2 font-['JetBrains_Mono',monospace]"># local install or global CLI. {agents.length} agents. {profiles.length} profiles.</p>
         </div>
       </div>
     </div>

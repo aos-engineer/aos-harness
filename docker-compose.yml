@@ -8,13 +8,13 @@
 
 services:
   site:
-    image: novashock/aos-harness-site:0.8.1-20260421
+    image: novashock/aos-harness-site:0.8.2-20260421
     build:
       context: .
       dockerfile: site/Dockerfile
       args:
-        SITE_VERSION: "0.8.1"
-        SITE_BUILD_ID: "2026-04-21-docs-refresh"
+        SITE_VERSION: "0.8.2"
+        SITE_BUILD_ID: "2026-04-21-install-docs-refresh"
         BUILD_DATE: "2026-04-21T00:00:00Z"
     restart: unless-stopped
     expose:

@@ -89,10 +89,16 @@ const sidebarLinks = [
           <div class="border-t border-[var(--color-border)] pt-12 mb-6">
             <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Install the CLI</h2>
           </div>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Install the CLI globally:</p>
-          <pre><code>npm i -g aos-harness
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Install the CLI globally or into the current project:</p>
+          <pre><code># global
+bun add -g aos-harness
 # or
-bun add -g aos-harness</code></pre>
+npm i -g aos-harness
+
+# project-local
+bun add aos-harness
+# or
+npm install aos-harness</code></pre>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6">AOS does not replace your AI CLI. It orchestrates on top of it.</p>
         </section>
 
@@ -102,10 +108,16 @@ bun add -g aos-harness</code></pre>
             <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Connect a Runtime</h2>
           </div>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Install the adapter package that matches the vendor CLI you already use:</p>
-          <pre><code>npm i -g @aos-harness/claude-code-adapter
-npm i -g @aos-harness/codex-adapter
-npm i -g @aos-harness/gemini-adapter
-npm i -g @aos-harness/pi-adapter</code></pre>
+          <pre><code># global
+bun add -g @aos-harness/claude-code-adapter
+bun add -g @aos-harness/codex-adapter
+bun add -g @aos-harness/gemini-adapter
+bun add -g @aos-harness/pi-adapter
+
+# project-local
+bun add @aos-harness/codex-adapter
+# or
+npm install @aos-harness/codex-adapter</code></pre>
           <div class="mt-6 bg-[var(--color-bg)] border-l-4 border-[var(--color-signal)] rounded-r-lg px-5 py-4">
             <p class="text-[12px] font-semibold uppercase text-[var(--color-signal)] mb-1">Tip</p>
             <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">Keep adapter and CLI versions pinned together. Adapters are published separately from <code>aos-harness</code>, but they ship lockstep.</p>
@@ -136,8 +148,14 @@ bash plugins/aos-harness/claude-code/install.sh</code></pre>
             <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Initialize</h2>
           </div>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Initialize AOS inside the project you want to work on:</p>
-          <pre><code>cd your-project
-aos init</code></pre>
+          <pre><code># global install
+cd your-project
+aos init
+
+# project-local install
+bunx aos init
+# or
+npx aos init</code></pre>
 
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">The init flow scans environment readiness and writes:</p>
           <pre><code>.aos/config.yaml

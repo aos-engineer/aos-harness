@@ -13,8 +13,15 @@
 ### 1. Install the CLI
 
 ```bash
-npm i -g aos-harness
-# or: bun add -g aos-harness
+bun add -g aos-harness
+# or: npm i -g aos-harness
+```
+
+Or install it into the current project:
+
+```bash
+bun add aos-harness
+# or: npm install aos-harness
 ```
 
 ### 2. Install an adapter
@@ -29,10 +36,17 @@ Install the vendor CLI you want to drive first, then install the matching AOS ad
 Pick the AI CLI you'll drive agents with and install the matching adapter. You can install more than one. Versions are lockstep — pin the adapter to the same version as the CLI.
 
 ```bash
-npm i -g @aos-harness/claude-code-adapter   # Anthropic's Claude Code
-npm i -g @aos-harness/gemini-adapter         # Google's Gemini CLI
-npm i -g @aos-harness/codex-adapter          # OpenAI's Codex CLI
-npm i -g @aos-harness/pi-adapter             # Pi (https://pi.dev)
+bun add -g @aos-harness/claude-code-adapter   # Anthropic's Claude Code
+bun add -g @aos-harness/gemini-adapter         # Google's Gemini CLI
+bun add -g @aos-harness/codex-adapter          # OpenAI's Codex CLI
+bun add -g @aos-harness/pi-adapter             # Pi (https://pi.dev)
+```
+
+Project-local adapter install also works:
+
+```bash
+bun add @aos-harness/codex-adapter
+# or: npm install @aos-harness/codex-adapter
 ```
 
 ### 3. Initialize and run
@@ -40,6 +54,10 @@ npm i -g @aos-harness/pi-adapter             # Pi (https://pi.dev)
 ```bash
 # Initialize a project (writes .aos/ and copies core/ into the project)
 aos init
+# local install via Bun
+bunx aos init
+# local install via npm
+npx aos init
 
 # Or scan only in CI / automation
 aos init --non-interactive

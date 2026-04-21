@@ -33,9 +33,18 @@ The harness ships with:
 
 ### Install the CLI
 
+Global install:
+
 ```bash
-npm i -g aos-harness
-# or: bun add -g aos-harness
+bun add -g aos-harness
+# or: npm i -g aos-harness
+```
+
+Project-local install:
+
+```bash
+bun add aos-harness
+# or: npm install aos-harness
 ```
 
 ### Install at least one adapter
@@ -50,10 +59,17 @@ Before you do this, make sure you already have the matching vendor CLI installed
 Adapters ship as separate packages. Pin to the same version as the CLI (they publish lockstep):
 
 ```bash
-npm i -g @aos-harness/claude-code-adapter   # Anthropic's Claude Code
-npm i -g @aos-harness/gemini-adapter         # Google's Gemini CLI
-npm i -g @aos-harness/codex-adapter          # OpenAI's Codex CLI
-npm i -g @aos-harness/pi-adapter             # Pi (https://pi.dev)
+bun add -g @aos-harness/claude-code-adapter   # Anthropic's Claude Code
+bun add -g @aos-harness/gemini-adapter         # Google's Gemini CLI
+bun add -g @aos-harness/codex-adapter          # OpenAI's Codex CLI
+bun add -g @aos-harness/pi-adapter             # Pi (https://pi.dev)
+```
+
+Project-local adapter install:
+
+```bash
+bun add @aos-harness/codex-adapter
+# or: npm install @aos-harness/codex-adapter
 ```
 
 ### Optional host-native installs
@@ -69,6 +85,8 @@ Adapters remain the runtime boundary. This repo also ships thin host-native inst
 ```bash
 cd your-project
 aos init
+# local install: bunx aos init
+# local install with npm: npx aos init
 ```
 
 `aos init` prints the adapter install commands at the end as a reminder.
