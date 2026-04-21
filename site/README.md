@@ -20,7 +20,8 @@ The dev server starts on `http://localhost:4321`.
 | `bun dev` | Start the local Astro dev server |
 | `bun build` | Build the production site into `dist/` |
 | `bun preview` | Preview the built site locally |
-| `bun astro check` | Run Astro's project checks |
+| `bun run check` | Run Astro's project checks |
+| `bun run upgrade:astro` | Upgrade Astro and official integrations to their latest versions |
 
 ## Content Areas
 
@@ -34,5 +35,15 @@ The dev server starts on `http://localhost:4321`.
 ## Documentation Expectations
 
 - Keep the install flow aligned with the current CLI behavior: vendor CLI first, matching `@aos-harness/*-adapter` second, then `aos init`.
+- Keep optional host-native install surfaces aligned with runtime reality:
+  - Codex local plugin
+  - Claude Code command pack
+  - Pi extension package
 - Prefer commands that match the real shipped interface.
 - When changing product behavior, update the matching docs page and any homepage snippets in the same change.
+- Before adopting new Astro patterns from current docs, upgrade and check the site:
+
+```bash
+bun run upgrade:astro
+bun run check
+```

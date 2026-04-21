@@ -48,6 +48,11 @@ describe("loadProfile", () => {
     expect(profile.id).toBe("test-council");
     expect(profile.constraints.time.max_minutes).toBe(5);
     expect(profile.assembly.perspectives).toHaveLength(1);
+    expect(profile.runtime_requirements).toEqual({
+      serve: false,
+      channels: false,
+      mempalace: false,
+    });
   });
 
   it("throws on missing profile.yaml", () => {

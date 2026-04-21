@@ -3,7 +3,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
-DEFAULT_HARNESS_ROOT="/Users/jkolade/sireskay/github/aos-framework"
 
 resolve_harness_root() {
   if [ -n "${AOS_HARNESS_ROOT:-}" ]; then
@@ -15,11 +14,6 @@ resolve_harness_root() {
   repo_local_root="$(cd -- "${PLUGIN_ROOT}/../.." && pwd)"
   if [ -f "${repo_local_root}/cli/src/index.ts" ] && [ -f "${repo_local_root}/package.json" ]; then
     printf '%s\n' "${repo_local_root}"
-    return 0
-  fi
-
-  if [ -f "${DEFAULT_HARNESS_ROOT}/cli/src/index.ts" ] && [ -f "${DEFAULT_HARNESS_ROOT}/package.json" ]; then
-    printf '%s\n' "${DEFAULT_HARNESS_ROOT}"
     return 0
   fi
 

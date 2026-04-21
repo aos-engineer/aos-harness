@@ -65,8 +65,9 @@ export interface AgentCapabilities {
   can_execute_code: boolean;
   can_produce_files: boolean;
   can_review_artifacts: boolean;
+  can_serve_artifacts?: boolean;
   available_skills: string[];
-  output_types: ("text" | "markdown" | "code" | "diagram" | "structured-data")[];
+  output_types: ("text" | "markdown" | "code" | "diagram" | "structured-data" | "html")[];
 }
 
 // ── Domain Enforcement ─────────────────────────────────────────
@@ -300,6 +301,11 @@ export interface ProfileConfig {
     artifacts: { type: string }[];
     frontmatter: string[];
   };
+  runtime_requirements?: {
+    serve?: boolean;
+    channels?: boolean;
+    mempalace?: boolean;
+  };
   expertise: {
     enabled: boolean;
     path_template: string;
@@ -353,7 +359,7 @@ export interface SkillInputField {
 
 export interface SkillOutputArtifact {
   id: string;
-  format: "markdown" | "code" | "structured-data" | "diagram";
+  format: "markdown" | "code" | "structured-data" | "diagram" | "html-static" | "html-interactive" | "html-live";
   description: string;
 }
 
@@ -472,8 +478,11 @@ export interface ArtifactManifest {
   id: string;
   produced_by: string[];
   step_id: string;
-  format: "markdown" | "code" | "structured-data" | "diagram";
+  format: "markdown" | "code" | "structured-data" | "diagram" | "html-static" | "html-interactive" | "html-live";
   content_path: string;
+  platform?: "linkedin" | "twitter" | "tiktok" | "instagram" | "generic";
+  variation_index?: number;
+  channel_id?: string;
   metadata: {
     produced_at: string;
     review_status: "pending" | "approved" | "rejected" | "revised";

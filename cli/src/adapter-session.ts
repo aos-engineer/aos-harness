@@ -16,7 +16,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
-import { readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import readline from "node:readline";
 import {
   BaseEventBus,
@@ -28,6 +28,7 @@ import {
   type ToolPolicy,
 } from "@aos-harness/adapter-shared";
 import { AOSEngine } from "@aos-harness/runtime";
+import type { TranscriptEntry } from "@aos-harness/runtime/types";
 import { loadAgent } from "@aos-harness/runtime/config-loader";
 import { resolveTemplate } from "@aos-harness/runtime/template-resolver";
 import { startBridgeServer } from "./bridge-server";
@@ -58,6 +59,11 @@ export interface AdapterSessionConfig {
    * when omitted.
    */
   transcriptPath?: string;
+  /**
+   * Optional live observability endpoint. When present, transcript events are
+   * also batched to `${platformUrl}/api/sessions/:id/events`.
+   */
+  platformUrl?: string;
 }
 
 const ADAPTER_MAP: Record<string, { package: string; className: string }> = {
@@ -185,6 +191,76 @@ function toolNamesForPlatform(platform: string): { delegate: string; end: string
   return { delegate: "delegate", end: "end" };
 }
 
+function createTranscriptSink(opts: {
+  transcriptPath: string;
+  platformUrl?: string;
+  sessionId: string;
+}) {
+  const { transcriptPath, platformUrl, sessionId } = opts;
+  const buffer: TranscriptEntry[] = [];
+  const BATCH_SIZE = 20;
+  const FLUSH_INTERVAL_MS = 500;
+  const TIMEOUT_MS = 2000;
+
+  mkdirSync(dirname(transcriptPath), { recursive: true });
+
+  let flushing: Promise<void> | null = null;
+
+  const flush = async (): Promise<void> => {
+    if (!platformUrl || buffer.length === 0) return;
+    const batch = buffer.splice(0, BATCH_SIZE);
+    try {
+      await fetch(`${platformUrl}/api/sessions/${sessionId}/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(batch),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch {
+      // Best-effort observability only.
+    }
+  };
+
+  const scheduleFlush = (): Promise<void> => {
+    if (!platformUrl) return Promise.resolve();
+    if (!flushing) {
+      flushing = flush().finally(() => {
+        flushing = null;
+      });
+    }
+    return flushing;
+  };
+
+  const interval = platformUrl
+    ? setInterval(() => {
+        void scheduleFlush();
+      }, FLUSH_INTERVAL_MS)
+    : null;
+
+  return {
+    enqueue(entry: TranscriptEntry) {
+      try {
+        appendFileSync(transcriptPath, JSON.stringify(entry) + "\n");
+      } catch {
+        // Transcript persistence should not fail the session.
+      }
+      if (platformUrl) {
+        buffer.push(entry);
+        if (buffer.length >= BATCH_SIZE) {
+          void scheduleFlush();
+        }
+      }
+    },
+    async shutdown() {
+      if (interval) clearInterval(interval);
+      await scheduleFlush();
+      while (buffer.length > 0) {
+        await flush();
+      }
+    },
+  };
+}
+
 export async function runAdapterSession(config: AdapterSessionConfig): Promise<void> {
   const log = (msg: string) => {
     if (config.verbose) console.error(`[session] ${msg}`);
@@ -213,198 +289,215 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
   log(`agents discovered (${agentMap.size})`);
 
   // ── Engine setup & brief intake ────────────────────────────
+  const transcriptPath =
+    config.transcriptPath ?? join(config.deliberationDir, "transcript.jsonl");
+  const transcriptSink = createTranscriptSink({
+    transcriptPath,
+    platformUrl: config.platformUrl,
+    sessionId: config.sessionId,
+  });
   const engine = new AOSEngine(adapter, config.profileDir, {
     agentsDir: flatAgentsDir,
     domain: config.domainName ?? undefined,
     domainDir: config.domainName ? domainsDir : undefined,
-  });
-  log("starting engine");
-  await engine.start(config.briefPath);
-  log("engine started");
-
-  // ── Bridge server (MCP tool calls → engine) ────────────────
-  const sockPath = join(tmpdir(), `aos-bridge-${config.sessionId}.sock`);
-  const here = dirname(fileURLToPath(import.meta.url));
-  const bridgeScriptPath = join(here, "mcp-arbiter-bridge.ts");
-
-  let halted = false;
-  const steerQueue: string[] = [];
-
-  async function waitWhileHalted(): Promise<void> {
-    while (halted) await new Promise((r) => setTimeout(r, 200));
-  }
-
-  function drainSteer(): string {
-    if (steerQueue.length === 0) return "";
-    const msgs = steerQueue.splice(0);
-    return `\n\n[user steer]\n${msgs.join("\n")}`;
-  }
-
-  log(`starting bridge server sock=${sockPath}`);
-  const closeBridge = await startBridgeServer(sockPath, {
-    delegate: async (params) => {
-      await waitWhileHalted();
-      const steer = drainSteer();
-      const responses = await engine.delegateMessage(
-        params.to as any,
-        (params.message as string) + steer,
-      );
-      const cs = engine.getConstraintState();
-      process.stdout.write(
-        "\n" +
-          renderRoundOneLiner({
-            round: cs.rounds_completed,
-            maxRounds: 8,
-            minutes: cs.elapsed_minutes,
-            dollars: cs.budget_spent,
-          }) +
-          "\n",
-      );
-      return { responses, constraints: cs };
-    },
-    end: async (params) => {
-      await waitWhileHalted();
-      const responses = await engine.end(params.closing_message as string);
-      return { ok: true, responses };
+    workflowsDir: config.workflowsDir,
+    onTranscriptEvent: (entry) => {
+      transcriptSink.enqueue(entry);
     },
   });
-
-  log("bridge listening");
-  // ── Arbiter prompt resolution ──────────────────────────────
-  const arbiterDir = agentMap.get("arbiter");
-  if (!arbiterDir) throw new Error("No arbiter agent found in core/agents/");
-
-  const promptPath = join(arbiterDir, "prompt.md");
-  const rawPrompt = readFileSync(promptPath, "utf-8");
-  const briefContent = readFileSync(config.briefPath, "utf-8");
-  const participants = [...agentMap.keys()].filter((id) => id !== "arbiter");
-  const memoPath = join(config.deliberationDir, "memo.md");
-  const transcriptPath = join(config.deliberationDir, "transcript.jsonl");
-  const tools = toolNamesForPlatform(config.platform);
-
-  const templateVars: Record<string, string> = {
-    // Spec-compliant underscore names
-    session_id: config.sessionId,
-    brief_slug: config.sessionId,
-    brief: briefContent,
-    format: "brief",
-    agent_id: "arbiter",
-    agent_name: "Arbiter",
-    participants: participants.join(", "),
-    constraints: "(see constraint state in tool responses)",
-    expertise_block: "",
-    output_path: memoPath,
-    deliberation_dir: config.deliberationDir,
-    transcript_path: transcriptPath,
-    delegate_tool: tools.delegate,
-    end_tool: tools.end,
-    role_override: "",
-    // Back-compat hyphenated aliases
-    "session-id": config.sessionId,
-    "brief-content": briefContent,
-    "output-path": memoPath,
-    "deliberation-dir": config.deliberationDir,
-    "memo-path": memoPath,
-  };
-
-  const resolvedPrompt = resolveTemplate(rawPrompt, templateVars);
-
-  // The arbiter prompt was authored when tools were named bare (`delegate`, `end`).
-  // Claude Code exposes MCP tools as `mcp__aos__delegate` / `mcp__aos__end`, so the
-  // model would attempt to call tools that don't exist. Prepend a short preamble
-  // that maps the names it'll see to the names the prompt uses.
-  const toolPreamble =
-    config.platform === "claude-code"
-      ? `IMPORTANT — Tool names for this session:\n` +
-        `- Where the instructions below say \`delegate(...)\`, call \`${tools.delegate}\` (that is the actual MCP tool name you will see).\n` +
-        `- Where they say \`end(...)\`, call \`${tools.end}\`.\n` +
-        `- These are the ONLY two tools available to you. Use them exactly as described.\n\n---\n\n`
-      : "";
-  adapter.setOrchestratorPrompt(toolPreamble + resolvedPrompt);
-
-  // ── Build MCP args and launch arbiter ──────────────────────
-  const mcpOpts = { bridgeScriptPath, socketPath: sockPath };
-  const mcpArgs: string[] =
-    (agentRuntime as any).buildMcpArgs?.(mcpOpts) ?? [];
-
-  let restoreGeminiSettings: (() => void) | undefined;
-  if ((agentRuntime as any).writeMcpSettings) {
-    restoreGeminiSettings = (agentRuntime as any).writeMcpSettings({
-      ...mcpOpts,
-      projectRoot: config.root,
-    });
-  }
-
-  // Load the arbiter AgentConfig from disk (uses the flat dir so
-  // loadAgent sees the same shape the engine sees). Override the
-  // systemPrompt with the resolved template.
-  const arbiterFlatDir = join(flatAgentsDir, "arbiter");
-  const arbiterConfig = loadAgent(arbiterFlatDir);
-  arbiterConfig.systemPrompt = resolvedPrompt;
-
-  log("spawning arbiter");
-  const arbiterHandle = await adapter.spawnAgent(arbiterConfig, config.sessionId);
-
-  // ── Kickoff message ────────────────────────────────────────
-  const kickoff =
-    "Read the brief below and begin the multi-agent deliberation. " +
-    `Use the \`${tools.delegate}\` tool to engage perspective agents and ` +
-    `\`${tools.end}\` when ready to wrap up.\n\n` +
-    `---\n\n## Brief\n\n${briefContent}`;
-
-  // ── Interactive readline commands ──────────────────────────
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  rl.on("line", (input) => {
-    const trimmed = input.trim();
-    if (!trimmed) return;
-    if (trimmed === "/aos-halt") {
-      halted = true;
-      console.log("Deliberation paused. Type /aos-resume to continue.");
-    } else if (trimmed === "/aos-resume") {
-      halted = false;
-      console.log("Resumed.");
-    } else if (trimmed === "/aos-end") {
-      steerQueue.push("Please wrap up now and call the end tool.");
-    } else if (trimmed === "/aos-status") {
-      const cs = engine.getConstraintState();
-      console.log(renderTextGauge("TIME", cs.elapsed_minutes, 2, 10, "min"));
-      if (cs.metered) {
-        console.log(renderTextGauge("BUDGET", cs.budget_spent, 1, 10, "$"));
-      }
-      console.log(renderTextGauge("ROUNDS", cs.rounds_completed, 2, 8, "rounds"));
-    } else if (trimmed.startsWith("/aos-steer ")) {
-      steerQueue.push(trimmed.slice("/aos-steer ".length));
-    } else if (!trimmed.startsWith("/")) {
-      steerQueue.push(trimmed);
-    }
-  });
-
   try {
-    log(`sending kickoff to arbiter (mcpArgs=${mcpArgs.length})`);
-    console.log(
-      `\nArbiter running (${config.platform}). ` +
-        `Tool calls will stream as rounds complete. ` +
-        `Bridge socket: ${sockPath}\n`,
-    );
-    const response = await adapter.sendMessage(arbiterHandle, kickoff, {
-      extraArgs: mcpArgs,
+    log("starting engine");
+    await engine.start(config.briefPath, {
+      domain: config.domainName ?? undefined,
+      deliberationDir: config.deliberationDir,
     });
-    if ((response as any).status !== "success") {
-      console.error(
-        `\n[arbiter] call failed: status=${(response as any).status} ` +
-          `error=${(response as any).error ?? "(none)"}`,
+    log("engine started");
+
+    if (engine.isWorkflowMode()) {
+      const cs = engine.getConstraintState();
+      console.log(
+        `\nExecution session complete. Rounds: ${cs.rounds_completed}, ` +
+          `Cost: $${cs.budget_spent.toFixed(4)}, ` +
+          `Time: ${cs.elapsed_minutes.toFixed(1)}min`,
+      );
+      return;
+    }
+
+    // ── Bridge server (MCP tool calls → engine) ────────────────
+    const sockPath = join(tmpdir(), `aos-bridge-${config.sessionId}.sock`);
+    const here = dirname(fileURLToPath(import.meta.url));
+    const bridgeScriptPath = join(here, "mcp-arbiter-bridge.ts");
+
+    let halted = false;
+    const steerQueue: string[] = [];
+
+    async function waitWhileHalted(): Promise<void> {
+      while (halted) await new Promise((r) => setTimeout(r, 200));
+    }
+
+    function drainSteer(): string {
+      if (steerQueue.length === 0) return "";
+      const msgs = steerQueue.splice(0);
+      return `\n\n[user steer]\n${msgs.join("\n")}`;
+    }
+
+    log(`starting bridge server sock=${sockPath}`);
+    const closeBridge = await startBridgeServer(sockPath, {
+      delegate: async (params) => {
+        await waitWhileHalted();
+        const steer = drainSteer();
+        const responses = await engine.delegateMessage(
+          params.to as any,
+          (params.message as string) + steer,
+        );
+        const cs = engine.getConstraintState();
+        process.stdout.write(
+          "\n" +
+            renderRoundOneLiner({
+              round: cs.rounds_completed,
+              maxRounds: 8,
+              minutes: cs.elapsed_minutes,
+              dollars: cs.budget_spent,
+            }) +
+            "\n",
+        );
+        return { responses, constraints: cs };
+      },
+      end: async (params) => {
+        await waitWhileHalted();
+        const responses = await engine.end(params.closing_message as string);
+        return { ok: true, responses };
+      },
+    });
+
+    log("bridge listening");
+    // ── Arbiter prompt resolution ──────────────────────────────
+    const arbiterDir = agentMap.get("arbiter");
+    if (!arbiterDir) throw new Error("No arbiter agent found in core/agents/");
+
+    const promptPath = join(arbiterDir, "prompt.md");
+    const rawPrompt = readFileSync(promptPath, "utf-8");
+    const briefContent = readFileSync(config.briefPath, "utf-8");
+    const participants = [...agentMap.keys()].filter((id) => id !== "arbiter");
+    const memoPath = join(config.deliberationDir, "memo.md");
+    const tools = toolNamesForPlatform(config.platform);
+
+    const templateVars: Record<string, string> = {
+      // Spec-compliant underscore names
+      session_id: config.sessionId,
+      brief_slug: config.sessionId,
+      brief: briefContent,
+      format: "brief",
+      agent_id: "arbiter",
+      agent_name: "Arbiter",
+      participants: participants.join(", "),
+      constraints: "(see constraint state in tool responses)",
+      expertise_block: "",
+      output_path: memoPath,
+      deliberation_dir: config.deliberationDir,
+      transcript_path: transcriptPath,
+      delegate_tool: tools.delegate,
+      end_tool: tools.end,
+      role_override: "",
+      // Back-compat hyphenated aliases
+      "session-id": config.sessionId,
+      "brief-content": briefContent,
+      "output-path": memoPath,
+      "deliberation-dir": config.deliberationDir,
+      "memo-path": memoPath,
+    };
+
+    const resolvedPrompt = resolveTemplate(rawPrompt, templateVars);
+
+    const toolPreamble =
+      config.platform === "claude-code"
+        ? `IMPORTANT — Tool names for this session:\n` +
+          `- Where the instructions below say \`delegate(...)\`, call \`${tools.delegate}\` (that is the actual MCP tool name you will see).\n` +
+          `- Where they say \`end(...)\`, call \`${tools.end}\`.\n` +
+          `- These are the ONLY two tools available to you. Use them exactly as described.\n\n---\n\n`
+        : "";
+    adapter.setOrchestratorPrompt(toolPreamble + resolvedPrompt);
+
+    const mcpOpts = { bridgeScriptPath, socketPath: sockPath };
+    const mcpArgs: string[] =
+      (agentRuntime as any).buildMcpArgs?.(mcpOpts) ?? [];
+
+    let restoreGeminiSettings: (() => void) | undefined;
+    if ((agentRuntime as any).writeMcpSettings) {
+      restoreGeminiSettings = (agentRuntime as any).writeMcpSettings({
+        ...mcpOpts,
+        projectRoot: config.root,
+      });
+    }
+
+    const arbiterFlatDir = join(flatAgentsDir, "arbiter");
+    const arbiterConfig = loadAgent(arbiterFlatDir);
+    arbiterConfig.systemPrompt = resolvedPrompt;
+
+    log("spawning arbiter");
+    const arbiterHandle = await adapter.spawnAgent(arbiterConfig, config.sessionId);
+
+    const kickoff =
+      "Read the brief below and begin the multi-agent deliberation. " +
+      `Use the \`${tools.delegate}\` tool to engage perspective agents and ` +
+      `\`${tools.end}\` when ready to wrap up.\n\n` +
+      `---\n\n## Brief\n\n${briefContent}`;
+
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.on("line", (input) => {
+      const trimmed = input.trim();
+      if (!trimmed) return;
+      if (trimmed === "/aos-halt") {
+        halted = true;
+        console.log("Deliberation paused. Type /aos-resume to continue.");
+      } else if (trimmed === "/aos-resume") {
+        halted = false;
+        console.log("Resumed.");
+      } else if (trimmed === "/aos-end") {
+        steerQueue.push("Please wrap up now and call the end tool.");
+      } else if (trimmed === "/aos-status") {
+        const cs = engine.getConstraintState();
+        console.log(renderTextGauge("TIME", cs.elapsed_minutes, 2, 10, "min"));
+        if (cs.metered) {
+          console.log(renderTextGauge("BUDGET", cs.budget_spent, 1, 10, "$"));
+        }
+        console.log(renderTextGauge("ROUNDS", cs.rounds_completed, 2, 8, "rounds"));
+      } else if (trimmed.startsWith("/aos-steer ")) {
+        steerQueue.push(trimmed.slice("/aos-steer ".length));
+      } else if (!trimmed.startsWith("/")) {
+        steerQueue.push(trimmed);
+      }
+    });
+
+    try {
+      log(`sending kickoff to arbiter (mcpArgs=${mcpArgs.length})`);
+      console.log(
+        `\nArbiter running (${config.platform}). ` +
+          `Tool calls will stream as rounds complete. ` +
+          `Bridge socket: ${sockPath}\n`,
+      );
+      const response = await adapter.sendMessage(arbiterHandle, kickoff, {
+        extraArgs: mcpArgs,
+      });
+      if ((response as any).status !== "success") {
+        console.error(
+          `\n[arbiter] call failed: status=${(response as any).status} ` +
+            `error=${(response as any).error ?? "(none)"}`,
+        );
+      }
+      console.log("\n" + response.text);
+    } finally {
+      rl.close();
+      await closeBridge();
+      if (restoreGeminiSettings) restoreGeminiSettings();
+      const cs = engine.getConstraintState();
+      console.log(
+        `\nSession complete. Rounds: ${cs.rounds_completed}, ` +
+          `Cost: $${cs.budget_spent.toFixed(4)}, ` +
+          `Time: ${cs.elapsed_minutes.toFixed(1)}min`,
       );
     }
-    console.log("\n" + response.text);
   } finally {
-    rl.close();
-    await closeBridge();
-    if (restoreGeminiSettings) restoreGeminiSettings();
-    const cs = engine.getConstraintState();
-    console.log(
-      `\nSession complete. Rounds: ${cs.rounds_completed}, ` +
-        `Cost: $${cs.budget_spent.toFixed(4)}, ` +
-        `Time: ${cs.elapsed_minutes.toFixed(1)}min`,
-    );
+    await transcriptSink.shutdown();
   }
 }

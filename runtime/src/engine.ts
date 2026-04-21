@@ -9,7 +9,7 @@
  */
 
 import { join } from "node:path";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type {
   AOSAdapter,
@@ -33,7 +33,7 @@ import type { DelegationTarget } from "./delegation-router";
 import { applyDomain } from "./domain-merger";
 import { WorkflowRunner } from "./workflow-runner";
 import type { WorkflowConfig } from "./workflow-runner";
-import { renderExecutionPackage } from "./output-renderer";
+import { renderArtifactGallery, renderExecutionPackage } from "./output-renderer";
 import type { ArtifactManifest } from "./types";
 import type { MemoryProvider, MemoryConfig } from "./memory-provider";
 import { loadMemoryConfig } from "./memory-config";
@@ -72,6 +72,22 @@ export class AOSEngine {
   private memoryProvider: MemoryProvider | null = null;
   private memoryConfig: MemoryConfig | null = null;
   private recallCount: number = 0;
+
+  private resolveOutputPathTemplate(template: string, briefPath: string): string {
+    return template
+      .replace("{{session_id}}", this.sessionId)
+      .replace("{{date}}", new Date().toISOString().slice(0, 10))
+      .replace("{{brief_slug}}", briefPath.split("/").pop()?.replace(/\.\w+$/, "") ?? "brief");
+  }
+
+  private resolveArtifactGallerySource(results: Map<string, unknown>): unknown {
+    const preferredKeys = ["revised_artifact", "interactive_artifact", "artifact_gallery", "rendered_variants"];
+    for (const key of preferredKeys) {
+      if (results.has(key)) return results.get(key);
+    }
+    const values = [...results.values()];
+    return values.length > 0 ? values[values.length - 1] : null;
+  }
 
   constructor(adapter: AOSAdapter, profilePath: string, opts: EngineOpts) {
     this.adapter = adapter;
@@ -256,7 +272,7 @@ export class AOSEngine {
           domain: this.domainId,
           participants: [...this.agents.keys()],
           briefPath: inputPath,
-          transcriptPath: join(deliberationDir, "transcript.yaml"),
+          transcriptPath: join(deliberationDir, "transcript.jsonl"),
           durationMinutes: Math.round(elapsedMinutes * 100) / 100,
           stepsCompleted: completedSteps,
           gatesPassed,
@@ -264,14 +280,39 @@ export class AOSEngine {
           sections: this.profile.output.sections,
         });
 
-        const outputPath = this.profile.output.path_template
-          .replace("{{session_id}}", this.sessionId)
-          .replace("{{date}}", new Date().toISOString().slice(0, 10))
-          .replace("{{brief_slug}}", inputPath.split("/").pop()?.replace(/\.\w+$/, "") ?? "brief");
+        const outputPath = this.resolveOutputPathTemplate(this.profile.output.path_template, inputPath);
 
         await this.adapter.writeFile(outputPath, rendered);
         this.adapter.notify(`Execution package written to ${outputPath}`, "info");
+      } else if (this.profile.output.format === "artifact-gallery") {
+        const gallerySource = this.resolveArtifactGallerySource(results);
+        if (gallerySource == null) {
+          throw new Error(`Workflow "${this.workflowConfig!.id}" did not produce an artifact gallery output`);
+        }
+
+        const outputDir = this.resolveOutputPathTemplate(this.profile.output.path_template, inputPath);
+        const renderedGallery = renderArtifactGallery({
+          profile: this.profile.id,
+          sessionId: this.sessionId,
+          briefPath: inputPath,
+          briefContent: readFileSync(inputPath, "utf-8"),
+          participants: [...this.agents.keys()],
+          source: gallerySource as any,
+        });
+
+        for (const file of renderedGallery.files) {
+          await this.adapter.writeFile(join(outputDir, file.path), file.content);
+        }
+        this.adapter.notify(`Artifact gallery written to ${join(outputDir, "index.html")}`, "info");
       }
+
+      this.pushTranscript({
+        type: "session_end",
+        timestamp: new Date().toISOString(),
+        sessionId: this.sessionId,
+        roundsCompleted: this.roundNumber,
+        mode: "workflow",
+      });
     }
   }
 

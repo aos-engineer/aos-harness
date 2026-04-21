@@ -78,12 +78,14 @@ describe("AgentCapabilities", () => {
       can_execute_code: true,
       can_produce_files: true,
       can_review_artifacts: true,
+      can_serve_artifacts: true,
       available_skills: ["run-tests", "security-scan"],
-      output_types: ["text", "markdown", "code"],
+      output_types: ["text", "markdown", "code", "html"],
     };
     expect(caps.can_execute_code).toBe(true);
     expect(caps.available_skills).toHaveLength(2);
     expect(caps.output_types).toContain("code");
+    expect(caps.output_types).toContain("html");
   });
 
   it("capabilities is optional on AgentConfig", () => {
@@ -169,8 +171,10 @@ describe("ArtifactManifest", () => {
       id: "requirements_analysis",
       produced_by: ["advocate", "strategist"],
       step_id: "understand",
-      format: "markdown",
+      format: "html-static",
       content_path: "artifacts/requirements_analysis.md",
+      platform: "generic",
+      variation_index: 1,
       metadata: {
         produced_at: "2026-03-24T14:30:00Z",
         review_status: "approved",
@@ -182,6 +186,7 @@ describe("ArtifactManifest", () => {
     expect(manifest.schema).toBe("aos/artifact/v1");
     expect(manifest.produced_by).toHaveLength(2);
     expect(manifest.metadata.review_status).toBe("approved");
+    expect(manifest.platform).toBe("generic");
   });
 
   it("metadata supports additional properties", () => {

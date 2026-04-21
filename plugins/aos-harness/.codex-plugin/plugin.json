@@ -1,11 +1,10 @@
 {
   "name": "aos-harness",
-  "version": "0.1.0",
-  "description": "CLI-first Codex plugin for running AOS Harness workflows from this repository.",
+  "version": "0.8.1",
+  "description": "Run AOS Harness deliberation and execution workflows from Codex.",
   "author": {
-    "name": "[TODO: Author Name]",
-    "email": "[TODO: author@example.com]",
-    "url": "[TODO: https://github.com/author]"
+    "name": "AOS Engineer",
+    "url": "https://github.com/aos-engineer/aos-harness"
   },
   "homepage": "https://github.com/aos-engineer/aos-harness",
   "repository": "https://github.com/aos-engineer/aos-harness",
@@ -20,28 +19,21 @@
   "interface": {
     "displayName": "AOS Harness",
     "shortDescription": "Run AOS Harness CLI workflows from Codex.",
-    "longDescription": "Repo-local plugin for initializing, running, validating, listing, scaffolding, and replaying AOS Harness workflows through the local Bun CLI.",
-    "developerName": "[TODO: Developer Name]",
+    "longDescription": "Local Codex plugin for listing, validating, scaffolding, replaying, and running AOS Harness deliberation and execution workflows through the shared CLI wrapper.",
+    "developerName": "AOS Engineer",
     "category": "Productivity",
     "capabilities": [
       "Interactive",
       "Write"
     ],
     "websiteURL": "https://github.com/aos-engineer/aos-harness",
-    "privacyPolicyURL": "[TODO: https://example.com/privacy]",
-    "termsOfServiceURL": "[TODO: https://example.com/terms]",
+    "privacyPolicyURL": "https://openai.com/policies/row-privacy-policy/",
+    "termsOfServiceURL": "https://openai.com/policies/row-terms-of-use/",
     "defaultPrompt": [
       "List the available AOS profiles, domains, and briefs.",
       "Run a strategic-council dry-run on a local brief.",
       "Scaffold a new AOS agent, profile, domain, or skill."
     ],
-    "brandColor": "[TODO: #0F766E]",
-    "composerIcon": "[TODO: ./assets/icon.png]",
-    "logo": "[TODO: ./assets/logo.png]",
-    "screenshots": [
-      "[TODO: ./assets/screenshot1.png]",
-      "[TODO: ./assets/screenshot2.png]",
-      "[TODO: ./assets/screenshot3.png]"
-    ]
+    "brandColor": "#0F766E"
   }
 }

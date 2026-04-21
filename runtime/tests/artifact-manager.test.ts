@@ -166,6 +166,21 @@ describe("ArtifactManager", () => {
     expect(loaded.manifest.format).toBe("structured-data");
   });
 
+  it("creates artifacts with html-static format (.html extension)", async () => {
+    await manager.createArtifact("variation_01", "<html><body>Variation</body></html>", {
+      produced_by: ["artifact-renderer"],
+      step_id: "render-gallery",
+      format: "html-static",
+      variation_index: 1,
+      platform: "generic",
+    });
+    const loaded = await manager.loadArtifact("variation_01");
+    expect(loaded.manifest.format).toBe("html-static");
+    expect(loaded.manifest.content_path.endsWith(".html")).toBe(true);
+    expect(loaded.manifest.variation_index).toBe(1);
+    expect(loaded.manifest.platform).toBe("generic");
+  });
+
   it("getAllManifests returns all cached manifests", async () => {
     await manager.createArtifact("a", "content a", { produced_by: ["x"], step_id: "s", format: "markdown" });
     await manager.createArtifact("b", "content b", { produced_by: ["y"], step_id: "s", format: "markdown" });

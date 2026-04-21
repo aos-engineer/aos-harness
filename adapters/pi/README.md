@@ -1,6 +1,6 @@
 # Pi Adapter — AOS Harness
 
-This is the Pi CLI adapter for the AOS Harness. It runs the full agent deliberation workflow inside Pi's terminal UI, wiring the harness's agent runtime, event bus, workflow engine, and UI layer into Pi's interactive session model.
+This is the Pi CLI adapter for the AOS Harness. It runs both deliberation sessions and execution workflows inside Pi's terminal UI, wiring the harness runtime, event bus, workflow engine, and UI layer into Pi's interactive session model.
 
 ## Prerequisites
 
@@ -19,7 +19,7 @@ pi -e src/index.ts
 
 ## Configuration
 
-Model tier mapping is controlled via environment variables. Each tier corresponds to an agent class used during deliberation.
+Model tier mapping is controlled via environment variables. Each tier corresponds to an agent class used during deliberation and workflow execution.
 
 | Variable            | Default              | Purpose                         |
 |---------------------|----------------------|---------------------------------|
@@ -38,6 +38,8 @@ Once a session is running, the following inputs are recognised in the TUI:
 | `/aos-run` | Start a new deliberation                                     |
 | `halt`     | Hard-stop the session immediately                            |
 | `wrap`     | End early — triggers final statements and memo synthesis     |
+
+When `aos run` launches Pi with an execution profile, the adapter skips arbiter kickoff and runs the workflow directly.
 
 ## Architecture
 

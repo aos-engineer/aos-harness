@@ -138,13 +138,14 @@ export class BaseWorkflow implements WorkflowAdapter {
     return { path: worktreePath, cleanup };
   }
 
-  // TODO(trust-model-followup): This method currently gates only via
-  // validatePath(), not enforceToolAccess(). Per spec
-  // docs/superpowers/specs/2026-04-14-adapter-trust-model-design.md D3.3,
-  // readFile/writeFile should consult the frozen ToolPolicy. Scoped out of
-  // the 0.7.0 RCE-002 fix because the default policy already allows these
-  // for deliberation profiles; tightening requires per-profile audit.
   async writeFile(path: string, content: string): Promise<void> {
+    const gate = await this.enforceToolAccess("system", {
+      tool: "write_file",
+      path,
+    });
+    if (!gate.allowed) {
+      throw new UnsupportedError("writeFile", gate.reason ?? "denied by policy");
+    }
     const safe = this.validatePath(path);
     const dir = dirname(safe);
     if (!existsSync(dir)) {
@@ -153,13 +154,14 @@ export class BaseWorkflow implements WorkflowAdapter {
     writeFileSync(safe, content, "utf-8");
   }
 
-  // TODO(trust-model-followup): This method currently gates only via
-  // validatePath(), not enforceToolAccess(). Per spec
-  // docs/superpowers/specs/2026-04-14-adapter-trust-model-design.md D3.3,
-  // readFile/writeFile should consult the frozen ToolPolicy. Scoped out of
-  // the 0.7.0 RCE-002 fix because the default policy already allows these
-  // for deliberation profiles; tightening requires per-profile audit.
   async readFile(path: string): Promise<string> {
+    const gate = await this.enforceToolAccess("system", {
+      tool: "read_file",
+      path,
+    });
+    if (!gate.allowed) {
+      throw new UnsupportedError("readFile", gate.reason ?? "denied by policy");
+    }
     const safe = this.validatePath(path);
     if (!existsSync(safe)) {
       throw new Error(`File not found: ${path}`);
@@ -430,7 +432,7 @@ Respond with:
     const entry = (policy as any)[toolCall.tool];
     if (!entry?.enabled) {
       const reason = `tool "${toolCall.tool}" is not enabled in profile`;
-      this.emitToolDenied(agentId, toolCall.tool, reason, toolCall.command);
+      this.emitToolDenied(agentId, toolCall.tool, reason, toolCall.path ?? toolCall.command);
       return { allowed: false, reason };
     }
     const structured: ToolCommand | null =
@@ -443,7 +445,7 @@ Respond with:
         const reason = `language "${lang}" not in profile allowlist (${
           policy.execute_code.languages.join(", ") || "none"
         })`;
-        this.emitToolDenied(agentId, toolCall.tool, reason, toolCall.command);
+        this.emitToolDenied(agentId, toolCall.tool, reason, toolCall.path ?? toolCall.command);
         return { allowed: false, reason };
       }
       if (
@@ -451,7 +453,7 @@ Respond with:
         structured.timeout_ms > policy.execute_code.max_timeout_ms
       ) {
         const reason = `timeout ${structured.timeout_ms}ms exceeds profile max ${policy.execute_code.max_timeout_ms}ms`;
-        this.emitToolDenied(agentId, toolCall.tool, reason, toolCall.command);
+        this.emitToolDenied(agentId, toolCall.tool, reason, toolCall.path ?? toolCall.command);
         return { allowed: false, reason };
       }
     }

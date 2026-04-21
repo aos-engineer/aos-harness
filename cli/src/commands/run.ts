@@ -6,46 +6,10 @@ import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { c, type ParsedArgs } from "../colors";
 import { getHarnessRoot, discoverDirs, promptSelect, getAdapterDir, ADAPTER_ALLOWLIST, isValidAdapter, validatePlatformUrl, parseAllowCodeExecutionFlag } from "../utils";
-import type { TranscriptEntry } from "@aos-harness/runtime/types";
 import { runAdapterSession } from "../adapter-session";
 import { readAdapterConfig } from "../adapter-config";
 import { buildToolPolicy, type ToolPolicy } from "@aos-harness/adapter-shared";
 import { getPlatformUrlFromConfig, resolveAdapterSelection } from "../aos-config";
-
-function createEventBuffer(platformUrl: string, sessionId: string) {
-  const buffer: TranscriptEntry[] = [];
-  const FLUSH_INTERVAL = 500;
-  const BATCH_SIZE = 20;
-  const TIMEOUT_MS = 2000;
-
-  async function flush() {
-    if (buffer.length === 0) return;
-    const batch = buffer.splice(0, BATCH_SIZE);
-    try {
-      await fetch(`${platformUrl}/api/sessions/${sessionId}/events`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(batch),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-    } catch {
-      // Drop silently in Phase 1
-    }
-  }
-
-  const interval = setInterval(flush, FLUSH_INTERVAL);
-
-  return {
-    enqueue(entry: TranscriptEntry) {
-      buffer.push(entry);
-      if (buffer.length >= BATCH_SIZE) flush();
-    },
-    async shutdown() {
-      clearInterval(interval);
-      await flush();
-    },
-  };
-}
 
 const HELP = `
 ${c.bold("aos run")} — Run a deliberation or execution session
@@ -451,6 +415,7 @@ ${c.bold(`AOS ${sessionType} Session`)}
       workflowsDir,
       modelOverrides: adapterConfig?.model_overrides,
       toolPolicy,
+      platformUrl: platformUrl ?? undefined,
     });
   }
 }

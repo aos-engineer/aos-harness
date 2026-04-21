@@ -17,6 +17,9 @@ export interface CreateArtifactOpts {
   produced_by: string[];
   step_id: string;
   format: ArtifactManifest["format"];
+  platform?: ArtifactManifest["platform"];
+  variation_index?: number;
+  channel_id?: string;
 }
 
 /** Minimal adapter interface needed by ArtifactManager. */
@@ -30,6 +33,9 @@ const FORMAT_EXTENSIONS: Record<ArtifactManifest["format"], string> = {
   code: "txt",
   "structured-data": "yaml",
   diagram: "mmd",
+  "html-static": "html",
+  "html-interactive": "html",
+  "html-live": "html",
 };
 
 const VALID_ARTIFACT_ID = /^[a-z][a-z0-9_-]*$/;
@@ -71,6 +77,9 @@ export class ArtifactManager {
       step_id: opts.step_id,
       format: opts.format,
       content_path: contentPath,
+      platform: opts.platform,
+      variation_index: opts.variation_index,
+      channel_id: opts.channel_id,
       metadata: {
         produced_at: new Date().toISOString(),
         review_status: "pending",

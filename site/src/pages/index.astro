@@ -20,7 +20,7 @@ const listAgents = agents.filter(a => ['catalyst', 'sentinel', 'architect', 'pro
         Agentic Orchestration System
       </h1>
       <p class="mt-5 text-[19px] leading-relaxed text-[var(--color-text-secondary)] max-w-[640px] mx-auto">
-        A config-driven framework that assembles specialized AI agents into deliberation councils and execution teams. No code. Just YAML, a brief, and a question worth debating.
+        A config-driven framework that assembles specialized AI agents into deliberation councils and execution teams on top of Claude Code, Codex, Gemini, and Pi.
       </p>
       <div class="mt-8 flex gap-3 justify-center">
         <a href="/docs/getting-started" class="btn-primary">Get Started</a>
@@ -92,7 +92,7 @@ const listAgents = agents.filter(a => ['catalyst', 'sentinel', 'architect', 'pro
           <span class="badge badge-execution">execution</span>
           <h3 class="text-[22px] font-bold text-[var(--color-text)] mt-4">Execution</h3>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-3">
-            A CTO Orchestrator drives the product lifecycle. Agents produce artifacts in sequence &mdash; requirements, architecture, tasks, security review. Each phase feeds the next. Output: a complete execution package ready for engineering handoff.
+            A CTO Orchestrator drives the product lifecycle. Agents produce artifacts in sequence &mdash; requirements, architecture, planning, tasks, security review, and final assembly. Output: a complete execution package ready for engineering handoff.
           </p>
           <div class="mt-6 flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-[var(--color-text-muted)]">
             <span class="bg-[var(--color-bg)] px-2.5 py-1 rounded-md">Brief</span>
@@ -189,27 +189,29 @@ const listAgents = agents.filter(a => ['catalyst', 'sentinel', 'architect', 'pro
   <section class="px-6 py-20">
     <div class="mx-auto max-w-[1200px] text-center">
       <h2 class="text-[28px] font-bold text-[var(--color-text)]">Supported CLIs</h2>
-      <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Bring the AI CLI you already use. AOS adds orchestration on top.</p>
+      <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Bring the AI CLI you already use. Install the matching adapter, then optionally add the host-native surface for that runtime.</p>
       <div class="mt-10 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 max-w-[1100px] mx-auto text-left">
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 card-hover">
           <h3 class="text-[17px] font-semibold text-[var(--color-text)]">Pi CLI</h3>
-          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Keep Pi installed, add the Pi adapter, and run the same AOS profiles from the harness CLI.</p>
+          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Keep Pi installed, add the Pi adapter, and run the same AOS profiles through the Pi extension package.</p>
           <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> npm i -g @aos-harness/pi-adapter</code></pre>
         </div>
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 card-hover">
           <h3 class="text-[17px] font-semibold text-[var(--color-text)]">Claude Code</h3>
-          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Use your existing Claude Code installation and add the Claude Code adapter as the AOS integration layer.</p>
-          <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> npm i -g @aos-harness/claude-code-adapter</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Use your existing Claude Code installation, add the adapter, then optionally install the project command pack.</p>
+          <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> npm i -g @aos-harness/claude-code-adapter
+<span class="text-[var(--color-text-muted)]">$</span> bash plugins/aos-harness/claude-code/install.sh</code></pre>
         </div>
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 card-hover">
           <h3 class="text-[17px] font-semibold text-[var(--color-text)]">Codex CLI</h3>
-          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Pair Codex CLI with the Codex adapter, then let <code>aos init</code> wire project config and readiness checks.</p>
-          <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> aos init --apply</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Pair Codex CLI with the Codex adapter, then optionally install the local Codex plugin bundle on top.</p>
+          <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> npm i -g @aos-harness/codex-adapter
+<span class="text-[var(--color-text-muted)]">$</span> aos init --apply</code></pre>
         </div>
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 card-hover">
           <h3 class="text-[17px] font-semibold text-[var(--color-text)]">Gemini CLI</h3>
-          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Run the same deliberation and execution profiles through Gemini after the matching adapter package is installed.</p>
-          <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> aos run strategic-council --brief brief.md</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] mt-2">Run the same deliberation and execution profiles through Gemini after installing the matching adapter package.</p>
+          <pre class="mt-4 !bg-[var(--color-bg)] !border-[var(--color-border)] text-[13px]"><code><span class="text-[var(--color-text-muted)]">$</span> npm i -g @aos-harness/gemini-adapter</code></pre>
         </div>
       </div>
     </div>

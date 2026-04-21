@@ -45,8 +45,15 @@ describe("env-scanner readiness matrix", () => {
     const root = mkdtempSync(join(tmpdir(), "aos-scan-"));
     const bunGlobal = join(root, "bun-global");
     const pkgDir = join(bunGlobal, "@aos-harness", "codex-adapter");
-    mkdirSync(pkgDir, { recursive: true });
+    mkdirSync(join(pkgDir, "src"), { recursive: true });
     writeFileSync(join(pkgDir, "package.json"), JSON.stringify({ name: "@aos-harness/codex-adapter", version: "0.7.1" }));
+    writeFileSync(
+      join(pkgDir, "src", "index.ts"),
+      `export async function probeAdapterInfo() {
+  return { info: { runtime: "codex" } };
+}
+`,
+    );
 
     const scan = await scanEnvironment({
       cwd: root,
@@ -63,6 +70,7 @@ describe("env-scanner readiness matrix", () => {
 
     expect(scan.adapters.codex.status).toBe("ready");
     expect(scan.adapters.codex.aosAdapter.store).toBe("bun");
+    expect(scan.adapters.codex.info).toEqual({ runtime: "codex" });
   });
 
   test("scanEnvironment reports broken for project-local-only install", async () => {
@@ -107,5 +115,30 @@ describe("env-scanner readiness matrix", () => {
     expect(scan.memory.mempalace.binaryInstalled).toBe(true);
     expect(scan.memory.mempalace.binaryPath).toBe("/Users/test/.local/bin/mempalace");
     expect(scan.notes.some((note) => note.includes("MEMPALACE_SOCKET"))).toBe(true);
+  });
+
+  test("scanEnvironment marks adapter broken when installed package cannot be imported", async () => {
+    const root = mkdtempSync(join(tmpdir(), "aos-scan-"));
+    const bunGlobal = join(root, "bun-global");
+    const pkgDir = join(bunGlobal, "@aos-harness", "pi-adapter");
+    mkdirSync(join(pkgDir, "src"), { recursive: true });
+    writeFileSync(join(pkgDir, "package.json"), JSON.stringify({ name: "@aos-harness/pi-adapter", version: "0.7.1" }));
+    writeFileSync(join(pkgDir, "src", "index.ts"), `throw new Error("boom");\n`);
+
+    const scan = await scanEnvironment({
+      cwd: root,
+      env: {},
+      bunGlobalDir: bunGlobal,
+      npmGlobalDir: null,
+      probeVendorCli: async () => ({
+        present: true,
+        path: "/usr/local/bin/pi",
+        auth: { state: "ready" },
+      }),
+      resolveAdapterDir: () => pkgDir,
+    });
+
+    expect(scan.adapters.pi.status).toBe("broken");
+    expect(scan.notes.some((note) => note.includes("could not be imported"))).toBe(true);
   });
 });

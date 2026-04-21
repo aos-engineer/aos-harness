@@ -325,8 +325,10 @@ describe("AOSEngine", () => {
         const transcript = engine.getTranscript();
         const workflowStart = transcript.find((e) => e.type === "workflow_start");
         const workflowEnd = transcript.find((e) => e.type === "workflow_end");
+        const sessionEnd = transcript.find((e) => e.type === "session_end");
         expect(workflowStart).toBeDefined();
         expect(workflowEnd).toBeDefined();
+        expect(sessionEnd).toBeDefined();
       } finally {
         if (existsSync(tmpDir)) {
           rmSync(tmpDir, { recursive: true, force: true });

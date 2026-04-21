@@ -1,7 +1,7 @@
 {
-  "name": "[TODO: marketplace-name]",
+  "name": "aos-engineer-local",
   "interface": {
-    "displayName": "[TODO: Marketplace Display Name]"
+    "displayName": "AOS Engineer Local"
   },
   "plugins": [
     {

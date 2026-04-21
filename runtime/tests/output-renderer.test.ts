@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { renderExecutionPackage } from "../src/output-renderer";
+import { renderArtifactGallery, renderExecutionPackage } from "../src/output-renderer";
 import type { ArtifactManifest } from "../src/types";
 
 describe("renderExecutionPackage", () => {
@@ -123,5 +123,61 @@ describe("renderExecutionPackage", () => {
     expect(result).toContain("## 1. Requirements Analysis");
     expect(result).toContain("## 2. Task Breakdown");
     expect(result).not.toContain("Architecture Decision Record");
+  });
+});
+
+describe("renderArtifactGallery", () => {
+  it("renders manifest and preserves provided index.html", () => {
+    const result = renderArtifactGallery({
+      profile: "design-variations",
+      sessionId: "abc123",
+      briefPath: "briefs/test.md",
+      briefContent: "## Target Component\nCard",
+      participants: ["artifact-renderer", "sentinel"],
+      source: {
+        files: [
+          {
+            path: "index.html",
+            content: "<html><body>Gallery</body></html>",
+            format: "html-static",
+          },
+          {
+            path: "variation-01.html",
+            content: "<html><body>One</body></html>",
+            format: "html-static",
+            variation_index: 1,
+          },
+        ],
+      },
+    });
+
+    expect(result.files.find((file) => file.path === "index.html")?.content).toContain("Gallery");
+    expect(result.files.find((file) => file.path === "manifest.json")?.content).toContain('"profile": "design-variations"');
+    expect(result.manifest.artifacts[0]?.format).toBe("html-static");
+  });
+
+  it("auto-generates index.html when only artifact files are provided", () => {
+    const result = renderArtifactGallery({
+      profile: "linkedin-post",
+      sessionId: "session-1",
+      briefPath: "briefs/post.md",
+      briefContent: "## Topic\nLaunch",
+      participants: ["content-director", "visual-designer"],
+      source: {
+        files: [
+          {
+            path: "variant-01.html",
+            content: "<html><body>Variant 1</body></html>",
+            format: "html-static",
+            platform: "linkedin",
+          },
+        ],
+      },
+    });
+
+    const index = result.files.find((file) => file.path === "index.html");
+    expect(index).toBeDefined();
+    expect(index?.content).toContain("variant-01");
+    expect(result.manifest.artifacts.some((artifact) => artifact.path === "variant-01.html")).toBe(true);
   });
 });

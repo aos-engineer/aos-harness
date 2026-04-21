@@ -3,9 +3,18 @@ import { join } from "node:path";
 import { Document, YAMLMap, parseDocument } from "yaml";
 import type { PackageManager, WizardResult } from "./init-types";
 
-export function mergeConfig(root: string, wizardResult: WizardResult, packageManager: PackageManager): string {
+export interface MergeConfigOptions {
+  ignoreExisting?: boolean;
+}
+
+export function mergeConfig(
+  root: string,
+  wizardResult: WizardResult,
+  packageManager: PackageManager,
+  options: MergeConfigOptions = {},
+): string {
   const configPath = join(root, ".aos", "config.yaml");
-  const raw = existsSync(configPath) ? readFileSync(configPath, "utf-8") : "";
+  const raw = !options.ignoreExisting && existsSync(configPath) ? readFileSync(configPath, "utf-8") : "";
   const doc = raw ? parseDocument(raw) : new Document({});
   if (doc.errors.length > 0) {
     throw new Error(doc.errors[0]?.message ?? "Invalid config.yaml");

@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { existsSync, mkdirSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { BaseWorkflow } from "../src/base-workflow";
+import { buildToolPolicy } from "../src/tool-policy";
+import { DEFAULT_TOOL_POLICY } from "@aos-harness/runtime/profile-schema";
 
 describe("BaseWorkflow", () => {
   const testDir = join(import.meta.dir, "__test-workspace__");
@@ -54,6 +56,39 @@ describe("BaseWorkflow", () => {
 
   it("readFile throws for missing file", async () => {
     expect(workflow.readFile(join(testDir, "missing.txt"))).rejects.toThrow("File not found");
+  });
+
+  it("writeFile respects the tool policy", async () => {
+    const restricted = new BaseWorkflow({ sendMessage: async () => ({ text: "" }) } as any, testDir, {
+      toolPolicy: buildToolPolicy(
+        {
+          ...DEFAULT_TOOL_POLICY,
+          write_file: { enabled: false },
+        },
+        {},
+      ),
+    });
+    expect(restricted.writeFile(join(testDir, "blocked.txt"), "nope")).rejects.toThrow(
+      'tool "write_file" is not enabled in profile',
+    );
+  });
+
+  it("readFile respects the tool policy", async () => {
+    const filePath = join(testDir, "policy-read.txt");
+    await workflow.writeFile(filePath, "policy");
+
+    const restricted = new BaseWorkflow({ sendMessage: async () => ({ text: "" }) } as any, testDir, {
+      toolPolicy: buildToolPolicy(
+        {
+          ...DEFAULT_TOOL_POLICY,
+          read_file: { enabled: false },
+        },
+        {},
+      ),
+    });
+    expect(restricted.readFile(filePath)).rejects.toThrow(
+      'tool "read_file" is not enabled in profile',
+    );
   });
 
   it("persistState and loadState round-trip", async () => {

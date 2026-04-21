@@ -146,6 +146,18 @@ export function getInitEditor(root: string): string {
   return typeof config?.editor === "string" ? config.editor : "code";
 }
 
+export function getInitMemoryProvider(root: string): "expertise" | "mempalace" | null {
+  const path = join(root, ".aos", "memory.yaml");
+  if (!existsSync(path)) return null;
+
+  try {
+    const parsed = yaml.load(readFileSync(path, "utf-8"), { schema: yaml.JSON_SCHEMA }) as { provider?: unknown } | null;
+    return parsed?.provider === "mempalace" || parsed?.provider === "expertise" ? parsed.provider : null;
+  } catch {
+    return null;
+  }
+}
+
 export function listKnownAdapters(): readonly AdapterName[] {
   return ADAPTER_ALLOWLIST;
 }

@@ -26,12 +26,26 @@
     },
     "format": {
       "type": "string",
-      "enum": ["markdown", "code", "structured-data", "diagram"],
+      "enum": ["markdown", "code", "structured-data", "diagram", "html-static", "html-interactive", "html-live"],
       "description": "The artifact's content format."
     },
     "content_path": {
       "type": "string",
       "description": "Path to the artifact's content file, relative to the session directory. Supports {{deliberation_dir}} template variable."
+    },
+    "platform": {
+      "type": "string",
+      "enum": ["linkedin", "twitter", "tiktok", "instagram", "generic"],
+      "description": "Optional platform tag for social/content artifacts."
+    },
+    "variation_index": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "1-indexed variation number for multi-variation artifact runs."
+    },
+    "channel_id": {
+      "type": "string",
+      "description": "Reserved for html-live artifacts using bidirectional channels."
     },
     "metadata": {
       "type": "object",

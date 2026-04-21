@@ -6,7 +6,8 @@ AOS Harness orchestrates specialized AI agents into structured deliberation and 
 2. Ensure you already have a supported vendor CLI installed (`claude`, `codex`, `gemini`, or `pi`)
 3. Install the matching AOS adapter package
 4. Run `aos init`
-5. Run `aos run`
+5. Run `aos validate` and `aos list`
+6. Run `aos run`
 
 ## Prerequisites
 
@@ -41,6 +42,14 @@ npm i -g @aos-harness/pi-adapter
 
 Versions publish lockstep with the CLI, so pin adapter and CLI versions together in CI or automated setup.
 
+### Optional host-native installs
+
+Adapters remain the runtime boundary. You can optionally add host-native install surfaces on top:
+
+- Codex: local plugin bundle under `plugins/aos-harness/`
+- Claude Code: project command pack under `plugins/aos-harness/claude-code/`
+- Pi: extension package via `@aos-harness/pi-adapter`
+
 ### 3. Initialize the project
 
 ```bash
@@ -65,10 +74,11 @@ aos init --non-interactive
 aos init --non-interactive --adapter codex
 ```
 
-### 4. Validate
+### 4. Validate and inspect
 
 ```bash
 aos validate
+aos list
 ```
 
 ## Your First Deliberation
@@ -94,6 +104,18 @@ aos run cto-execution \
 ```
 
 The CTO orchestrator drives a structured workflow across requirements, architecture, planning, security review, and final assembly.
+
+The rendered execution package is written to the profile's configured output path template, typically under `output/executions/...`.
+
+## Live observability
+
+You can stream transcript events to a platform endpoint while keeping the local transcript:
+
+```bash
+aos run strategic-council \
+  --brief core/briefs/sample-product-decision/brief.md \
+  --platform-url http://localhost:3001
+```
 
 ## Replay a Transcript
 

@@ -120,6 +120,11 @@
           "default": true,
           "description": "Can this agent review another agent's output and provide structured feedback?"
         },
+        "can_serve_artifacts": {
+          "type": "boolean",
+          "default": false,
+          "description": "Can this agent produce artifact output intended for preview-serving workflows?"
+        },
         "available_skills": {
           "type": "array",
           "items": { "type": "string" },
@@ -130,7 +135,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["text", "markdown", "code", "diagram", "structured-data"]
+            "enum": ["text", "markdown", "code", "diagram", "structured-data", "html"]
           },
           "default": ["text", "markdown"],
           "description": "What artifact formats this agent can produce."

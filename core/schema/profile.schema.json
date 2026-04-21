@@ -110,12 +110,21 @@
       "type": "object",
       "required": ["format", "path_template"],
       "properties": {
-        "format": { "enum": ["memo", "report", "checklist", "execution-package", "freeform"] },
+        "format": { "enum": ["memo", "report", "checklist", "execution-package", "freeform", "artifact-gallery"] },
         "path_template": { "type": "string" },
         "sections": { "type": "array", "items": { "type": "string" } },
         "artifacts": { "type": "array", "items": { "type": "object" } },
         "frontmatter": { "type": "array", "items": { "type": "string" } }
       }
+    },
+    "runtime_requirements": {
+      "type": "object",
+      "properties": {
+        "serve": { "type": "boolean", "default": false },
+        "channels": { "type": "boolean", "default": false },
+        "mempalace": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": false
     },
     "error_handling": {
       "type": "object",

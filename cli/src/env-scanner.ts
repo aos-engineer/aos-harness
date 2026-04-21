@@ -1,6 +1,7 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { homedir, tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 import { getAdapterDir, type AdapterName } from "./utils";
 import type {
   AdapterReadiness,
@@ -64,6 +65,7 @@ export interface ScanEnvironmentOptions {
   probeVendorCli?: (adapter: AdapterName, meta: AdapterMetadata) => Promise<VendorCliReadiness>;
   resolveAdapterDir?: (adapter: AdapterName) => string | null;
   findBinary?: (name: string) => string | null;
+  probeAdapterInfo?: (adapter: AdapterName, adapterDir: string, timeoutMs?: number) => Promise<Record<string, string> | undefined>;
 }
 
 function detectPackageManager(): PackageManager {
@@ -182,7 +184,6 @@ function getNpmGlobalDir(env: Record<string, string | undefined>, explicit?: str
 function scanAdapterPackage(
   adapter: AdapterName,
   cwd: string,
-  env: Record<string, string | undefined>,
   bunGlobalDir?: string | null,
   npmGlobalDir?: string | null,
   resolveAdapterDir: (adapter: AdapterName) => string | null = getAdapterDir,
@@ -239,6 +240,39 @@ function scanAdapterPackage(
     store: "unknown",
     loadable: false,
   };
+}
+
+async function defaultAdapterInfoProbe(
+  _adapter: AdapterName,
+  adapterDir: string,
+  timeoutMs = 3000,
+): Promise<Record<string, string> | undefined> {
+  const entry = join(adapterDir, "src", "index.ts");
+  if (!existsSync(entry)) return undefined;
+
+  const moduleUrl = `${pathToFileURL(entry).href}?scan=${Date.now()}`;
+  const withTimeout = async <T>(promise: Promise<T>, timeoutError: string): Promise<T> => {
+    let handle: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<never>((_, reject) => {
+          handle = setTimeout(() => reject(new Error(timeoutError)), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (handle) clearTimeout(handle);
+    }
+  };
+
+  const mod = await withTimeout(import(moduleUrl), "Adapter import timed out");
+  const probe = (mod as { probeAdapterInfo?: (opts?: { timeoutMs?: number }) => Promise<{ info?: Record<string, string> }> })
+    .probeAdapterInfo;
+  if (typeof probe !== "function") return undefined;
+
+  const result = await withTimeout(probe({ timeoutMs }), "Adapter probe timed out");
+
+  return result?.info;
 }
 
 export function deriveAdapterStatus(
@@ -304,6 +338,14 @@ function getMempalaceSocket(env: Record<string, string | undefined>): string {
   return join(env.TMPDIR || tmpdir(), "mempalace.sock");
 }
 
+function hasSocket(path: string): boolean {
+  try {
+    return statSync(path).isSocket();
+  } catch {
+    return false;
+  }
+}
+
 export async function scanEnvironment(options: ScanEnvironmentOptions = {}): Promise<ScanReport> {
   const cwd = options.cwd ?? process.cwd();
   const env = options.env ?? process.env;
@@ -312,6 +354,7 @@ export async function scanEnvironment(options: ScanEnvironmentOptions = {}): Pro
   const bunGlobalDir = getBunGlobalDir(env, options.bunGlobalDir);
   const npmGlobalDir = getNpmGlobalDir(env, options.npmGlobalDir);
   const findBinary = options.findBinary ?? ((name: string) => Bun.which(name) ?? null);
+  const probeAdapterInfo = options.probeAdapterInfo ?? defaultAdapterInfoProbe;
 
   const adapters = {} as Record<AdapterName, AdapterReadiness>;
   const notes: string[] = [];
@@ -319,7 +362,18 @@ export async function scanEnvironment(options: ScanEnvironmentOptions = {}): Pro
   for (const adapter of Object.keys(ADAPTER_METADATA) as AdapterName[]) {
     const meta = ADAPTER_METADATA[adapter];
     const vendorCli = await probeVendorCli(adapter, meta);
-    const aosAdapter = scanAdapterPackage(adapter, cwd, env, bunGlobalDir, npmGlobalDir, resolveAdapterDir);
+    const aosAdapter = scanAdapterPackage(adapter, cwd, bunGlobalDir, npmGlobalDir, resolveAdapterDir);
+    let info: Record<string, string> | undefined;
+
+    if (aosAdapter.installed && aosAdapter.resolvedFrom) {
+      try {
+        info = await probeAdapterInfo(adapter, aosAdapter.resolvedFrom, 3000);
+      } catch (error) {
+        aosAdapter.loadable = false;
+        notes.push(`${adapter}: adapter package is installed but could not be imported (${error instanceof Error ? error.message : String(error)}).`);
+      }
+    }
+
     const { status, statusHint } = deriveAdapterStatus(adapter, vendorCli, aosAdapter);
 
     const apiKeyMap: Partial<Record<AdapterName, string>> = {
@@ -339,12 +393,14 @@ export async function scanEnvironment(options: ScanEnvironmentOptions = {}): Pro
       aosAdapter,
       status,
       statusHint,
+      info,
     };
   }
 
   const socketPath = getMempalaceSocket(env);
   const mempalaceBinary = findBinary("mempalace");
-  if (mempalaceBinary && !existsSync(socketPath)) {
+  const mempalaceAvailable = hasSocket(socketPath);
+  if (mempalaceBinary && !mempalaceAvailable) {
     notes.push(`mempalace: binary found at ${mempalaceBinary}, but socket ${socketPath} was not detected. Set MEMPALACE_SOCKET if MemPalace uses a custom socket path.`);
   }
 
@@ -353,7 +409,7 @@ export async function scanEnvironment(options: ScanEnvironmentOptions = {}): Pro
     adapters,
     memory: {
       mempalace: {
-        available: existsSync(socketPath),
+        available: mempalaceAvailable,
         socketPath,
         binaryInstalled: !!mempalaceBinary,
         binaryPath: mempalaceBinary ?? undefined,

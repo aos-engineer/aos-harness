@@ -19,7 +19,7 @@ The harness ships with:
 - 6 orchestration profiles (strategic-council, cto-execution, security-review, delivery-ops, architecture-review, incident-response)
 - 5 domain packs (SaaS, healthcare, fintech, platform-engineering, personal-decisions)
 - 5 skill definitions (code-review, security-scan, task-decomposition, mempalace-read-write, mempalace-admin)
-- Platform adapters for Pi CLI, Claude Code, and extensible to any runtime
+- Platform adapters for Pi CLI, Claude Code, Codex, Gemini, and other compatible runtimes
 
 ---
 
@@ -55,6 +55,14 @@ npm i -g @aos-harness/gemini-adapter         # Google's Gemini CLI
 npm i -g @aos-harness/codex-adapter          # OpenAI's Codex CLI
 npm i -g @aos-harness/pi-adapter             # Pi (https://pi.dev)
 ```
+
+### Optional host-native installs
+
+Adapters remain the runtime boundary. This repo also ships thin host-native install surfaces on top:
+
+- `Codex`: [plugins/aos-harness](./plugins/aos-harness/) local plugin bundle
+- `Claude Code`: [plugins/aos-harness/claude-code](./plugins/aos-harness/claude-code/) project command pack
+- `Pi`: `@aos-harness/pi-adapter` package manifest with `pi.extensions`
 
 ### Initialize a project
 

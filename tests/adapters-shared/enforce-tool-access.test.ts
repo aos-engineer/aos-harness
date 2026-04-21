@@ -81,6 +81,33 @@ describe("BaseWorkflow.enforceToolAccess (spec D3.3)", () => {
     }
   });
 
+  test("readFile denials are also appended to transcript", async () => {
+    const tmp = mkdtempSync(join(tmpdir(), "aos-transcript-"));
+    const transcriptPath = join(tmp, "transcript.jsonl");
+    try {
+      const wf = new BaseWorkflow(mockRuntime, "/tmp", {
+        toolPolicy: buildToolPolicy(
+          {
+            ...DEFAULT_TOOL_POLICY,
+            read_file: { enabled: false },
+          },
+          {},
+        ),
+        transcriptPath,
+      });
+      await expect(wf.readFile("/tmp/missing.txt")).rejects.toThrow(/read_file/);
+      const lines = readFileSync(transcriptPath, "utf-8").trim().split("\n");
+      expect(lines).toHaveLength(1);
+      const entry = JSON.parse(lines[0]);
+      expect(entry.type).toBe("tool-denied");
+      expect(entry.tool).toBe("read_file");
+      expect(entry.agent).toBe("system");
+      expect(entry.detail).toBe("/tmp/missing.txt");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   test("listEnabledTools returns a frozen view", () => {
     const wf = new BaseWorkflow(mockRuntime, "/tmp", {
       toolPolicy: buildToolPolicy(DEFAULT_TOOL_POLICY, {}),

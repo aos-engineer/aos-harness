@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { $ } from "bun";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -69,5 +69,39 @@ actions: []
 
     expect(result.exitCode).toBe(3);
     expect(result.stderr.toString()).toContain("Selected adapters are not ready");
+  }, 60_000);
+
+  test("--force backs up a corrupt config before rewriting it", async () => {
+    const root = mkdtempSync(join(tmpdir(), "aos-init-"));
+    mkdirSync(join(root, ".aos"), { recursive: true });
+    writeFileSync(join(root, ".aos", "config.yaml"), "adapter: [broken\n");
+
+    const wizardPath = join(root, "wizard.yaml");
+    writeFileSync(
+      wizardPath,
+      `enabledAdapters:
+  - pi
+defaultAdapter: pi
+memory:
+  provider: expertise
+models:
+  economy: anthropic/claude-haiku-4-5
+  standard: anthropic/claude-sonnet-4-6
+  premium: anthropic/claude-opus-4-6
+editor: code
+actions: []
+`,
+    );
+
+    const result = await $`bun run ${join(process.cwd(), "cli/src/index.ts")} init --force --from-yaml ${wizardPath}`
+      .cwd(root)
+      .env({ ...process.env, CI: "1", AOS_NPM_GLOBAL_DIR: join(root, "no-npm"), AOS_BUN_GLOBAL_DIR: join(root, "no-bun") })
+      .nothrow()
+      .quiet();
+
+    expect(result.exitCode).toBe(0);
+    const backups = readdirSync(join(root, ".aos")).filter((file) => file.startsWith("config.yaml.backup."));
+    expect(backups.length).toBe(1);
+    expect(readFileSync(join(root, ".aos", "config.yaml"), "utf-8")).toContain("api_version: aos/config/v2");
   }, 60_000);
 });

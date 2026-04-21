@@ -15,6 +15,7 @@ import { applyActions } from "../init-applier";
 import type { AdapterName } from "../utils";
 import type { ScanReport, WizardResult } from "../init-types";
 import { runWizard } from "../init-wizard";
+import { clackPromptContext } from "../prompts";
 
 function readCliVersion(): string {
   try {
@@ -86,16 +87,35 @@ function writeScanReport(aosDir: string, scan: ScanReport): string {
   return scanPath;
 }
 
-function printAdapterInstallHints(version: string): void {
+function printAdapterInstallHints(version: string, packageManager: ScanReport["packageManager"]): void {
+  const managers: Array<"bun" | "npm"> = packageManager === "unknown" ? ["bun", "npm"] : [packageManager];
+  const renderCommand = (manager: "bun" | "npm", pkg: string) => `${manager} install -g ${pkg}@${version}`;
+  const packages = [
+    ["Claude Code", "@aos-harness/claude-code-adapter"],
+    ["Gemini CLI", "@aos-harness/gemini-adapter"],
+    ["Codex CLI", "@aos-harness/codex-adapter"],
+    ["Pi", "@aos-harness/pi-adapter"],
+  ] as const;
+
   console.log(`${c.bold("Next step: install an adapter")}
   Adapters augment the AI CLI you already use. Install the AOS adapter package that matches it:
+`);
 
-    Claude Code:   ${c.cyan(`npm i -g @aos-harness/claude-code-adapter@${version}`)}
-    Gemini CLI:    ${c.cyan(`npm i -g @aos-harness/gemini-adapter@${version}`)}
-    Codex CLI:     ${c.cyan(`npm i -g @aos-harness/codex-adapter@${version}`)}
-    Pi:            ${c.cyan(`npm i -g @aos-harness/pi-adapter@${version}`)}
+  for (const manager of managers) {
+    console.log(`  ${c.bold(manager)}:`);
+    for (const [label, pkg] of packages) {
+      console.log(`    ${label.padEnd(14)} ${c.cyan(renderCommand(manager, pkg))}`);
+    }
+    console.log("");
+  }
 
-  ${c.dim("Install one (or more) that matches the vendor CLI you already have.")}`);
+  console.log(`  ${c.dim("Install one (or more) that matches the vendor CLI you already have.")}`);
+}
+
+function backupCorruptedConfig(configPath: string): string {
+  const backupPath = `${configPath}.backup.${Date.now()}`;
+  cpSync(configPath, backupPath);
+  return backupPath;
 }
 
 export async function initCommand(args: ParsedArgs): Promise<void> {
@@ -144,13 +164,34 @@ export async function initCommand(args: ParsedArgs): Promise<void> {
 
   let wizardResult: WizardResult;
   if (fromYamlPath) {
-    wizardResult = parseWizardResultFile(fromYamlPath);
+    try {
+      wizardResult = parseWizardResultFile(fromYamlPath);
+    } catch (error) {
+      console.error(c.red(error instanceof Error ? error.message : String(error)));
+      process.exit(2);
+    }
   } else {
-    wizardResult = await runWizard(scan, cwd, args.flags.adapter);
+    const interactiveResult = await runWizard(scan, cwd, args.flags.adapter);
+    if (!interactiveResult) return;
+    wizardResult = interactiveResult;
   }
 
   mkdirSync(aosDir, { recursive: true });
-  writeFileSync(configPath, mergeConfig(cwd, wizardResult, scan.packageManager), "utf-8");
+  let renderedConfig: string;
+  try {
+    renderedConfig = mergeConfig(cwd, wizardResult, scan.packageManager);
+  } catch (error) {
+    if (force && existsSync(configPath)) {
+      const backupPath = backupCorruptedConfig(configPath);
+      console.log(c.yellow(`Backed up invalid config to ${backupPath}`));
+      renderedConfig = mergeConfig(cwd, wizardResult, scan.packageManager, { ignoreExisting: true });
+    } else {
+      console.error(c.red(`Existing .aos/config.yaml could not be parsed: ${error instanceof Error ? error.message : String(error)}`));
+      console.error(c.dim(`Run "aos init --force" to back it up and rewrite the file.`));
+      process.exit(2);
+    }
+  }
+  writeFileSync(configPath, renderedConfig, "utf-8");
 
   const projectName = projectNameFromCwd(cwd);
   if (!existsSync(memoryPath) || force) {
@@ -178,16 +219,29 @@ ${c.bold("Configuration")}
   Scan:      ${c.cyan(scanPath)}
 `);
 
-  printAdapterInstallHints(readCliVersion());
+  printAdapterInstallHints(readCliVersion(), scan.packageManager);
 
-  if (apply) {
+  const installable = wizardResult.actions.filter((action) => action.type === "install-adapter");
+  let shouldApply = apply;
+  if (!apply && isInteractive && installable.length > 0) {
+    const applyNow = await clackPromptContext.confirm({
+      message: `Install ${installable.length} missing adapter package${installable.length === 1 ? "" : "s"} now?`,
+      initialValue: false,
+    });
+    if (clackPromptContext.isCancel(applyNow)) {
+      clackPromptContext.cancel("Operation cancelled.");
+      process.exit(130);
+    }
+    shouldApply = !!applyNow;
+  }
+
+  if (shouldApply) {
     const result = await applyActions(wizardResult.actions);
     if (!result.ok) {
       console.error(c.red(`Some installs failed: ${result.failures.join(", ")}`));
       process.exit(1);
     }
   } else {
-    const installable = wizardResult.actions.filter((action) => action.type === "install-adapter");
     if (installable.length > 0) {
       console.log(c.dim(`Run "aos init --apply" to install missing adapter packages with ${scan.packageManager}.`));
     }

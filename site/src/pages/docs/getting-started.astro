@@ -3,11 +3,14 @@ import Base from '../../layouts/Base.astro';
 
 const sidebarLinks = [
   { id: 'prerequisites', label: 'Prerequisites' },
-  { id: 'install', label: 'Install' },
+  { id: 'install-cli', label: 'Install the CLI' },
+  { id: 'connect-runtime', label: 'Connect a Runtime' },
+  { id: 'optional-host-installs', label: 'Optional Host Installs' },
   { id: 'initialize', label: 'Initialize' },
+  { id: 'verify-setup', label: 'Verify Setup' },
   { id: 'first-deliberation', label: 'Run Your First Deliberation' },
   { id: 'execution-profile', label: 'Run an Execution Profile' },
-  { id: 'dev-execution', label: 'Dev Execution' },
+  { id: 'observability', label: 'Outputs and Observability' },
   { id: 'write-a-brief', label: 'Write a Brief' },
   { id: 'next-steps', label: 'Next Steps' },
 ];
@@ -58,7 +61,7 @@ const sidebarLinks = [
 
         <!-- Page Header -->
         <h1 class="text-4xl md:text-[48px] font-extrabold text-[var(--color-text)] leading-tight tracking-tight">Getting Started</h1>
-        <p class="text-[15px] text-[var(--color-text-secondary)] mt-2 mb-12">Install the CLI, connect it to the AI CLI you already use, and run your first session.</p>
+        <p class="text-[15px] text-[var(--color-text-secondary)] mt-2 mb-12">Install AOS, connect it to the AI runtime you already use, initialize your project, and run your first session.</p>
 
         <!-- Prerequisites -->
         <section id="prerequisites" class="mb-12">
@@ -81,26 +84,50 @@ const sidebarLinks = [
           </div>
         </section>
 
-        <!-- Install -->
-        <section id="install" class="mb-12">
+        <!-- Install the CLI -->
+        <section id="install-cli" class="mb-12">
           <div class="border-t border-[var(--color-border)] pt-12 mb-6">
-            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Install</h2>
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Install the CLI</h2>
           </div>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Install the CLI globally:</p>
           <pre><code>npm i -g aos-harness
 # or
 bun add -g aos-harness</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6">AOS does not replace your AI CLI. It orchestrates on top of it.</p>
+        </section>
 
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">Install the adapter package that matches the vendor CLI you already use:</p>
+        <!-- Connect a Runtime -->
+        <section id="connect-runtime" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Connect a Runtime</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Install the adapter package that matches the vendor CLI you already use:</p>
           <pre><code>npm i -g @aos-harness/claude-code-adapter
 npm i -g @aos-harness/codex-adapter
 npm i -g @aos-harness/gemini-adapter
 npm i -g @aos-harness/pi-adapter</code></pre>
-
           <div class="mt-6 bg-[var(--color-bg)] border-l-4 border-[var(--color-signal)] rounded-r-lg px-5 py-4">
             <p class="text-[12px] font-semibold uppercase text-[var(--color-signal)] mb-1">Tip</p>
-            <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">AOS adapters augment the vendor CLI you already use. The init flow will scan both the vendor CLI and the matching <code>@aos-harness/*-adapter</code> package before writing config.</p>
+            <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">Keep adapter and CLI versions pinned together. Adapters are published separately from <code>aos-harness</code>, but they ship lockstep.</p>
           </div>
+        </section>
+
+        <!-- Optional host installs -->
+        <section id="optional-host-installs" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Optional Host Installs</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">The adapter is the runtime boundary. You can optionally add host-native install surfaces on top of it:</p>
+          <ul class="mt-2 mb-4 space-y-2 text-[15px] text-[var(--color-text-secondary)] leading-relaxed list-disc list-inside">
+            <li><strong class="text-[var(--color-text)]">Codex</strong> &mdash; install the local plugin bundle under <code>plugins/aos-harness/</code></li>
+            <li><strong class="text-[var(--color-text)]">Claude Code</strong> &mdash; install the project command pack from <code>plugins/aos-harness/claude-code/</code></li>
+            <li><strong class="text-[var(--color-text)]">Pi</strong> &mdash; use the <code>@aos-harness/pi-adapter</code> extension package directly</li>
+          </ul>
+          <pre><code># Codex local plugin metadata
+plugins/aos-harness/.codex-plugin/plugin.json
+
+# Claude Code command-pack installer
+bash plugins/aos-harness/claude-code/install.sh</code></pre>
         </section>
 
         <!-- Initialize -->
@@ -123,6 +150,17 @@ aos init --non-interactive
 aos init --non-interactive --adapter codex</code></pre>
         </section>
 
+        <!-- Verify setup -->
+        <section id="verify-setup" class="mb-12">
+          <div class="border-t border-[var(--color-border)] pt-12 mb-6">
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Verify Setup</h2>
+          </div>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Before you run a session, verify both config and discovered assets:</p>
+          <pre><code>aos validate
+aos list</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6">The init flow checks vendor CLI readiness, adapter-package readiness, and writes a machine-readable report to <code>.aos/scan.json</code>.</p>
+        </section>
+
         <!-- Run Your First Deliberation -->
         <section id="first-deliberation" class="mb-12">
           <div class="border-t border-[var(--color-border)] pt-12 mb-6">
@@ -143,7 +181,7 @@ aos init --non-interactive --adapter codex</code></pre>
             <li>Concrete next actions</li>
           </ul>
 
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Output is saved under <code>output/</code>, and the transcript is appended under <code>.aos/sessions/</code>.</p>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Output is written under <code>output/</code>, and the transcript is appended under <code>.aos/sessions/&lt;session-id&gt;/transcript.jsonl</code>.</p>
         </section>
 
         <!-- Run an Execution Profile -->
@@ -154,20 +192,20 @@ aos init --non-interactive --adapter codex</code></pre>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">Execution profiles go beyond deliberation &mdash; they produce implementation-ready artifacts:</p>
           <pre><code>aos run cto-execution --brief core/briefs/sample-cto-execution/brief.md</code></pre>
 
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">The CTO Execution profile uses a structured 8-step workflow:</p>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">The CTO Execution profile uses a structured 8-step workflow with review gates and artifact assembly:</p>
           <ol class="space-y-2 text-[15px] text-[var(--color-text-secondary)] leading-relaxed list-decimal list-inside">
             <li><strong class="text-[var(--color-text)]">Requirements Analysis</strong> &mdash; Advocate and Strategist extract requirements from your brief</li>
             <li><strong class="text-[var(--color-text)]">Architecture Design</strong> &mdash; Architect produces an architecture decision record</li>
-            <li><strong class="text-[var(--color-text)]">Review Gate</strong> &mdash; You approve or send back with feedback</li>
-            <li><strong class="text-[var(--color-text)]">Task Breakdown</strong> &mdash; Operator breaks the plan into concrete engineering tasks</li>
-            <li><strong class="text-[var(--color-text)]">Risk Assessment</strong> &mdash; Sentinel reviews for security, reliability, and maintainability</li>
-            <li><strong class="text-[var(--color-text)]">Stress Test</strong> &mdash; Provocateur challenges the timeline, finds gaps</li>
-            <li><strong class="text-[var(--color-text)]">Final Assembly</strong> &mdash; CTO Orchestrator synthesizes everything</li>
-            <li><strong class="text-[var(--color-text)]">Output</strong> &mdash; Complete execution package saved to disk</li>
+            <li><strong class="text-[var(--color-text)]">Challenge and Review</strong> &mdash; operators and reviewers push back on weak spots</li>
+            <li><strong class="text-[var(--color-text)]">Phase Planning</strong> &mdash; Strategist and Operator sequence the work</li>
+            <li><strong class="text-[var(--color-text)]">Task Breakdown</strong> &mdash; Operator turns the plan into execution-ready tasks</li>
+            <li><strong class="text-[var(--color-text)]">Security Review</strong> &mdash; Sentinel checks for trust, abuse, and system risk</li>
+            <li><strong class="text-[var(--color-text)]">Stress Test</strong> &mdash; Provocateur challenges assumptions and the timeline</li>
+            <li><strong class="text-[var(--color-text)]">Final Assembly</strong> &mdash; the orchestrator produces the execution package</li>
           </ol>
 
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">Output is saved to:</p>
-          <pre><code>output/executions/2026-03-25-feature-brief-abc123/
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">Output is rendered from the workflow result into the profile's configured output path template, typically under:</p>
+          <pre><code>output/executions/&lt;date&gt;-&lt;brief&gt;-&lt;session&gt;/
   executive-summary.md
   architecture-decision-record.md
   task-breakdown.md
@@ -175,22 +213,21 @@ aos init --non-interactive --adapter codex</code></pre>
   implementation-checklist.md</code></pre>
         </section>
 
-        <!-- Dev Execution -->
-        <section id="dev-execution" class="mb-12">
+        <!-- Outputs and Observability -->
+        <section id="observability" class="mb-12">
           <div class="border-t border-[var(--color-border)] pt-12 mb-6">
-            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Dev Execution</h2>
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Outputs and Observability</h2>
           </div>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
-            For end-to-end development &mdash; from brief to working code &mdash; see the Dev Execution profile, which combines planning with agent-driven implementation.
-          </p>
-          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
-            Where <code>cto-execution</code> produces an engineering handoff package, <code>dev-execution</code> goes further: an Engineering Lead spawns domain-scoped worker agents that write code directly to your working directory. Planning and implementation happen in a single session, with four user approval gates along the way.
-          </p>
-          <pre class="mb-4"><code>aos run dev-execution --brief feature.md --domain saas</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">All session types write a local transcript. When you provide a platform endpoint, sessions also stream transcript events live:</p>
+          <pre class="mb-4"><code>aos run strategic-council \
+  --brief core/briefs/sample-product-decision/brief.md \
+  --platform-url http://localhost:3001</code></pre>
+          <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">This is useful for replay, observability, and downstream tooling:</p>
+          <pre><code>aos replay .aos/sessions/&lt;session-id&gt;/transcript.jsonl</code></pre>
           <div class="bg-[var(--color-bg)] border-l-4 border-[var(--color-signal)] rounded-r-lg px-5 py-4">
-            <p class="text-[12px] font-semibold uppercase text-[var(--color-signal)] mb-1">See Also</p>
+            <p class="text-[12px] font-semibold uppercase text-[var(--color-signal)] mb-1">Also Available</p>
             <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">
-              See <a href="/docs/dev-execution" class="text-[var(--color-signal)] no-underline hover:underline">Dev Execution</a> for the full nine-step flow, brief format, and configuration options.
+              For end-to-end implementation, see <a href="/docs/dev-execution" class="text-[var(--color-signal)] no-underline hover:underline">Dev Execution</a>, which extends execution mode into domain-scoped code-writing worker agents.
             </p>
           </div>
         </section>

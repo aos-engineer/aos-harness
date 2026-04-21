@@ -1,74 +1,24 @@
-# AOS Harness — Claude Code Adapter
+# @aos-harness/claude-code-adapter
 
-A code generator that reads AOS core config and produces static `.claude/` artifacts for use with Claude Code's native agent and command system.
+AOS Harness adapter for Anthropic's Claude Code runtime.
 
 ## What It Does
 
-This adapter is a **code generator**, not a runtime adapter. It reads AOS profile, agent, and domain configs, then produces:
+This is a runtime adapter, not a static generator. It lets `aos run` execute both:
 
-- **`.claude/agents/aos-<id>.md`** — One agent definition file per AOS agent (frontmatter YAML + markdown prompt)
-- **`.claude/commands/aos-<profile>.md`** — Slash command for running the profile as an orchestrated deliberation
-- **`CLAUDE-aos.md`** — Fragment to append to your project's `CLAUDE.md` with agent roster, commands, and constraint documentation
+- deliberation profiles through the arbiter bridge
+- execution profiles through the workflow runner
 
-## Usage
+It also emits transcript events to the local JSONL transcript and, when configured, to the live platform event endpoint.
 
-```bash
-# Generate from a profile
-bun run src/generate.ts --profile strategic-council --output .claude-aos
-
-# Generate with a domain overlay
-bun run src/generate.ts --profile strategic-council --domain fintech --output .claude-aos
-
-# Generate directly into your project's .claude directory
-bun run src/generate.ts --profile strategic-council --output /path/to/your/project/.claude
-```
-
-### Arguments
-
-| Argument | Required | Default | Description |
-|---|---|---|---|
-| `--profile <name>` | Yes | — | Profile to generate from (e.g., `strategic-council`) |
-| `--domain <name>` | No | — | Domain overlay to apply (e.g., `fintech`, `saas`) |
-| `--output <dir>` | No | `.claude-aos` | Output directory for generated files |
-
-## Installing Generated Artifacts
-
-After generating, copy the artifacts into your project:
+## Install
 
 ```bash
-cp -r .claude-aos/agents/ /path/to/project/.claude/agents/
-cp -r .claude-aos/commands/ /path/to/project/.claude/commands/
-cat .claude-aos/CLAUDE-aos.md >> /path/to/project/CLAUDE.md
+npm i -g @aos-harness/claude-code-adapter
 ```
 
-Then use the generated slash command in Claude Code:
+Pin the adapter to the same version as the `aos-harness` CLI.
 
-```
-/aos-strategic-council <your brief here>
-```
+## Host Surface
 
-## Limitations vs. Pi Adapter
-
-These are documented limitations — not bugs:
-
-- **No runtime constraint engine** — Constraints are embedded as advisory prompt instructions
-- **No bias limit enforcement** — Advisory only, the Arbiter is instructed but not blocked
-- **No real-time budget tracking** — Budget targets are advisory
-- **No TUI widgets or steerMessage** — Terminal text output only
-- **Parallel dispatch** — Uses Claude Code's native Agent tool for concurrency
-
-## Model Tier Mapping
-
-| AOS Tier | Claude Code Model |
-|---|---|
-| economy | haiku |
-| standard | sonnet |
-| premium | opus |
-
-## Development
-
-```bash
-bun install
-bun run src/generate.ts --profile strategic-council --output /tmp/test
-bun x tsc --noEmit  # typecheck
-```
+Claude Code does not currently use the Codex-style plugin marketplace flow here. The host-native install surface in this repo is the reusable command pack under [plugins/aos-harness/claude-code](../../plugins/aos-harness/claude-code/), which installs project slash commands on top of this adapter/runtime layer.

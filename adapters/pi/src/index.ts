@@ -2,7 +2,7 @@
 // Wires all 4 adapter layers together and makes the AOS Harness
 // runnable as a Pi extension.
 
-import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, statSync } from "node:fs";
+import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join, dirname, basename } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -12,13 +12,23 @@ import { Type } from "@sinclair/typebox";
 import { PiAgentRuntime } from "./agent-runtime";
 import { PiEventBus } from "./event-bus";
 import { PiUI } from "./ui";
-import { BaseWorkflow, composeAdapter, discoverAgents, createFlatAgentsDir, findProjectRoot } from "@aos-harness/adapter-shared";
+import { BaseWorkflow, composeAdapter, createAdapterProbeInfo, discoverAgents, createFlatAgentsDir, findProjectRoot } from "@aos-harness/adapter-shared";
 
 import { AOSEngine } from "@aos-harness/runtime";
-import type { AOSAdapter, ConstraintState, ProfileConfig } from "@aos-harness/runtime/types";
+import type { AOSAdapter, ConstraintState, ProfileConfig, TranscriptEntry } from "@aos-harness/runtime/types";
 import { resolveTemplate } from "@aos-harness/runtime/template-resolver";
 import { validateBrief } from "@aos-harness/runtime/config-loader";
-export { probeAdapterInfo } from "@aos-harness/adapter-shared";
+import type { ToolPolicy } from "@aos-harness/adapter-shared";
+
+export async function probeAdapterInfo(_opts?: { timeoutMs?: number }) {
+  return createAdapterProbeInfo({
+    runtime: "pi",
+    install_surface: "pi-extension",
+    execution_profiles: "supported",
+    deliberation_profiles: "supported",
+    transcript_streaming: "local+platform",
+  });
+}
 
 // ── Helpers ─────────────────────────────────────────────────────
 
@@ -82,6 +92,76 @@ function writeTranscript(sessionDir: string, transcript: unknown[]): void {
   writeFileSync(transcriptPath, lines, "utf-8");
 }
 
+function createTranscriptSink(opts: {
+  sessionDir: string;
+  platformUrl?: string;
+  sessionId: string;
+}) {
+  const transcriptPath = join(opts.sessionDir, "transcript.jsonl");
+  const buffer: TranscriptEntry[] = [];
+  const BATCH_SIZE = 20;
+  const FLUSH_INTERVAL_MS = 500;
+  const TIMEOUT_MS = 2000;
+
+  mkdirSync(opts.sessionDir, { recursive: true });
+
+  let flushing: Promise<void> | null = null;
+
+  const flush = async (): Promise<void> => {
+    if (!opts.platformUrl || buffer.length === 0) return;
+    const batch = buffer.splice(0, BATCH_SIZE);
+    try {
+      await fetch(`${opts.platformUrl}/api/sessions/${opts.sessionId}/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(batch),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch {
+      // Best-effort observability only.
+    }
+  };
+
+  const scheduleFlush = (): Promise<void> => {
+    if (!opts.platformUrl) return Promise.resolve();
+    if (!flushing) {
+      flushing = flush().finally(() => {
+        flushing = null;
+      });
+    }
+    return flushing;
+  };
+
+  const interval = opts.platformUrl
+    ? setInterval(() => {
+        void scheduleFlush();
+      }, FLUSH_INTERVAL_MS)
+    : null;
+
+  return {
+    enqueue(entry: TranscriptEntry) {
+      try {
+        appendFileSync(transcriptPath, JSON.stringify(entry) + "\n");
+      } catch {
+        // Do not fail the session if transcript append fails.
+      }
+      if (opts.platformUrl) {
+        buffer.push(entry);
+        if (buffer.length >= BATCH_SIZE) {
+          void scheduleFlush();
+        }
+      }
+    },
+    async shutdown() {
+      if (interval) clearInterval(interval);
+      await scheduleFlush();
+      while (buffer.length > 0) {
+        await flush();
+      }
+    },
+  };
+}
+
 // ── Extension ───────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
@@ -102,7 +182,8 @@ export default function (pi: ExtensionAPI) {
   const eventBus = new PiEventBus();
   const agentRuntime = new PiAgentRuntime(eventBus);
   const ui = new PiUI(pi);
-  const workflow = new BaseWorkflow(agentRuntime);
+  let workflow = new BaseWorkflow(agentRuntime);
+  let transcriptSink: ReturnType<typeof createTranscriptSink> | null = null;
 
   let extensionCtx: any = null;
 
@@ -278,10 +359,33 @@ export default function (pi: ExtensionAPI) {
         }
       }
 
+      sessionId = envSessionId || `session-${randomUUID().slice(0, 12)}`;
+      const deliberationDirPath = join(projectRoot, ".aos", "sessions", sessionId);
+      const transcriptFilePath = join(deliberationDirPath, "transcript.jsonl");
+      const platformUrl = process.env.AOS_PLATFORM_URL;
+      let resolvedToolPolicy: ToolPolicy | undefined;
+      if (process.env.AOS_TOOL_POLICY_JSON) {
+        try {
+          resolvedToolPolicy = JSON.parse(process.env.AOS_TOOL_POLICY_JSON) as ToolPolicy;
+        } catch (err: any) {
+          ctx.ui.notify(`Ignoring invalid AOS_TOOL_POLICY_JSON: ${err.message}`, "warning");
+        }
+      }
+
       // ── Discover agents and create flat directory ─────────
       const agentsDir = join(projectRoot, "core", "agents");
       const agentMap = discoverAgents(agentsDir);
       const flatAgentsDir = createFlatAgentsDir(projectRoot, agentMap);
+
+      workflow = new BaseWorkflow(agentRuntime, projectRoot, {
+        toolPolicy: resolvedToolPolicy,
+        transcriptPath: transcriptFilePath,
+      });
+      transcriptSink = createTranscriptSink({
+        sessionDir: deliberationDirPath,
+        platformUrl,
+        sessionId,
+      });
 
       // ── Compose adapter ───────────────────────────────────
       const adapter = composeAdapter(agentRuntime, eventBus, ui, workflow);
@@ -291,7 +395,11 @@ export default function (pi: ExtensionAPI) {
         engine = new AOSEngine(adapter, profileDir, {
           agentsDir: flatAgentsDir,
           domain: selectedDomain,
-          domainDir: selectedDomain ? domainsDir : undefined,
+          domainDir: selectedDomain ? dirname(domainDir!) : undefined,
+          workflowsDir: process.env.AOS_WORKFLOWS_DIR,
+          onTranscriptEvent: (entry) => {
+            transcriptSink?.enqueue(entry);
+          },
         });
       } catch (err: any) {
         ctx.ui.notify(`Failed to create engine: ${err.message}`, "error");
@@ -300,27 +408,46 @@ export default function (pi: ExtensionAPI) {
 
       // ── Start engine (validate brief) ─────────────────────
       try {
-        await engine.start(briefPath);
+        sessionStartTime = Date.now();
+        await engine.start(briefPath, {
+          domain: selectedDomain,
+          deliberationDir: deliberationDirPath,
+        });
       } catch (err: any) {
         ctx.ui.notify(`Failed to start session: ${err.message}`, "error");
         engine = null;
+        if (transcriptSink) {
+          await transcriptSink.shutdown();
+          transcriptSink = null;
+        }
         return;
       }
 
-      sessionActive = true;
-      sessionStartTime = Date.now();
-      sessionId = `session-${randomUUID().slice(0, 12)}`;
       arbiterCost = 0;
+      sessionActive = !engine.isWorkflowMode();
 
       // Read profile to get participant names
+      let profileRaw = "";
       try {
-        const profileRaw = readFileSync(join(profileDir, "profile.yaml"), "utf-8");
+        profileRaw = readFileSync(join(profileDir, "profile.yaml"), "utf-8");
         const idMatches = profileRaw.match(/agent:\s*(\w+)/g);
         participantNames = idMatches
           ? idMatches.map((m) => m.replace("agent: ", "").replace("agent:", "").trim())
           : [];
       } catch {
         participantNames = [];
+      }
+
+      if (engine.isWorkflowMode()) {
+        writeTranscript(deliberationDirPath, engine.getTranscript());
+        await transcriptSink?.shutdown();
+        transcriptSink = null;
+        ctx.ui.setStatus("aos", `AOS: ${basename(profileDir)} complete`);
+        ctx.ui.notify(
+          `Execution completed.\nProfile: ${basename(profileDir)}\nTranscript: ${transcriptFilePath}`,
+          "info",
+        );
+        return;
       }
 
       // Determine memo output path
@@ -344,8 +471,6 @@ export default function (pi: ExtensionAPI) {
           // Also include hyphenated aliases for backward compatibility
           const briefSlugValue = briefSlug;
           const constraintsStr = `${profileRaw.match(/min_minutes:\s*(\d+)/)?.[1] ?? "?"}-${profileRaw.match(/max_minutes:\s*(\d+)/)?.[1] ?? "?"} min`;
-          const deliberationDirPath = join(projectRoot, ".aos", "sessions", sessionId);
-          const transcriptFilePath = join(deliberationDirPath, "transcript.jsonl");
 
           const templateVars: Record<string, string> = {
             // Spec-compliant underscore names (Section 6.13)
@@ -677,6 +802,8 @@ export default function (pi: ExtensionAPI) {
         const sessionDir = join(projectRoot, ".aos", "sessions", sessionId);
         writeTranscript(sessionDir, engine.getTranscript());
       }
+      await transcriptSink?.shutdown();
+      transcriptSink = null;
 
       return {
         content: [{ type: "text" as const, text: resultText }],
@@ -741,6 +868,8 @@ export default function (pi: ExtensionAPI) {
           const sessionDir = join(projectRoot, ".aos", "sessions", sessionId);
           writeTranscript(sessionDir, engine.getTranscript());
         }
+        await transcriptSink?.shutdown();
+        transcriptSink = null;
         sessionActive = false;
         engine = null;
         ui.unblockInput();
@@ -842,6 +971,8 @@ export default function (pi: ExtensionAPI) {
     // Unblock input
     ui.unblockInput();
     sessionActive = false;
+    await transcriptSink?.shutdown();
+    transcriptSink = null;
 
     // Open in editor
     const editor = process.env.AOS_EDITOR || process.env.EDITOR || "code";
@@ -879,6 +1010,8 @@ export default function (pi: ExtensionAPI) {
       const sessionDir = join(projectRoot, ".aos", "sessions", sessionId);
       writeTranscript(sessionDir, engine.getTranscript());
     }
+    await transcriptSink?.shutdown();
+    transcriptSink = null;
 
     sessionActive = false;
     engine = null;

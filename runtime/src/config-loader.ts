@@ -106,6 +106,11 @@ export function loadProfile(profileDir: string): ProfileConfig {
 
   // Parse optional workflow field
   config.workflow = config.workflow ?? null;
+  config.runtime_requirements = {
+    serve: config.runtime_requirements?.serve ?? false,
+    channels: config.runtime_requirements?.channels ?? false,
+    mempalace: config.runtime_requirements?.mempalace ?? false,
+  };
 
   // Parse optional tools block (spec D3.1). Malformed → throw (caller surfaces as exit 3).
   try {
