@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.5 — Long-running deliberation timeout fix
+
+### Changed
+
+- Strategic Council now allows long-running arbiter and agent turns by raising the profile timeout to 3600 seconds.
+- Release versions are bumped in lockstep to `0.8.5`.
+
+### Fixed
+
+- Adapter runtime message calls now honor profile-level `agent_timeout_seconds` instead of always aborting at 120 seconds.
+- Claude Code Strategic Council runs can continue past the previous 120-second arbiter cutoff when launched through the updated local/runtime path.
+
 ## 0.8.4 — Release hardening and adapter preflight
 
 ### Added

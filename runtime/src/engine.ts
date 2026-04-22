@@ -421,11 +421,12 @@ export class AOSEngine {
     // Read error_handling config from profile (spec Section 6.5)
     const errorHandling = this.profile.error_handling;
     const failureAction = errorHandling?.on_agent_failure ?? "skip";
+    const timeoutMs = this.getAgentTimeoutMs();
 
     // Dispatch parallel agents
     if (routing.parallel.length > 0) {
       const parallelHandles = routing.parallel.map((id) => this.handles.get(id)!);
-      const parallelResponses = await this.adapter.dispatchParallel(parallelHandles, message);
+      const parallelResponses = await this.adapter.dispatchParallel(parallelHandles, message, { timeoutMs });
 
       for (let i = 0; i < routing.parallel.length; i++) {
         const resp = parallelResponses[i];
@@ -465,7 +466,7 @@ export class AOSEngine {
     // Dispatch sequential agents (speaks-last)
     for (const agentId of routing.sequential) {
       const handle = this.handles.get(agentId)!;
-      const response = await this.adapter.sendMessage(handle, message);
+      const response = await this.adapter.sendMessage(handle, message, { timeoutMs });
 
       // Handle agent failure per error_handling config
       if (response.status === "failed") {
@@ -610,7 +611,9 @@ export class AOSEngine {
           });
         }
         const handle = this.handles.get(orchestratorId)!;
-        const response = await this.adapter.sendMessage(handle, message);
+        const response = await this.adapter.sendMessage(handle, message, {
+          timeoutMs: this.getAgentTimeoutMs(),
+        });
         this.pushTranscript({
           type: "response",
           timestamp: new Date().toISOString(),
@@ -762,6 +765,14 @@ export class AOSEngine {
 
   getDomainEnforcer(agentId: string): DomainEnforcer | null {
     return this.domainEnforcers.get(agentId) ?? null;
+  }
+
+  private getAgentTimeoutMs(): number | undefined {
+    const seconds = this.profile.error_handling?.agent_timeout_seconds;
+    if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds <= 0) {
+      return undefined;
+    }
+    return Math.round(seconds * 1000);
   }
 
   /** Push an external transcript entry (e.g., steer events from the adapter). */

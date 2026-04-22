@@ -430,6 +430,7 @@ export interface MessageOpts {
   signal?: AbortSignal;
   onStream?: (partial: string) => void;
   extraArgs?: string[];
+  timeoutMs?: number;
 }
 
 export interface AgentResponse {
@@ -665,7 +666,11 @@ export interface UIAdapter {
 }
 
 export interface WorkflowAdapter {
-  dispatchParallel(agents: AgentHandle[], message: string, opts?: { signal?: AbortSignal; onStream?: (agentId: string, partial: string) => void }): Promise<AgentResponse[]>;
+  dispatchParallel(
+    agents: AgentHandle[],
+    message: string,
+    opts?: { signal?: AbortSignal; onStream?: (agentId: string, partial: string) => void; timeoutMs?: number },
+  ): Promise<AgentResponse[]>;
   isolateWorkspace(): Promise<{ path: string; cleanup: () => Promise<void> }>;
   writeFile(path: string, content: string): Promise<void>;
   readFile(path: string): Promise<string>;

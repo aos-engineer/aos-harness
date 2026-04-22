@@ -179,8 +179,8 @@ export abstract class BaseAgentRuntime implements AgentRuntimeAdapter {
   async sendMessageWithRetry(
     handle: AgentHandle, message: string, opts?: MessageOpts,
     maxRetries: number = 2, backoff: "exponential" | "linear" = "exponential",
-    timeoutMs: number = 120000,
   ): Promise<AgentResponse> {
+    const timeoutMs = opts?.timeoutMs ?? 120000;
     let lastResponse: AgentResponse | null = null;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const response = await this.sendMessageOnce(handle, message, opts, timeoutMs);

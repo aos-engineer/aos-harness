@@ -69,6 +69,21 @@ describe("AOSEngine", () => {
     expect(state.budget_spent).toBeGreaterThan(0);
   });
 
+  it("delegateMessage passes the profile agent timeout to adapter calls", async () => {
+    const adapter = new MockAdapter();
+    const engine = new AOSEngine(
+      adapter,
+      join(fixturesDir, "profiles", "test-council"),
+      { agentsDir: join(fixturesDir, "agents") },
+    );
+
+    await engine.delegateMessage("all", "What should we do?");
+
+    const sendMessageCall = adapter.calls.find((call) => call.method === "sendMessage");
+    expect(sendMessageCall).toBeDefined();
+    expect(sendMessageCall?.args[2]).toMatchObject({ timeoutMs: 60000 });
+  });
+
   it("start() validates brief and initializes session", async () => {
     const adapter = new MockAdapter();
     const engine = new AOSEngine(

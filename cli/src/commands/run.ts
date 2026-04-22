@@ -519,6 +519,10 @@ ${c.bold(`AOS ${sessionType} Session`)}
       useVendorDefaultModel: runtimeModelConfig.useVendorDefaultModel,
       toolPolicy,
       platformUrl: platformUrl ?? undefined,
+      agentTimeoutMs:
+        typeof profile.error_handling?.agent_timeout_seconds === "number"
+          ? profile.error_handling.agent_timeout_seconds * 1000
+          : undefined,
     });
   }
 }

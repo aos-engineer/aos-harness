@@ -58,7 +58,7 @@ constraints:
     max: 8
 
 error_handling:
-  agent_timeout_seconds: 120
+  agent_timeout_seconds: 3600           # Strategic deliberations can legitimately run 2-60 minutes per agent turn
   retry_policy:
     max_retries: 2
     backoff: exponential

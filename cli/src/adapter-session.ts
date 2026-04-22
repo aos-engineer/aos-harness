@@ -65,6 +65,7 @@ export interface AdapterSessionConfig {
    * also batched to `${platformUrl}/api/sessions/:id/events`.
    */
   platformUrl?: string;
+  agentTimeoutMs?: number;
 }
 
 function createStreamingPrinter() {
@@ -523,6 +524,7 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
         response = await adapter.sendMessage(arbiterHandle, kickoff, {
           extraArgs: mcpArgs,
           onStream: (partial) => printer.push(partial),
+          timeoutMs: config.agentTimeoutMs,
         });
       } finally {
         clearInterval(heartbeat);

@@ -68,7 +68,7 @@ export class MockAdapter implements AOSAdapter, PersistenceAdapter {
   }
 
   async sendMessage(handle: AgentHandle, message: string, opts?: MessageOpts): Promise<AgentResponse> {
-    this.record("sendMessage", handle.agentId, message);
+    this.record("sendMessage", handle.agentId, message, opts);
     const text = this.agentResponses.get(handle.agentId) ?? `Response from ${handle.agentId}`;
     return {
       text,
@@ -254,12 +254,12 @@ export class MockAdapter implements AOSAdapter, PersistenceAdapter {
   async dispatchParallel(
     agents: AgentHandle[],
     message: string,
-    opts?: { signal?: AbortSignal; onStream?: (agentId: string, partial: string) => void },
+    opts?: { signal?: AbortSignal; onStream?: (agentId: string, partial: string) => void; timeoutMs?: number },
   ): Promise<AgentResponse[]> {
-    this.record("dispatchParallel", agents.map((a) => a.agentId), message);
+    this.record("dispatchParallel", agents.map((a) => a.agentId), message, opts);
     const responses: AgentResponse[] = [];
     for (const agent of agents) {
-      const response = await this.sendMessage(agent, message);
+      const response = await this.sendMessage(agent, message, { timeoutMs: opts?.timeoutMs });
       responses.push(response);
     }
     return responses;

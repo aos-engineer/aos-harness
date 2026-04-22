@@ -68,11 +68,12 @@ export class BaseWorkflow implements WorkflowAdapter {
   async dispatchParallel(
     handles: AgentHandle[],
     message: string,
-    opts?: { signal?: AbortSignal; onStream?: (agentId: string, partial: string) => void },
+    opts?: { signal?: AbortSignal; onStream?: (agentId: string, partial: string) => void; timeoutMs?: number },
   ): Promise<AgentResponse[]> {
     const tasks = handles.map((handle) =>
       this.agentRuntime.sendMessage(handle, message, {
         signal: opts?.signal,
+        timeoutMs: opts?.timeoutMs,
         onStream: opts?.onStream
           ? (partial: string) => opts.onStream!(handle.agentId, partial)
           : undefined,
