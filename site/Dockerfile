@@ -45,8 +45,10 @@ COPY site/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build --chown=101:101 /app/site/dist /usr/share/nginx/html
 
 # Health check
+# Use 127.0.0.1 instead of localhost because localhost may resolve to ::1,
+# while this static config only binds IPv4 unless IPv6 is explicitly enabled.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -q --spider http://localhost:8080/ || exit 1
+  CMD wget -q --spider http://127.0.0.1:8080/ || exit 1
 
 EXPOSE 8080
 
