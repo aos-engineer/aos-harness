@@ -68,11 +68,20 @@ Pure functions, no I/O beyond what callers explicitly pass in.
 
 ## Brief schema
 
+### Heading conventions
+
+- **Title** is the H1 line, matching `^# Brief: (.+)$`. The title text is everything after the literal `Brief: ` (including any further colons, e.g. `# Brief: API Platform: Phase 2` is title "API Platform: Phase 2"). One title H1 per file; subsequent H1 headings are ignored.
+- **Heading match** is exact-string against the canonical name, case-insensitive, leading/trailing whitespace trimmed. `## ` and `### ` are both accepted as section headers; deeper levels (H4+) are treated as in-section content. Sub-headings (e.g. `### Sub-section` under `## Situation`) belong to the parent section and do not start a new top-level section.
+- **Aliases** are declared in a fixed map, not derived heuristically. The full alias table for v1:
+  - `## Feature / Vision` ⇔ `## Vision` (execution kind)
+  - No other aliases. New aliases require a code change and a test.
+- **Placeholders.** The validator treats HTML comments (`<!-- ... -->`) as whitespace when checking section emptiness. A section containing only `<!-- TODO: describe the situation -->` is empty for both strict and lint validation; this means a freshly-rendered template fails strict validation (correct — the user hasn't filled it in) and trips lint warnings if run unfilled (correct — the user should be told).
+
 ### Deliberation kind
 
 | Section | Required | Notes |
 |---------|----------|-------|
-| `# Brief: <title>` | yes | Top-level H1 starting with `Brief:`. |
+| `# Brief: <title>` | yes | Top-level H1 starting with `Brief: `. |
 | `**Context files:**` line | no | Optional reference list under title. |
 | `## Situation` | yes | What's happening, who is involved, what triggered the decision. |
 | `## Stakes` | yes | Upside / downside framing. |
@@ -85,8 +94,8 @@ Pure functions, no I/O beyond what callers explicitly pass in.
 
 | Section | Required | Notes |
 |---------|----------|-------|
-| `# Brief: <title>` | yes | Top-level H1 starting with `Brief:`. |
-| `## Feature / Vision` | yes | What we're building and why. Accepts `## Vision` as alias. |
+| `# Brief: <title>` | yes | Top-level H1 starting with `Brief: `. |
+| `## Feature / Vision` | yes | What we're building and why. `## Vision` accepted as alias (see Heading conventions above). |
 | `## Context` | yes | Environment, prior art, repo state. |
 | `## Constraints` | yes | Non-negotiables. |
 | `## Stakeholders` | no | Who consumes this output. |
@@ -94,13 +103,18 @@ Pure functions, no I/O beyond what callers explicitly pass in.
 | `## Open Questions` | no | Known unknowns. |
 | `## Success Criteria` | yes | How we know we're done. |
 
-### Auto-detection
+### Kind selection
 
-When `expectedKind` is not supplied to `validateBrief`, count which required-section set the document better matches (number of present required headings per kind). The required-section sets are disjoint by construction (`Key Question` is deliberation-only, `Success Criteria` is execution-only), so a well-formed brief picks one kind unambiguously. Edge cases:
+`expectedKind` short-circuits any heuristics. The two paths:
 
-- **No required sections from either set** (essentially an empty brief): return `detectedKind: null` and an error "Cannot auto-detect brief kind; specify `--kind`."
-- **Tie** (e.g., a brief that has `## Situation` and `## Context` but neither distinguishing heading): return `detectedKind: null` with the same error.
-- **Better match for one kind**: return that kind, then validate against it (which may still surface missing-section errors).
+**1. `expectedKind` supplied (the common case — `aos run`, `aos brief save`, `aos brief validate --kind`).** Validate directly against that kind. Missing required sections produce specific errors ("Missing required section: `## Key Question`"). When the document is missing all of `expectedKind`'s requireds AND contains both kind-discriminating headings of the *other* kind (`Key Question` for deliberation, `Success Criteria` for execution), append a hint to the error: "This brief looks shaped for `<other-kind>`. Either run a `<other-kind>` profile or re-author with `aos create brief --kind <expectedKind>`." This is just a more actionable variant of missing-required, not a separate "kind mismatch" warning.
+
+**2. `expectedKind` not supplied (only `aos brief validate <path>` with no `--kind`).** Run heuristic auto-detection: score each kind by the count of its required headings present in the document (overlapping headings like `## Constraints` count for both). Then:
+
+- **High-confidence match** (one kind scores ≥ 2 required headings AND outscores the other kind): return that kind, then validate against it.
+- **Low-confidence** (best score < 2, OR scores tied): return `detectedKind: null` and an error that names what's missing instead of pretending the kind is the issue: "Brief is missing too many required sections to determine kind. Specify `--kind deliberation` or `--kind execution`, or author from scratch with `aos create brief`."
+
+Auto-detection is never run when `expectedKind` is supplied — there is no parallel "what does this brief look like" signal at run time.
 
 ### Validator behavior
 
@@ -126,9 +140,13 @@ When `expectedKind` is not supplied to `validateBrief`, count which required-sec
 8. Write file (atomic: write to `<path>.tmp` then rename). Refuse to overwrite without `--force`.
 9. Print: green "Brief created at `<path>`" + dim "Run with: `aos run <profile> --brief <path>`".
 
-`--idea "<text>"` pre-fill is naive in CLI mode: regex-extract candidate sentences for "situation" (sentences containing "is", "are", "currently", "now"), "stakes" (sentences with "if", "because", "risk", "$"), etc. Quality is intentionally rough — users who want polished output should run the skill flow instead.
+`--idea "<text>"` and `--from-notes <file>` do **not** pre-fill specific sections. Section-specific pre-fill via heuristic regex was rejected during design review: the failure mode isn't "rough output the user can fix," it's "misleading output the user accepts because it looks confident" (a constraint sentence pre-filled into Situation reads plausibly enough that users miss the error). Instead:
 
-`--from-notes <file>` is identical to `--idea` but reads the seed text from a file. The skill flow uses this to pass collected user notes to the CLI without exposing the agent's full conversation.
+- The seed text is rendered as an HTML comment block at the top of the template: `<!-- raw idea seed: ... -->`. The validator treats HTML comments as whitespace, so the comment doesn't affect emptiness checks.
+- During the prompt loop, the seed text is also displayed once above the first prompt as context: `Your seed: <text>` (dim). The user can copy/paste from it into individual section answers as they go.
+- This makes the seed text useful (always in scroll-back as the user types) without making it lie about which content belongs in which section.
+
+Skill mode uses `--from-notes` for the same reason: the host agent passes user notes to the CLI as raw text, not as section-mapped content. The agent does the actual section drafting itself (where it can do it well) before calling `aos brief save`.
 
 `--non-interactive` requires all required sections to be supplied via flags (`--situation`, `--stakes`, `--constraints`, `--key-question` for deliberation; `--feature`, `--context`, `--constraints`, `--success-criteria` for execution). Errors out if anything is missing. Used by skills that have already collected everything.
 
@@ -139,42 +157,55 @@ When `expectedKind` is not supplied to `validateBrief`, count which required-sec
 1. Greet the user and ask: "Are we building something (execution) or deciding something (deliberation)?"
 2. Conduct a conversation in the host agent's natural style, gathering content for each required section. The schema (inlined in SKILL.md) tells the agent what every section must convey.
 3. When the agent has enough material, draft polished markdown for the full brief.
-4. Validate by calling `aos brief save <path> --kind <kind> --from-stdin` and piping the drafted markdown.
-5. If save fails (validator caught a missing or empty section), the CLI's error tells the agent which section to fix. Re-draft that section and re-save.
-6. On success, report the path and the `aos run` invocation.
+4. Write the drafted markdown to a tempfile (e.g. via the agent's normal file-write tool to `<harness-tmp>/aos-brief-draft.md`), then call:
+
+   `aos brief save ./briefs/<slug>/brief.md --kind <kind> --from-file <tempfile>`
+
+   `--from-file` is the documented happy path; it avoids shell-quoting issues with multi-line markdown that can contain backticks, dollar signs, or single quotes. `--from-stdin` exists as an alternate but is not the default skill flow.
+5. The CLI runs strict validation. On failure, stderr lists each issue with section name (e.g. `Section "## Stakes" is empty`). The agent re-drafts only the failing sections, rewrites the tempfile, and re-runs `aos brief save`. (See open questions on structured-error output.)
+6. On success, the CLI prints the absolute path. The agent reports the path AND a generic next command, leaving the profile choice to the user: `Run with: aos run <profile-name> --brief <path>`. The agent should NOT guess a profile — list the available profiles via `aos list profiles` if the user asks for a recommendation.
 
 The skill does **not** call `aos brief template` first in the common path — drafting straight to `aos brief save` is one fewer round-trip. `aos brief template` exists for cases where the agent wants to show the user the structure before drafting (a teaching mode the user can opt into).
 
 ## Run-time integration
 
-In `cli/src/commands/run.ts`, after `briefPath` is resolved (around line 199, before the workflow-dir resolution):
+In `cli/src/commands/run.ts`, after `briefPath` is resolved (around line 199, before the workflow-dir resolution). The output is a single summary line — never a stream of per-issue warnings — so a clean brief gives positive confirmation and a noisy one points the user at the diagnostic command:
 
 ```ts
 const briefContent = readFileSync(briefPath, "utf-8");
 const expectedKind = isExecutionProfile ? "execution" : "deliberation";
 const briefValidation = validateBrief(briefContent, expectedKind);
 
-for (const warn of briefValidation.warnings) {
-  console.error(c.yellow(`⚠ Brief: ${warn.message}`));
-}
-for (const err of briefValidation.errors) {
-  console.error(c.yellow(`⚠ Brief: ${err.message}`));
-}
-if (briefValidation.detectedKind && briefValidation.detectedKind !== expectedKind) {
+const errCount = briefValidation.errors.length;
+const warnCount = briefValidation.warnings.length;
+
+if (errCount === 0 && warnCount === 0) {
+  console.error(c.dim(`✓ Brief lint: ${expectedKind} brief looks good.`));
+} else {
   console.error(c.yellow(
-    `⚠ Brief shape (${briefValidation.detectedKind}) doesn't match profile type (${expectedKind}); output may be unaligned.`
+    `⚠ Brief lint: ${errCount} error${errCount === 1 ? "" : "s"}, ${warnCount} warning${warnCount === 1 ? "" : "s"}.`
   ));
-}
-if (briefValidation.errors.length > 0 || briefValidation.warnings.length > 0) {
   console.error(c.dim(
     `  Run \`aos brief validate ${briefPath}\` for details, or \`aos create brief\` to author from a template.`
   ));
 }
 ```
 
-Lint mode never calls `process.exit`. Errors and warnings both surface as yellow `⚠ Brief:` lines (matches existing version-mismatch warning style). The hint at the end points at the diagnostic and authoring commands.
+Always one line out, regardless of state — users can confirm linting ran and quickly see "is this brief OK?" Detail surfaces only when explicitly requested via `aos brief validate`.
 
-The `expectedKind` determination uses the same `isExecutionProfile` boolean already computed in `run.ts` for session display (line ~439). No new profile inspection needed.
+Lint mode never calls `process.exit`. The summary line is yellow when there are errors or warnings, dim when clean (visible enough to confirm linting ran, quiet enough not to clutter the preflight). The hint command is suppressed when the brief is clean.
+
+The `expectedKind` determination uses the same `isExecutionProfile` boolean already computed in `run.ts` for session display (line ~439). No new profile inspection needed. Auto-detection is never invoked here — `expectedKind` is always known at this point, per the kind-selection rules above.
+
+## Write semantics (shared across all create paths)
+
+Every command that writes a brief file (`aos create brief`, `aos brief save`) shares the same I/O contract:
+
+- **Atomic write.** Writes go to `<path>.tmp.<pid>` first, then `rename()` to `<path>`. The `.tmp.<pid>` extension scopes leftover temps per-process so concurrent runs don't stomp each other.
+- **Cleanup on failure.** A `try/finally` (or equivalent in Bun) deletes the `.tmp.<pid>` file if the rename never happens (process killed, validator failure caught after write, disk full, permission flip). Leftover temps from prior crashed runs are also cleaned opportunistically when the same path is targeted again.
+- **Directory creation.** The parent directory (`./briefs/<slug>/`) is created with `mkdir -p` semantics if missing. Permission errors on directory creation surface as a clean error: "Cannot create directory `<path>`: permission denied. Use `--out <path>` to write somewhere else."
+- **Read-only filesystems.** `aos create brief` detects `EROFS` / `EACCES` on the chosen target and prints a one-line error pointing at `--out`. Never produces a stack trace.
+- **`--force`.** Both `aos create brief` and `aos brief save` accept `--force` to overwrite an existing brief. Without `--force`, an existing target is an error: "Brief already exists at `<path>`. Pass `--force` to overwrite." The `--force` semantics are identical across both commands; there is exactly one write path internally.
 
 ## Plugin packaging detail
 
@@ -206,14 +237,19 @@ to repo-local AOS_HARNESS_ROOT)
    - Deliberation: Situation, Stakes, Constraints, Key Question
    - Execution: Feature/Vision, Context, Constraints, Success Criteria
 4. Draft the brief markdown in your own voice — clear, specific, no filler.
-5. Save and validate by piping the markdown to `aos brief save`:
+5. Write the draft to a tempfile (use your normal file-write tool), then save:
 
-   echo "<drafted markdown>" | "$AOS_WRAPPER" brief save \
-     "./briefs/<slug>/brief.md" --kind <kind> --from-stdin
+   "$AOS_WRAPPER" brief save "./briefs/<slug>/brief.md" \
+     --kind <kind> --from-file "<tempfile>"
+
+   Use --from-file (not --from-stdin) — markdown often contains backticks,
+   dollar signs, and single quotes that break shell piping.
 
 6. If validation fails, the CLI tells you which section is missing or empty.
-   Fix that section and re-save.
-7. Report the file path and the `aos run` command the user should use next.
+   Re-draft only that section, rewrite the tempfile, re-run save.
+7. Report the saved path. Suggest `aos run <profile> --brief <path>` but
+   leave <profile> as a placeholder — don't guess. If the user asks for a
+   profile recommendation, run `aos list profiles` and offer based on kind.
 
 ## Schema (must follow)
 
@@ -264,7 +300,7 @@ Add to the "Supported Resource Types" section:
 ### Unit tests
 
 - **`tests/cli/brief-schema.test.ts`** — covers `briefSchema(kind)` returns the expected required/optional lists; the two kinds are non-overlapping where intended (Key Question only deliberation; Success Criteria only execution).
-- **`tests/cli/brief-validate.test.ts`** — required-section permutations (each missing in turn produces the right error); empty-body detection; case-insensitive heading match; H3 acceptance; auto-detection happy path and ambiguous case; mismatched-kind detection.
+- **`tests/cli/brief-validate.test.ts`** — required-section permutations (each missing in turn produces the right error); empty-body detection (strict vs lint); case-insensitive heading match; H3 acceptance; H4+ treated as in-section content; HTML-comment-only sections detected as empty; `## Vision` alias accepts as `## Feature / Vision`; auto-detection high-confidence (one kind ≥ 2); auto-detection low-confidence returns `null` with "missing too many sections" message; missing-requireds-with-other-kind-discriminating-headings adds the "looks shaped for `<other-kind>`" hint; existing committed briefs in `core/briefs/` all validate clean against their expected kinds (regression guard).
 - **`tests/cli/brief-template.test.ts`** — snapshot per kind; prefill merging puts user content under the right header and leaves placeholders for unfilled sections; placeholder format is consistent.
 
 ### Integration tests
@@ -319,9 +355,28 @@ README.md                                     # mention `aos create brief` in qu
 ## Risks and open questions
 
 - **Gemini extension schema.** The exact manifest format may have changed since the existing `.codex-plugin/plugin.json` was written. Implementation step 1 verifies the current Gemini CLI extension schema and adjusts `extension.json` shape accordingly. Not a design risk — just a docs lookup during implementation.
-- **Heading parsing edge cases.** Briefs with mixed heading levels (e.g., `## Situation` and later `### Sub-section`) — the validator must not treat sub-headings as new top-level sections. Mitigation: parse only `^#{1,3} ` lines and track depth.
-- **`--from-stdin` on Windows.** Bun's stdin handling on Windows can be flaky for long inputs. Mitigation: also accept `--from-file <path>` in `aos brief save`, used by skills as a fallback if stdin truncation is detected.
+- **Heading parsing edge cases.** Briefs with mixed heading levels (e.g., `## Situation` and later `### Sub-section`) — the validator must not treat sub-headings as new top-level sections. Mitigation: parse only `^#{1,3} ` lines and track depth (H4+ counts as in-section content per the heading conventions section).
+- **`--from-stdin` on Windows.** Bun's stdin handling on Windows can be flaky for long inputs. Mitigation: skills use `--from-file` as the documented happy path; `--from-stdin` is the alternate.
 - **Slug collisions across CWD and `--shared`.** A user might author `./briefs/foo` and then `aos create brief foo --shared`, ending up with two `foo` briefs in different roots. Acceptable: the path is explicit in `aos run --brief <path>`, and the create command prints the resolved path.
+- **Open question — structured save errors.** Today `aos brief save` prints human-readable issues to stderr. When the skill flow has multiple errors at once, the agent has to re-draft the full brief and re-save, which can introduce regressions in already-good sections. v1 ships text errors; if skill iterations show regression issues in practice, add a `--json` output flag to `aos brief save` so agents can see structured issues `[{section, kind, message}]` and patch surgically. A future `--patch` mode (`aos brief save <path> --patch <section>=<file>`) would let agents fix one section at a time without re-sending the whole file.
+
+## Rollout
+
+The plugin lives in this repo and is installed by users via `aos init project --with-plugins` or by copying the plugin directory into their host's plugin path. There is no central registry pushing updates.
+
+- **Version field bump.** `.codex-plugin/plugin.json` and `.gemini/extension.json` versions advance to match the harness CLI minor version. Existing users who pulled the plugin before this change will continue to work — the new skill is additive (no breaking changes to existing skill names or commands).
+- **Re-install path.** `claude-code/install.sh` and the new `gemini/install.sh` are idempotent: re-running them picks up new skills without breaking existing ones. The `aos init project` flow detects an existing plugin install and offers to update.
+- **Migration impact:** none. Existing briefs continue to run (the validator is lint-only at run time), existing skills continue to work, and the new `aos-create-brief` skill is opt-in. No flag day.
+
+## Success metrics (post-ship)
+
+This feature succeeds if users learn the brief format. Out of scope for v1 instrumentation, but the natural signals to watch over the first ~6 weeks:
+
+1. **Authoring path adoption.** Briefs created via `aos create brief` (CLI or skill) become a meaningful share of new briefs versus hand-edited samples. Measurable by adding a `<!-- generated by: aos create brief vX.Y -->` HTML comment to rendered templates and grepping committed briefs over time.
+2. **Run-time lint trend.** The yellow `Brief lint: N errors, M warnings` line at `aos run` start trends toward zero across new briefs. Measurable from session logs once telemetry exists.
+3. **Skill use ratio.** Among plugin-installed users, `aos-create-brief` invocations exceed direct hand-editing of `core/briefs/`. Measurable from skill invocation logs in each host.
+
+If after 6 weeks (1) is below ~30% or (2) is flat, the brief format is still not learnable from the create flow — likely signal to improve the schema docs or add the structured-error work to a v2.
 
 ## Out-of-scope follow-ups
 
@@ -329,3 +384,4 @@ README.md                                     # mention `aos create brief` in qu
 - `aos brief edit <slug>` for re-running only the missing/empty sections of an existing brief.
 - `aos brief list` to show all briefs across CWD and `--shared` locations.
 - Auto-suggest the brief kind from the chosen profile when `aos create brief --profile <name>` is invoked.
+- Structured-error and `--patch` modes for `aos brief save` (see open questions).
