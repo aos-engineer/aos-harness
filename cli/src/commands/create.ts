@@ -2,19 +2,21 @@
  * aos create — Scaffold new agents, profiles, and domains.
  */
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { Buffer } from "node:buffer";
 import { c, type ParsedArgs } from "../colors";
 import { getHarnessRoot, toKebabCase } from "../utils";
 
 const HELP = `
-${c.bold("aos create")} — Scaffold new agents, profiles, domains, and skills
+${c.bold("aos create")} — Scaffold new agents, profiles, domains, skills, and briefs
 
 ${c.bold("USAGE")}
   aos create agent <name>       Create a new custom agent
   aos create profile <name>     Create a new profile
   aos create domain <name>      Create a new domain pack
   aos create skill <name>       Create a new skill definition
+  aos create brief [slug]       Create a new deliberation or execution brief
 
 ${c.bold("DESCRIPTION")}
   Generates well-structured scaffolds that pass "aos validate" out of the box.
@@ -26,6 +28,8 @@ ${c.bold("EXAMPLES")}
   aos create profile security-review
   aos create domain healthcare
   aos create skill dependency-analysis
+  aos create brief my-decision --kind deliberation --non-interactive --title "Decision" \\
+    --situation "..." --stakes "..." --constraints "..." --key-question "?"
 `;
 
 // ── Agent scaffold ──────────────────────────────────────────────
@@ -371,12 +375,17 @@ export async function createCommand(args: ParsedArgs): Promise<void> {
   const type = args.subcommand;
   const name = args.positional[1];
 
-  if (!name) {
+  if (!name && type !== "brief") {
     console.error(c.red(`Missing name. Usage: aos create ${type} <name>`));
     process.exit(1);
   }
 
-  const id = toKebabCase(name);
+  if (type === "brief") {
+    await createBrief(args);
+    return;
+  }
+
+  const id = toKebabCase(name!);
   if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) {
     console.error(c.red(`Invalid name "${name}": must kebab-case to /^[a-z0-9][a-z0-9-]*$/`));
     console.error(c.dim(`Allowed characters: a-z, 0-9, hyphen. Must start with a letter or digit.`));
@@ -490,7 +499,113 @@ ${c.bold("Next Steps")}
     }
 
     default:
-      console.error(c.red(`Unknown type: "${type}". Use "agent", "profile", "domain", or "skill".`));
+      console.error(c.red(`Unknown type: "${type}". Use "agent", "profile", "domain", "skill", or "brief".`));
       process.exit(1);
   }
+}
+
+async function createBrief(args: ParsedArgs): Promise<void> {
+  const { renderBriefTemplate } = await import("../brief/template");
+  const { validateBrief } = await import("../brief/validate");
+  const { atomicWriteBrief } = await import("../brief/write");
+  const { runBriefPromptLoop } = await import("../brief/prompts");
+
+  const slugPositional = args.positional[1];
+  const kindFlag = args.flags.kind as ("deliberation" | "execution" | undefined);
+  const titleFlag = args.flags.title as string | undefined;
+  const fromNotes = args.flags["from-notes"] as string | undefined;
+  const seedText = (args.flags.idea as string | undefined) ??
+    (fromNotes ? readFileSync(fromNotes, "utf-8") : undefined);
+  const nonInteractive = Boolean(args.flags["non-interactive"]);
+  const force = Boolean(args.flags.force);
+
+  let slug: string;
+  let kind: "deliberation" | "execution";
+  let title: string;
+  let sections: any = {};
+
+  if (nonInteractive) {
+    if (!slugPositional) {
+      console.error(c.red("--non-interactive requires <slug> positional."));
+      process.exit(2);
+    }
+    if (kindFlag !== "deliberation" && kindFlag !== "execution") {
+      console.error(c.red("--non-interactive requires --kind deliberation or --kind execution."));
+      process.exit(2);
+    }
+    if (!titleFlag) {
+      console.error(c.red("--non-interactive requires --title."));
+      process.exit(2);
+    }
+
+    slug = toKebabCase(slugPositional);
+    kind = kindFlag;
+    title = titleFlag;
+    sections = kind === "deliberation"
+      ? {
+          situation: args.flags.situation as string | undefined,
+          stakes: args.flags.stakes as string | undefined,
+          constraints: args.flags.constraints as string | undefined,
+          keyQuestion: args.flags["key-question"] as string | undefined,
+        }
+      : {
+          featureVision: args.flags.feature as string | undefined,
+          context: args.flags.context as string | undefined,
+          constraints: args.flags.constraints as string | undefined,
+          successCriteria: args.flags["success-criteria"] as string | undefined,
+        };
+  } else {
+    const reader = await createStdinLineReader();
+    const result = await runBriefPromptLoop({
+      reader,
+      kind: kindFlag,
+      slug: slugPositional ? toKebabCase(slugPositional) : undefined,
+      title: titleFlag,
+      seedText,
+    });
+    slug = toKebabCase(result.slug);
+    kind = result.kind;
+    title = result.title;
+    sections = result.sections;
+  }
+
+  const rendered = renderBriefTemplate({ kind, title, prefilled: sections, seedText });
+  const validation = validateBrief(rendered, { expectedKind: kind, strict: true });
+  if (validation.errors.length > 0) {
+    console.error(c.red("Brief incomplete:"));
+    for (const err of validation.errors) {
+      const sectionLabel = err.section ? `[${err.section}] ` : "";
+      console.error(c.red(`  ${sectionLabel}${err.message}`));
+    }
+    process.exit(1);
+  }
+
+  const outFlag = args.flags.out as string | undefined;
+  const targetPath = outFlag
+    ? resolve(process.cwd(), outFlag)
+    : Boolean(args.flags.shared)
+      ? join(getHarnessRoot(), "core", "briefs", slug, "brief.md")
+      : resolve(process.cwd(), "briefs", slug, "brief.md");
+
+  try {
+    await atomicWriteBrief(targetPath, rendered, { force });
+  } catch (err: any) {
+    console.error(c.red(err.message));
+    process.exit(1);
+  }
+
+  console.log(c.green(`Brief saved to ${targetPath}`));
+  console.log(c.dim(`Run with: aos run <profile> --brief ${targetPath}`));
+}
+
+async function createStdinLineReader() {
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of Bun.stdin.stream()) chunks.push(chunk);
+  const lines = new TextDecoder().decode(Buffer.concat(chunks)).split(/\r?\n/);
+  let index = 0;
+  return {
+    async readLine(): Promise<string> {
+      return lines[index++] ?? "";
+    },
+  };
 }

@@ -16,6 +16,7 @@ import { createCommand } from "./commands/create";
 import { validateCommand } from "./commands/validate";
 import { listCommand } from "./commands/list";
 import { replayCommand } from "./commands/replay";
+import { briefCommand } from "./commands/brief";
 import { c, parseArgs } from "./colors";
 import { getCliVersion } from "./utils";
 
@@ -35,6 +36,7 @@ ${c.bold("COMMANDS")}
   ${c.cyan("create")} profile <name>          Scaffold a new profile
   ${c.cyan("create")} domain <name>           Scaffold a new domain
   ${c.cyan("create")} skill <name>            Scaffold a new skill definition
+  ${c.cyan("brief")} <sub>                    Work with brief files (template/validate/save)
   ${c.cyan("replay")} <transcript.jsonl>       Replay a deliberation transcript
   ${c.cyan("validate")}                       Validate all agents, profiles, domains, and skills
   ${c.cyan("list")}                           List all agents, profiles, domains, and skills
@@ -86,6 +88,9 @@ async function main(): Promise<void> {
       break;
     case "create":
       await createCommand(parsed);
+      break;
+    case "brief":
+      await briefCommand(parsed);
       break;
     case "replay":
       await replayCommand(parsed);
