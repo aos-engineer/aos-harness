@@ -29,7 +29,7 @@ ${c.bold("CHECKS")}
   - Domain merging produces valid output
   - Skills load and have required fields (id, name, input, output, etc.)
   - Skills reference valid compatible agents
-  - Briefs pass section requirements
+  - Briefs are well-formed (deliberation or execution shape)
   - Template resolution works for all agents
   - Constraint engine initializes from profiles
   - Delegation router initializes from profiles
@@ -51,7 +51,7 @@ export async function validateCommand(args: ParsedArgs): Promise<void> {
   const coreDir = join(root, "core");
 
   // Import runtime modules
-  const { loadAgent, loadProfile, loadDomain, loadWorkflow, loadSkill, validateBrief } = await import("@aos-harness/runtime/config-loader");
+  const { loadAgent, loadProfile, loadDomain, loadWorkflow, loadSkill } = await import("@aos-harness/runtime/config-loader");
   const { applyDomain } = await import("@aos-harness/runtime/domain-merger");
   const { resolveTemplate } = await import("@aos-harness/runtime/template-resolver");
   const { ConstraintEngine } = await import("@aos-harness/runtime/constraint-engine");
@@ -246,26 +246,38 @@ export async function validateCommand(args: ParsedArgs): Promise<void> {
   }
 
   // ── 5. Validate briefs ────────────────────────────────────────
+  //
+  // Briefs are authored per-profile; checking every brief against every
+  // profile's required_sections (a cross-product) produces noise — `incident-
+  // response` and `strategic-council` have different required sections by
+  // design. We only check each brief is well-formed (matches one of the
+  // canonical kinds: deliberation or execution). Run-time enforcement of
+  // profile-specific required sections happens in `aos run` — both via the
+  // brief lint summary and via the runtime config-loader's validateBrief
+  // against the chosen profile.
 
   console.log(`${c.bold("Validating briefs...")}`);
 
   const briefsDir = join(coreDir, "briefs");
   if (existsSync(briefsDir)) {
+    const { readFileSync } = await import("node:fs");
+    const { validateBrief: lintBrief } = await import("../brief/validate");
+
     for (const entry of readdirSync(briefsDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       const briefPath = join(briefsDir, entry.name, "brief.md");
       if (!existsSync(briefPath)) continue;
 
-      // Validate against each profile's required sections
-      for (const profile of profiles) {
-        check(`Brief "${entry.name}" for profile "${profile.id}"`, () => {
-          const result = validateBrief(briefPath, profile.input.required_sections);
-          if (!result.valid) {
-            const missingNames = result.missing.map((s: any) => s.heading).join(", ");
-            throw new Error(`Missing sections: ${missingNames}. Add them to your brief.md and try again.`);
-          }
-        });
-      }
+      check(`Brief "${entry.name}" is well-formed`, () => {
+        const content = readFileSync(briefPath, "utf-8");
+        const result = lintBrief(content);
+        if (result.errors.length > 0) {
+          throw new Error(result.errors.map((e) => e.message).join(" "));
+        }
+        if (result.warnings.length > 0) {
+          console.log(c.dim(`    ${result.warnings.length} warning(s) — run \`aos brief validate ${briefPath}\` for details.`));
+        }
+      });
     }
   }
 
