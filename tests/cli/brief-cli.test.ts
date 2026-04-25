@@ -133,12 +133,17 @@ describe("aos-create-brief skill", () => {
   });
 });
 
+function rootPackageVersion(): string {
+  const pkg = JSON.parse(readFileSync(join(import.meta.dir, "..", "..", "package.json"), "utf-8"));
+  return pkg.version;
+}
+
 describe("Gemini packaging", () => {
-  test(".gemini/extension.json exists, parses, and keeps the shared skills pointer", () => {
+  test(".gemini/extension.json exists, parses, and matches root package version", () => {
     const path = join(import.meta.dir, "..", "..", "plugins", "aos-harness", ".gemini", "extension.json");
     const parsed = JSON.parse(readFileSync(path, "utf-8"));
     expect(parsed.name).toBe("aos-harness");
-    expect(parsed.version).toBe("0.8.5");
+    expect(parsed.version).toBe(rootPackageVersion());
     expect(parsed.skills).toBe("../skills/");
   });
 
@@ -149,10 +154,10 @@ describe("Gemini packaging", () => {
 });
 
 describe("Codex plugin metadata", () => {
-  test("plugin.json version bumped to match harness", () => {
+  test("plugin.json version matches root package version", () => {
     const path = join(import.meta.dir, "..", "..", "plugins", "aos-harness", ".codex-plugin", "plugin.json");
     const parsed = JSON.parse(readFileSync(path, "utf-8"));
-    expect(parsed.version).toBe("0.8.5");
+    expect(parsed.version).toBe(rootPackageVersion());
     expect(parsed.interface.defaultPrompt).toContain("Author a new AOS brief from an idea.");
   });
 

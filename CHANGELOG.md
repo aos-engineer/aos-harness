@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.9.0 — Brief authoring, plugin parity, validate cleanup
+
+### Added
+
+- `aos create brief` — interactive Q&A for authoring a deliberation or execution brief, with `--non-interactive` flag-driven mode for CI/scripts. Pre-fill via `--idea "<text>"` or `--from-notes <file>` (rendered as HTML-comment seed). `--shared` writes to harness samples; `--out` overrides location; `--force` overwrites.
+- `aos brief template --kind <k>` — render a kind-specific stub to stdout or `--out`.
+- `aos brief validate <path>` — schema-aware linter; exit 1 on missing required sections, warning on empty bodies. `--strict` upgrades warnings to errors.
+- `aos brief save <path>` — atomic write with strict validation; takes content via `--from-file <p>` (preferred) or `--from-stdin`. Used by skills.
+- `cli/src/brief/` module — pure-logic types, schema, parse, validate, template, prompts, and atomic-write helpers. No LLM dependency; fully unit-testable.
+- `plugins/aos-harness/skills/aos-create-brief/SKILL.md` — shared skill consumed by Claude Code, Codex, and Gemini hosts. Conducts a guided conversation in the host agent's voice, drafts polished prose, validates via `aos brief save --from-file <tempfile>`.
+- `plugins/aos-harness/claude-code/commands/aos-create-brief.md` — Claude Code slash command wrapper for the skill.
+- `plugins/aos-harness/.gemini/extension.json` and `gemini/install.sh` — Gemini extension packaging that was previously missing entirely. The harness now ships plugin parity across all three interactive adapter hosts.
+- Run-time brief lint: `aos run` now emits a one-line summary (clean or `N errors, M warnings`) after resolving the brief, pointing at `aos brief validate` for details. Never blocks; profile-specific required-section enforcement still happens inside the runtime config-loader.
+- Documentation: `docs/creating-briefs/creating-briefs-cli.md` — full guide to the new authoring flow.
+
+### Changed
+
+- `aos validate` no longer cross-product-checks every brief against every profile's `required_sections`. Briefs are authored per-profile, so the cross-product produced 21 nonsensical failures (e.g., asking `sample-product-decision` to satisfy `incident-response`'s `## Incident Description` requirement). The check is replaced with a single well-formedness lint per brief. Profile-specific enforcement still happens at `aos run` time.
+- `plugins/aos-harness/skills/aos-create/SKILL.md` cross-references `aos-create-brief` for users wanting to author briefs (vs. scaffold templates).
+- `plugins/aos-harness/.codex-plugin/plugin.json` `defaultPrompt` now mentions brief authoring.
+- `cli/package.json` peer-dependency floor for adapters bumped to `>=0.9.0` to express the intended pairing.
+- README adds a brief-authoring quick-start.
+- Release versions bumped in lockstep to `0.9.0`.
+
+### Fixed
+
+- `aos validate`: 91 passed, 21 failed → 91 passed, 0 failed.
+
 ## 0.8.5 — Long-running deliberation timeout fix
 
 ### Changed

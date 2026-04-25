@@ -1,5 +1,12 @@
 # AOS Brief Generator Prompt
 
+> **Since 0.9.0:** the recommended way to author a brief is `aos create brief`
+> (CLI Q&A) or the `/aos-create-brief` skill inside Claude Code, Codex, or
+> Gemini — both validate against the schema and write the file for you.
+> See [creating-briefs-cli.md](./creating-briefs-cli.md) for the new flow.
+> The prompt below remains useful when you're working in a different host
+> agent that doesn't have the AOS plugin installed.
+
 Use this prompt in any AI conversation to turn a raw idea, event, or initiative into a structured brief for AOS deliberation or execution.
 
 ---

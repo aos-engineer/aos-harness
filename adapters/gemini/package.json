@@ -1,6 +1,6 @@
 {
   "name": "@aos-harness/gemini-adapter",
-  "version": "0.8.5",
+  "version": "0.9.0",
   "description": "AOS Harness adapter for Google's Gemini CLI.",
   "license": "MIT",
   "repository": {
@@ -9,12 +9,26 @@
     "directory": "adapters/gemini"
   },
   "homepage": "https://aos.engineer",
-  "keywords": ["aos-harness", "ai-agents", "gemini", "adapter"],
+  "keywords": [
+    "aos-harness",
+    "ai-agents",
+    "gemini",
+    "adapter"
+  ],
   "type": "module",
-  "engines": { "bun": ">=1.0.0" },
-  "exports": { ".": "./src/index.ts" },
-  "files": ["src/", "README.md"],
-  "publishConfig": { "access": "public" },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src/",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@aos-harness/runtime": "workspace:*",
     "@aos-harness/adapter-shared": "workspace:*"
