@@ -236,10 +236,30 @@ export async function runCommand(args: ParsedArgs): Promise<void> {
     process.exit(3);
   }
 
-  const validation = validateBrief(briefPath, profile.input.required_sections);
-
   // ── Detect execution profile (has workflow field) ──────────
   const isExecutionProfile = !!profile.workflow;
+
+  // Brief lint is advisory. The existing profile section validation below
+  // remains the blocking compatibility check for run.
+  try {
+    const briefContent = readFileSync(briefPath, "utf-8");
+    const expectedKind: "deliberation" | "execution" = isExecutionProfile ? "execution" : "deliberation";
+    const { validateBrief: validateBriefShape } = await import("../brief/validate");
+    const briefValidation = validateBriefShape(briefContent, { expectedKind });
+    const errCount = briefValidation.errors.length;
+    const warnCount = briefValidation.warnings.length;
+    if (errCount === 0 && warnCount === 0) {
+      console.error(c.dim(`Brief lint: ${expectedKind} brief looks good (0 errors, 0 warnings).`));
+    } else {
+      console.error(c.yellow(`Brief lint: ${errCount} error${errCount === 1 ? "" : "s"}, ${warnCount} warning${warnCount === 1 ? "" : "s"}.`));
+      console.error(c.dim(`  Run \`aos brief validate ${briefPath}\` for details, or \`aos create brief\` to author from a template.`));
+    }
+  } catch (err) {
+    console.error(c.dim(`(brief lint skipped: ${(err as Error).message})`));
+  }
+
+  const validation = validateBrief(briefPath, profile.input.required_sections);
+
   let workflowConfig: Awaited<ReturnType<typeof loadWorkflow>> | null = null;
 
   if (isExecutionProfile) {
