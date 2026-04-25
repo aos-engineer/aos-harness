@@ -33,6 +33,9 @@ fi
 - `domain`
 - `skill`
 
+For **briefs**, use the `aos-create-brief` skill — it conducts a guided
+conversation rather than scaffolding from a template.
+
 ## Workflow
 
 1. Normalize the requested name to kebab-case when needed.
