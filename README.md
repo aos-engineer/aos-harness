@@ -124,12 +124,30 @@ aos run strategic-council --brief core/briefs/sample-product-decision/brief.md
 aos run cto-execution --brief core/briefs/sample-cto-execution/brief.md
 ```
 
+### Author a brief
+
+If you do not know the brief format, scaffold one interactively:
+
+```bash
+aos create brief
+aos create brief my-decision --kind deliberation --idea "We need to decide between X and Y by Q3."
+```
+
+Or use the `/aos-create-brief` skill inside Claude Code, Codex, or Gemini. The host agent will conduct the conversation and validate the result through `aos brief save`.
+
+```bash
+aos brief validate ./briefs/my-decision/brief.md
+aos run strategic-council --brief ./briefs/my-decision/brief.md
+```
+
 ### CLI commands
 
 ```bash
 aos init                          # Initialize AOS in the current project
 aos run [profile]                 # Run a deliberation or execution session
 aos run cto-execution --brief ... # Run the CTO execution workflow
+aos create brief [slug]           # Author a deliberation or execution brief
+aos brief validate <path>         # Validate a brief shape
 aos create agent <name>           # Scaffold a new agent
 aos create profile <name>         # Scaffold a new profile
 aos create domain <name>          # Scaffold a new domain
