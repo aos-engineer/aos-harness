@@ -8,18 +8,18 @@ const { title, description } = Astro.props;
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? Astro.url).toString();
 
 const docsNav = [
-  { title: 'Getting Started', href: '/docs/getting-started' },
-  { title: 'Creating Agents', href: '/docs/creating-agents' },
-  { title: 'Creating Profiles', href: '/docs/creating-profiles' },
-  { title: 'Creating Domains', href: '/docs/creating-domains' },
-  { title: 'Creating Workflows', href: '/docs/creating-workflows' },
-  { title: 'Creating Skills', href: '/docs/creating-skills' },
-  { title: 'Domain Enforcement', href: '/docs/domain-enforcement' },
-  { title: 'Hierarchical Delegation', href: '/docs/hierarchical-delegation' },
-  { title: 'Memory System', href: '/docs/persistent-expertise' },
-  { title: 'Event Summarization', href: '/docs/event-summarization' },
-  { title: 'Session Resumption', href: '/docs/session-resumption' },
-  { title: 'Dev Execution', href: '/docs/dev-execution' },
+  { title: 'Getting Started', href: '/docs/getting-started/' },
+  { title: 'Creating Agents', href: '/docs/creating-agents/' },
+  { title: 'Creating Profiles', href: '/docs/creating-profiles/' },
+  { title: 'Creating Domains', href: '/docs/creating-domains/' },
+  { title: 'Creating Workflows', href: '/docs/creating-workflows/' },
+  { title: 'Creating Skills', href: '/docs/creating-skills/' },
+  { title: 'Domain Enforcement', href: '/docs/domain-enforcement/' },
+  { title: 'Hierarchical Delegation', href: '/docs/hierarchical-delegation/' },
+  { title: 'Memory System', href: '/docs/persistent-expertise/' },
+  { title: 'Event Summarization', href: '/docs/event-summarization/' },
+  { title: 'Session Resumption', href: '/docs/session-resumption/' },
+  { title: 'Dev Execution', href: '/docs/dev-execution/' },
 ];
 
 const currentPath = Astro.url.pathname;
@@ -43,10 +43,10 @@ const currentPath = Astro.url.pathname;
           AOS<span class="text-[var(--color-accent)]">.engineer</span>
         </a>
         <div class="flex gap-6 text-sm">
-          <a href="/agents" class="text-[var(--color-text-muted)] hover:text-white transition-colors">Agents</a>
-          <a href="/profiles" class="text-[var(--color-text-muted)] hover:text-white transition-colors">Profiles</a>
-          <a href="/domains" class="text-[var(--color-text-muted)] hover:text-white transition-colors">Domains</a>
-          <a href="/docs/getting-started" class="text-white transition-colors">Docs</a>
+          <a href="/agents/" class="text-[var(--color-text-muted)] hover:text-white transition-colors">Agents</a>
+          <a href="/profiles/" class="text-[var(--color-text-muted)] hover:text-white transition-colors">Profiles</a>
+          <a href="/domains/" class="text-[var(--color-text-muted)] hover:text-white transition-colors">Domains</a>
+          <a href="/docs/getting-started/" class="text-white transition-colors">Docs</a>
           <a href="https://github.com/aos-engineer/aos-harness" class="text-[var(--color-text-muted)] hover:text-white transition-colors" target="_blank" rel="noopener">GitHub</a>
         </div>
       </div>

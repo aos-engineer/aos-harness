@@ -10,11 +10,11 @@ const currentPath = Astro.url.pathname;
 const canonicalUrl = new URL(currentPath, Astro.site ?? Astro.url).toString();
 
 const navLinks = [
-  { href: '/agents', label: 'Agents' },
-  { href: '/profiles', label: 'Profiles' },
-  { href: '/skills', label: 'Skills' },
-  { href: '/domains', label: 'Domains' },
-  { href: '/docs/getting-started', label: 'Docs' },
+  { href: '/agents/', label: 'Agents' },
+  { href: '/profiles/', label: 'Profiles' },
+  { href: '/skills/', label: 'Skills' },
+  { href: '/domains/', label: 'Domains' },
+  { href: '/docs/getting-started/', label: 'Docs' },
   { href: 'https://github.com/aos-engineer/aos-harness', label: 'GitHub', external: true },
 ];
 ---
@@ -65,6 +65,30 @@ const navLinks = [
             </a>
           ))}
         </div>
+        <details class="mobile-nav md:hidden">
+          <summary aria-label="Open navigation">
+            <span></span>
+            <span></span>
+            <span></span>
+          </summary>
+          <div class="mobile-nav-panel">
+            {navLinks.map(link => (
+              <a
+                href={link.href}
+                class:list={[
+                  "no-underline",
+                  currentPath.startsWith(link.href) && !link.external
+                    ? "text-[var(--color-text)] font-semibold"
+                    : "text-[var(--color-text-muted)]"
+                ]}
+                {...(link.external ? { target: "_blank", rel: "noopener" } : {})}
+              >
+                {link.label}
+                {link.external && <span class="text-[10px] ml-1 opacity-50">&nearr;</span>}
+              </a>
+            ))}
+          </div>
+        </details>
       </div>
     </nav>
 
