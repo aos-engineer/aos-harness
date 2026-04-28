@@ -1,6 +1,6 @@
 # AOS Docs Site
 
-This directory contains the public Astro site for AOS Harness, including the landing page and the docs pages published at `aos.engineer`.
+This directory contains the public Astro site for AOS Harness, including the landing page and the docs pages published at `harness.aos.engineer`.
 
 ## Local Development
 

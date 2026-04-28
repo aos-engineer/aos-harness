@@ -5,7 +5,7 @@ import mdx from '@astrojs/mdx';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  site: 'https://aos.engineer',
+  site: 'https://harness.aos.engineer',
   output: 'static',
   compressHTML: true,
   integrations: [
