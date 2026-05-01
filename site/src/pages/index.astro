@@ -14,17 +14,17 @@ const listAgents = agents.filter(a => ['catalyst', 'sentinel', 'architect', 'pro
 
 <Base title="AOS Harness">
   <!-- Hero -->
-  <section class="px-6 pt-[120px] pb-20">
+  <section class="px-6 pt-16 pb-12 md:pt-[120px] md:pb-20">
     <div class="mx-auto max-w-[800px] text-center">
-      <h1 class="text-5xl font-extrabold leading-[1.1] tracking-tight text-[var(--color-text)]">
+      <h1 class="text-[32px] sm:text-[40px] md:text-5xl font-extrabold leading-[1.1] tracking-tight text-[var(--color-text)]">
         Agentic Orchestration System
       </h1>
       <p class="mt-5 text-[19px] leading-relaxed text-[var(--color-text-secondary)] max-w-[640px] mx-auto">
         A config-driven framework that assembles specialized AI agents into deliberation councils and execution teams on top of Claude Code, Codex, Gemini, and Pi.
       </p>
-      <div class="mt-8 flex gap-3 justify-center">
-        <a href="/docs/getting-started" class="btn-primary">Get Started</a>
-        <a href="/agents" class="btn-secondary">Explore Agents</a>
+      <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+        <a href="/docs/getting-started" class="btn-primary w-full sm:w-auto">Get Started</a>
+        <a href="/agents" class="btn-secondary w-full sm:w-auto">Explore Agents</a>
       </div>
       <div class="mt-12 max-w-[480px] mx-auto text-left">
         <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4 px-5">
@@ -166,10 +166,10 @@ const listAgents = agents.filter(a => ['catalyst', 'sentinel', 'architect', 'pro
       <div class="flex flex-col gap-2">
         {listAgents.map(agent => (
           <a href={`/agents/${agent.id}`} class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-4 py-3 flex items-center justify-between card-hover no-underline">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 min-w-0">
               <span class="dot" style={`background: ${agent.category === 'orchestrator' ? 'var(--color-orchestrator)' : agent.category === 'perspective' ? 'var(--color-perspective)' : 'var(--color-operational)'}`}></span>
-              <span class="text-sm font-semibold text-[var(--color-text)]">{agent.name}</span>
-              <span class="text-xs text-[var(--color-text-muted)]">({agent.cognition.core_bias})</span>
+              <span class="text-sm font-semibold text-[var(--color-text)] whitespace-nowrap">{agent.name}</span>
+              <span class="text-xs text-[var(--color-text-muted)] truncate">({agent.cognition.core_bias})</span>
             </div>
             <div class="flex items-center gap-3">
               <span class="text-xs text-[var(--color-text-muted)]">{agent.category}</span>

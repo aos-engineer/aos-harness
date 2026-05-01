@@ -365,15 +365,15 @@ git commit -m "docs: update README with enhanced capabilities and doc links"
 - [ ] **Step 1: Run the rename**
 
 Use grep to find all occurrences, then systematically replace:
-- "AOS Framework" → "AOS Harness"
-- "aos-framework" → "aos-harness" (in package names, imports)
+- "AOS Harness" → "AOS Harness"
+- "aos-harness" → "aos-harness" (in package names, imports)
 - "framework" → "harness" (in general prose, case-sensitive check needed)
 
 Be careful NOT to rename in contexts where "framework" is a generic English word (e.g., "analytical framework", "decision framework"). Only rename when it refers to the AOS project itself.
 
 - [ ] **Step 2: Verify no broken references**
 
-Scan for any remaining "aos-framework" or "AOS Framework" strings.
+Scan for any remaining "aos-harness" or "AOS Harness" strings.
 
 - [ ] **Step 3: Commit**
 

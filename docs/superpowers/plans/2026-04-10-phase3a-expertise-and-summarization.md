@@ -835,7 +835,7 @@ git commit -m "feat(web): add expertise EventCards and summary display"
 
 - [ ] **Step 1: Run harness tests**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS
 
 - [ ] **Step 2: Check platform**

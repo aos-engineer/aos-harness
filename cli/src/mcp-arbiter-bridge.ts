@@ -55,7 +55,7 @@ async function rpc(method: string, params: unknown): Promise<unknown> {
 }
 
 const server = new Server(
-  { name: "aos-arbiter-bridge", version: "0.1.0" },
+  { name: "aos-arbiter-bridge", version: "0.9.1" },
   { capabilities: { tools: {} } },
 );
 
@@ -80,6 +80,34 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         type: "object" as const,
         properties: { closing_message: { type: "string" } },
         required: ["closing_message"],
+      },
+    },
+    {
+      name: "aos_recall",
+      description: "Search long-term AOS memory for relevant past knowledge.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          query: { type: "string" },
+          agent: { type: "string", description: "Optional agent id to limit recall." },
+          hall: { type: "string", description: "Optional memory hall/category." },
+          max_results: { type: "number", description: "Maximum entries to return." },
+        },
+        required: ["query"],
+      },
+    },
+    {
+      name: "aos_remember",
+      description: "Commit an important fact, decision, or lesson to long-term AOS memory.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          content: { type: "string" },
+          agent: { type: "string", description: "Agent that produced the memory." },
+          hall: { type: "string", description: "Optional memory hall/category." },
+          source: { type: "string", description: "Optional source label." },
+        },
+        required: ["content", "agent"],
       },
     },
   ],

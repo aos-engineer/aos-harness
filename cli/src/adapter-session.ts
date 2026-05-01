@@ -31,6 +31,10 @@ import { AOSEngine } from "@aos-harness/runtime";
 import type { TranscriptEntry } from "@aos-harness/runtime/types";
 import { loadAgent } from "@aos-harness/runtime/config-loader";
 import { resolveTemplate } from "@aos-harness/runtime/template-resolver";
+import {
+  createRuntimeMemoryProvider,
+  type RuntimeMemoryProvider,
+} from "@aos-harness/runtime/memory-provider-factory";
 import { startBridgeServer } from "./bridge-server";
 import { renderTextGauge, renderRoundOneLiner } from "./gauges";
 import { getAdapterDir } from "./utils";
@@ -216,11 +220,21 @@ async function loadAdapterRuntime(platform: string): Promise<any> {
   return mod[entry.className];
 }
 
-function toolNamesForPlatform(platform: string): { delegate: string; end: string } {
+function toolNamesForPlatform(platform: string): {
+  delegate: string;
+  end: string;
+  recall: string;
+  remember: string;
+} {
   if (platform === "claude-code") {
-    return { delegate: "mcp__aos__delegate", end: "mcp__aos__end" };
+    return {
+      delegate: "mcp__aos__delegate",
+      end: "mcp__aos__end",
+      recall: "mcp__aos__aos_recall",
+      remember: "mcp__aos__aos_remember",
+    };
   }
-  return { delegate: "delegate", end: "end" };
+  return { delegate: "delegate", end: "end", recall: "aos_recall", remember: "aos_remember" };
 }
 
 function createTranscriptSink(opts: {
@@ -237,18 +251,43 @@ function createTranscriptSink(opts: {
   mkdirSync(dirname(transcriptPath), { recursive: true });
 
   let flushing: Promise<void> | null = null;
+  let sequence = 0;
 
-  const flush = async (): Promise<void> => {
+  const platformHeaders = (): HeadersInit => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const token = process.env.AOS_PLATFORM_TOKEN ?? process.env.AOS_INGEST_TOKEN;
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+  };
+
+  const stampEntry = (entry: TranscriptEntry): TranscriptEntry => {
+    const existingSequence = typeof entry.sequence === "number" ? entry.sequence : null;
+    const nextSequence = existingSequence ?? ++sequence;
+    sequence = Math.max(sequence, nextSequence);
+    return {
+      ...entry,
+      sequence: nextSequence,
+      event_id: typeof entry.event_id === "string" && entry.event_id
+        ? entry.event_id
+        : `${sessionId}:${nextSequence}`,
+    };
+  };
+
+  const flush = async (requeueOnFailure = true): Promise<void> => {
     if (!platformUrl || buffer.length === 0) return;
     const batch = buffer.splice(0, BATCH_SIZE);
     try {
-      await fetch(`${platformUrl}/api/sessions/${sessionId}/events`, {
+      const response = await fetch(`${platformUrl}/api/sessions/${sessionId}/events`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: platformHeaders(),
         body: JSON.stringify(batch),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
+      if (!response.ok) {
+        throw new Error(`platform ingest failed: HTTP ${response.status}`);
+      }
     } catch {
+      if (requeueOnFailure) buffer.unshift(...batch);
       // Best-effort observability only.
     }
   };
@@ -271,13 +310,14 @@ function createTranscriptSink(opts: {
 
   return {
     enqueue(entry: TranscriptEntry) {
+      const stamped = stampEntry(entry);
       try {
-        appendFileSync(transcriptPath, JSON.stringify(entry) + "\n");
+        appendFileSync(transcriptPath, JSON.stringify(stamped) + "\n");
       } catch {
         // Transcript persistence should not fail the session.
       }
       if (platformUrl) {
-        buffer.push(entry);
+        buffer.push(stamped);
         if (buffer.length >= BATCH_SIZE) {
           void scheduleFlush();
         }
@@ -287,7 +327,7 @@ function createTranscriptSink(opts: {
       if (interval) clearInterval(interval);
       await scheduleFlush();
       while (buffer.length > 0) {
-        await flush();
+        await flush(false);
       }
     },
   };
@@ -330,11 +370,29 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
     platformUrl: config.platformUrl,
     sessionId: config.sessionId,
   });
+  let memory: RuntimeMemoryProvider | null = null;
+  try {
+    memory = await createRuntimeMemoryProvider(config.root, {
+      requireConfiguredProvider: process.env.AOS_REQUIRE_MEMPALACE === "1",
+      onWarning: (message) => console.error(`[memory] ${message}`),
+    });
+  } catch (err) {
+    await transcriptSink.shutdown();
+    throw err;
+  }
+  log(
+    `memory provider: ${memory.providerId}` +
+      (memory.configuredProvider !== memory.providerId
+        ? ` (configured ${memory.configuredProvider})`
+        : ""),
+  );
   const engine = new AOSEngine(adapter, config.profileDir, {
     agentsDir: flatAgentsDir,
     domain: config.domainName ?? undefined,
     domainDir: config.domainName ? domainsDir : undefined,
     workflowsDir: config.workflowsDir,
+    projectDir: config.root,
+    memoryProvider: memory.provider,
     onTranscriptEvent: (entry) => {
       transcriptSink.enqueue(entry);
     },
@@ -402,6 +460,23 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
         const responses = await engine.end(params.closing_message as string);
         return { ok: true, responses };
       },
+      aos_recall: async (params) => {
+        await waitWhileHalted();
+        return engine.recallMemory(params.query as string, {
+          agentId: params.agent as string | undefined,
+          hall: params.hall as string | undefined,
+          maxResults: params.max_results as number | undefined,
+        });
+      },
+      aos_remember: async (params) => {
+        await waitWhileHalted();
+        const id = await engine.rememberMemory(params.content as string, {
+          agentId: (params.agent as string | undefined) ?? "arbiter",
+          hall: params.hall as string | undefined,
+          source: params.source as string | undefined,
+        });
+        return { ok: true, id };
+      },
     });
 
     log("bridge listening");
@@ -432,6 +507,8 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
       transcript_path: transcriptPath,
       delegate_tool: tools.delegate,
       end_tool: tools.end,
+      recall_tool: tools.recall,
+      remember_tool: tools.remember,
       role_override: "",
       // Back-compat hyphenated aliases
       "session-id": config.sessionId,
@@ -448,7 +525,9 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
         ? `IMPORTANT — Tool names for this session:\n` +
           `- Where the instructions below say \`delegate(...)\`, call \`${tools.delegate}\` (that is the actual MCP tool name you will see).\n` +
           `- Where they say \`end(...)\`, call \`${tools.end}\`.\n` +
-          `- These are the ONLY two tools available to you. Use them exactly as described.\n\n---\n\n`
+          `- Where they say \`aos_recall(...)\`, call \`${tools.recall}\`.\n` +
+          `- Where they say \`aos_remember(...)\`, call \`${tools.remember}\`.\n` +
+          `- These are the ONLY AOS tools available to you. Use them exactly as described.\n\n---\n\n`
         : "";
     adapter.setOrchestratorPrompt(toolPreamble + resolvedPrompt);
 
@@ -474,7 +553,7 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
     const kickoff =
       "Read the brief below and begin the multi-agent deliberation. " +
       `Use the \`${tools.delegate}\` tool to engage perspective agents and ` +
-      `\`${tools.end}\` when ready to wrap up.\n\n` +
+      `\`${tools.end}\` when ready to wrap up. Use \`${tools.recall}\` when past memory would materially help, and \`${tools.remember}\` to commit important decisions or lessons before closing.\n\n` +
       `---\n\n## Brief\n\n${briefContent}`;
 
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -551,5 +630,6 @@ export async function runAdapterSession(config: AdapterSessionConfig): Promise<v
     }
   } finally {
     await transcriptSink.shutdown();
+    await memory?.shutdown();
   }
 }

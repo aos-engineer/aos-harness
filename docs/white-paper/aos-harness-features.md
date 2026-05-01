@@ -3,8 +3,8 @@
 **Agentic Orchestration System (AOS)**
 *A Language-Agnostic Multi-Agent Orchestration Framework for Strategic Deliberation and Execution*
 
-**Version:** 0.1.0
-**Date:** March 2026
+**Version:** 0.9.1
+**Date:** April 2026
 
 ---
 
@@ -57,13 +57,13 @@ The harness addresses a fundamental limitation in current AI tooling: single-age
 
 | Dimension | Value |
 |-----------|-------|
-| Agent Personas | 13 (2 orchestrators, 8 perspectives, 3 operational) |
-| Orchestration Profiles | 6 (strategic-council, cto-execution, security-review, delivery-ops, architecture-review, incident-response) |
+| Agent Personas | 15 (2 orchestrators, 9 perspectives, 4 operational) |
+| Orchestration Profiles | 8 (strategic-council, cto-execution, security-review, delivery-ops, architecture-review, incident-response, dev-execution, design-variations) |
 | Domain Packs | 5 (SaaS, healthcare, fintech, platform-engineering, personal-decisions) |
-| Workflow Definitions | 7 (brainstorm, plan, execute, review, debug, verify, cto-execution) |
-| Skills | 3 (code-review, security-scan, task-decomposition) |
+| Workflow Definitions | 9 (brainstorm, plan, execute, review, debug, verify, cto-execution, dev-execution, design-variations) |
+| Skills | 5 (code-review, security-scan, task-decomposition, mempalace-read-write, mempalace-admin) |
 | Runtime Size | ~2,000 lines TypeScript |
-| Test Coverage | 194 tests, 504 assertions, 12 test suites |
+| Test Coverage | 70+ test files, including 400+ passing runtime tests |
 
 ---
 
@@ -217,7 +217,7 @@ capabilities:                  # Execution profile capabilities
 
 ### 4.2 Agent Roster
 
-The harness ships with 13 agents across three categories:
+The harness ships with 15 agents across three categories:
 
 #### Orchestrators (2 agents)
 
@@ -226,7 +226,7 @@ The harness ships with 13 agents across three categories:
 | **Arbiter** | Decision integrator for deliberation | Frames questions, drives debate, synthesizes ranked recommendations. Maintains strict neutrality — weighs perspectives without imposing position. |
 | **CTO Orchestrator** | Execution leader for workflows | Drives production workflows, manages step transitions, assembles final execution packages. Focused on execution quality and completeness. |
 
-#### Perspective Agents (8 agents)
+#### Perspective Agents (9 agents)
 
 | Agent | Core Bias | Risk Tolerance | Time Horizon | Default Stance |
 |-------|-----------|----------------|--------------|----------------|
@@ -238,14 +238,16 @@ The harness ships with 13 agents across three categories:
 | **Advocate** | User behavior reality | Moderate | 0–12 months | "What do users actually do?" |
 | **Pathfinder** | Asymmetric upside | Very high | 1–5 years | "What's the 10x opportunity?" |
 | **Strategist** | Impact per effort | Moderate | 6–24 months | "Sequence for maximum leverage" |
+| **Artifact Renderer** | Output fidelity | Moderate | Immediate | "Ship a complete artifact bundle" |
 
-#### Operational Agents (3 agents)
+#### Operational Agents (4 agents)
 
 | Agent | Core Bias | Focus Area |
 |-------|-----------|------------|
 | **Operator** | Execution reality | Team capacity, dependencies, delivery risk |
 | **Steward** | Compliance | Ethics, legal, regulatory, governance |
 | **Auditor** | Institutional learning | Retrospective analysis, pattern recognition |
+| **Engineering Lead** | Execution quality | Worker delegation, implementation coordination, test verification |
 
 ### 4.3 Agent Cognitive Architecture
 
@@ -1176,13 +1178,17 @@ The Pi CLI adapter is the primary reference implementation, providing full cover
 
 ### 24.2 Claude Code Adapter
 
-Static artifact generator with execution profile awareness. Generates code artifacts directly within the Claude Code environment.
+Claude Code integration with stream-json parsing, session resume support, and the AOS MCP bridge exposing `delegate` and `end` tools to the arbiter.
 
-### 24.3 Gemini Adapter
+### 24.3 Codex Adapter
 
-Google Gemini integration (partial implementation). Demonstrates the harness's platform portability.
+Codex CLI integration with JSON event parsing, resume support, and MCP server configuration for the same `delegate` and `end` arbiter tools.
 
-### 24.4 Custom Adapters
+### 24.4 Gemini Adapter
+
+Google Gemini CLI integration with headless prompt execution, session resume support, and project-local MCP settings for the AOS arbiter bridge.
+
+### 24.5 Custom Adapters
 
 The 4-layer adapter contract enables third-party implementations. Any platform that can:
 1. Spawn agent sessions (L1)
@@ -1215,8 +1221,8 @@ The 4-layer adapter contract enables third-party implementations. Any platform t
 
 ### 25.2 Coverage
 
-- **194 tests** across 12 test files
-- **504 assertions** covering happy paths, edge cases, and error conditions
+- **70+ test files** across runtime, CLI, adapter, and script surfaces
+- **400+ runtime tests** covering happy paths, edge cases, and error conditions
 - **Security regression tests** for YAML safety, path traversal, and input validation
 
 ### 25.3 CI/CD Pipeline
@@ -1322,11 +1328,12 @@ aos-harness/
       config-loader.ts     # YAML configuration loading
       output-renderer.ts   # Output document generation
       template-resolver.ts # Variable substitution
-    tests/                 # 194 tests, 12 files
+    tests/                 # Runtime unit and integration tests
   adapters/                # Platform-specific implementations
     pi/                    # Pi CLI adapter (full 4-layer)
     claude-code/           # Claude Code adapter
-    gemini/                # Gemini adapter (partial)
+    codex/                 # Codex CLI adapter
+    gemini/                # Gemini CLI adapter
   cli/                     # CLI toolchain
     src/
       index.ts             # Command dispatcher
@@ -1364,4 +1371,4 @@ aos-harness/
 
 ---
 
-*This document serves as the comprehensive feature reference for the AOS Harness v0.1.0 and is intended as source material for white paper publication.*
+*This document serves as the comprehensive feature reference for the AOS Harness v0.9.1 and is intended as source material for white paper publication.*

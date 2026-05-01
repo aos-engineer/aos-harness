@@ -15,7 +15,7 @@ participants:
   - operator
   - steward
   - auditor
-brief_path: /Users/jkolade/sireskay/github/aos-framework/core/briefs/sample-product-decision/brief.md
+brief_path: /Users/jkolade/sireskay/github/aos-harness/core/briefs/sample-product-decision/brief.md
 transcript_path: .aos/sessions/session-1774330364254/transcript.jsonl
 ---
 

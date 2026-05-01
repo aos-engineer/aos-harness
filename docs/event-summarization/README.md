@@ -1,10 +1,10 @@
 # Event Summarization
 
-Every event written to a session transcript gets a human-readable summary. Summaries appear in the platform UI, in log streams, and in audit exports. The harness produces them in two ways: zero-cost string templates for simple structural events, and economy-tier LLM calls for complex events that require language understanding.
+The runtime includes an `EventSummarizer` that classifies transcript events into two groups: events that can be summarized with deterministic templates and events that need language understanding. Template summaries are implemented locally. Batched economy-tier LLM summarization is the intended platform behavior, but the platform worker/API that performs those LLM calls is not part of the current local harness package.
 
 ## Template-Summarized Events
 
-Eleven event types carry enough information in their own fields to produce a useful summary without an LLM. The harness fills the `summary` column immediately at write time using a string template -- no network call, no latency, no cost.
+Eleven event types carry enough information in their own fields to produce a useful summary without an LLM. The runtime can produce these summaries with string templates -- no network call, no latency, no cost.
 
 | Event type | Template |
 |---|---|
@@ -22,9 +22,9 @@ Eleven event types carry enough information in their own fields to produce a use
 
 These events are structural signals. A consumer reading the summary does not need the full payload to understand what happened.
 
-## LLM-Summarized Events
+## LLM-Classified Events
 
-Ten event types carry free-form content -- agent reasoning, delegations, domain violations, gate decisions -- where a template would either truncate meaning or produce noise. These are summarized by an economy-tier LLM.
+Ten event types carry free-form content -- agent reasoning, delegations, domain violations, gate decisions -- where a template would either truncate meaning or produce noise. The runtime marks these as needing an LLM. In the current repo, they are classified; they are not automatically summarized by a bundled LLM worker.
 
 | Event type | Why LLM is needed |
 |---|---|
@@ -39,9 +39,9 @@ Ten event types carry free-form content -- agent reasoning, delegations, domain 
 | `final_statement` | Each agent's closing position in the deliberation |
 | `review_submission` | A structured review artifact submitted to the harness |
 
-### Batching
+### Planned Batching
 
-LLM summarization uses 10-second collection windows to minimize API calls:
+The intended platform implementation uses 10-second collection windows to minimize API calls:
 
 1. Events arrive and are written to the transcript with `summary = null`.
 2. The harness collects all unsummarized LLM-type events for up to 10 seconds.
@@ -49,7 +49,7 @@ LLM summarization uses 10-second collection windows to minimize API calls:
 4. The LLM returns one summary per event.
 5. Summaries are backfilled into the `summary` column for each event.
 
-This means a burst of 20 `response` events during a high-activity round costs one LLM call, not twenty. The 10-second window is configurable per execution profile.
+This means a burst of 20 `response` events during a high-activity round would cost one LLM call, not twenty. That batching behavior should be treated as platform design guidance until the worker is present in the deployed platform.
 
 ## Full Event Type Reference
 
@@ -122,10 +122,10 @@ Events flow through the following path:
 Engine emits event
   → onTranscriptEvent callback
   → POST /api/sessions/:id/events
-  → transcript_events table (summary column populated)
+  → transcript_events table (summary column populated when available)
 ```
 
-Template-summarized events arrive with `summary` already filled. LLM-summarized events arrive with `summary: null` and are updated within 10 seconds by the batch summarizer.
+Template-summarized events can arrive with `summary` already filled. LLM-classified events should arrive with `summary: null` and remain pending until an external/platform summarizer backfills them.
 
 The `transcript_events` table schema includes:
 
@@ -138,4 +138,4 @@ The `transcript_events` table schema includes:
 | `summary` | Human-readable summary string, or null until backfilled |
 | `created_at` | Wall-clock time the event was written |
 
-Consumers that display a session feed should render `summary` when present and fall back to a skeleton or loading state while LLM summarization is pending.
+Consumers that display a session feed should render `summary` when present and fall back to a compact raw-event preview or loading state while LLM summarization is pending.

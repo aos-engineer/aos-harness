@@ -1,6 +1,6 @@
 {
   "name": "@aos-harness/runtime",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "publishConfig": {
     "access": "public"
   },
@@ -30,7 +30,12 @@
     "./expertise-manager": "./src/expertise-manager.ts",
     "./event-summarizer": "./src/event-summarizer.ts",
     "./session-checkpoint": "./src/session-checkpoint.ts",
-    "./profile-schema": "./src/profile-schema.ts"
+    "./profile-schema": "./src/profile-schema.ts",
+    "./memory-config": "./src/memory-config.ts",
+    "./memory-provider": "./src/memory-provider.ts",
+    "./memory-provider-factory": "./src/memory-provider-factory.ts",
+    "./mempalace-provider": "./src/mempalace-provider.ts",
+    "./mcp-client": "./src/mcp-client.ts"
   },
   "files": [
     "src/",

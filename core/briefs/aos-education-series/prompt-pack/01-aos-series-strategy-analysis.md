@@ -47,5 +47,5 @@ Important constraints:
 
 - [../brief.md](../brief.md)
 - [../editorial-plan.md](../editorial-plan.md)
-- [README.md](/Users/jkolade/sireskay/github/aos-framework/README.md)
-- [docs/white-paper/aos-harness-features.md](/Users/jkolade/sireskay/github/aos-framework/docs/white-paper/aos-harness-features.md)
+- [README.md](/Users/jkolade/sireskay/github/aos-harness/README.md)
+- [docs/white-paper/aos-harness-features.md](/Users/jkolade/sireskay/github/aos-harness/docs/white-paper/aos-harness-features.md)

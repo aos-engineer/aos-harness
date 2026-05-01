@@ -32,7 +32,7 @@
 import { $ } from "bun";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
-import { copyCore, cleanCore } from "./copy-core";
+import { copyCore, cleanCore, copyCoreTo } from "./copy-core";
 
 const root = resolve(import.meta.dir, "..");
 
@@ -203,9 +203,10 @@ async function runDryRun(): Promise<void> {
 
       // cli/ has a prePublish hook (copyCore) — but that would mutate
       // SOURCE cli/core/, violating the "source tree untouched" invariant.
-      // Instead, copy core/ into the tempdir cli/ so packing sees it.
+      // Instead, copy the filtered core payload into the tempdir cli/ so
+      // dry-run tarballs match the real published package contents.
       if (entry.dir === "cli") {
-        await $`cp -R ${join(root, "core")} ${join(cwd, "core")}`;
+        copyCoreTo(join(cwd, "core"));
       }
 
       const packResult = await $`bun pm pack --destination ${tbDir} --quiet`.cwd(cwd).nothrow();

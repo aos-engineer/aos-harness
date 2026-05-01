@@ -90,7 +90,7 @@ describe("Hierarchical delegation types", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/types.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/types.test.ts`
 Expected: FAIL — new types don't exist
 
 - [ ] **Step 3: Add types to runtime/src/types.ts**
@@ -157,12 +157,12 @@ Add to `AgentRuntimeAdapter` interface (after `abort()`):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/types.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/types.test.ts`
 Expected: PASS
 
 - [ ] **Step 5: Run full test suite**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: FAIL — MockAdapter doesn't implement new methods yet (that's Task 2)
 
 - [ ] **Step 6: Commit types only**
@@ -212,7 +212,7 @@ Add to the AgentRuntimeAdapter section of MockAdapter (after `abort()`):
 
 - [ ] **Step 2: Run full test suite**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS
 
 - [ ] **Step 3: Commit**
@@ -330,7 +330,7 @@ describe("ChildAgentManager", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/child-agent-manager.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/child-agent-manager.test.ts`
 Expected: FAIL — module doesn't exist
 
 - [ ] **Step 3: Implement ChildAgentManager**
@@ -425,7 +425,7 @@ export class ChildAgentManager {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/child-agent-manager.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/child-agent-manager.test.ts`
 Expected: All tests PASS
 
 - [ ] **Step 5: Export from package.json**
@@ -437,7 +437,7 @@ Add to `runtime/package.json` exports:
 
 - [ ] **Step 6: Run full suite**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS
 
 - [ ] **Step 7: Commit**
@@ -494,7 +494,7 @@ describe("AOSEngine — hierarchical delegation", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/engine.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/engine.test.ts`
 Expected: FAIL — spawnChildAgent doesn't exist
 
 - [ ] **Step 3: Add spawnChildAgent, destroyChildAgent, getChildAgents to AOSEngine**
@@ -631,12 +631,12 @@ getChildAgents(parentAgentId: string): AgentHandle[] {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/engine.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/engine.test.ts`
 Expected: All tests PASS
 
 - [ ] **Step 5: Run full suite**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS
 
 - [ ] **Step 6: Commit**
@@ -851,7 +851,7 @@ agent_spawned (purple), agent_destroyed, child_delegation/response
 
 - [ ] **Step 1: Run harness tests**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS
 
 - [ ] **Step 2: Check platform compiles**

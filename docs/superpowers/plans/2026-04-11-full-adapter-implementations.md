@@ -202,7 +202,7 @@ Note: This file references modules that don't exist yet. That's fine — they'll
 
 - [ ] **Step 5: Install dependencies**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun install`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun install`
 Expected: Resolves workspace dependencies including the new `@aos-harness/adapter-shared` package.
 
 - [ ] **Step 6: Commit**
@@ -300,7 +300,7 @@ describe("BaseEventBus", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/shared/tests/base-event-bus.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/shared/tests/base-event-bus.test.ts`
 Expected: FAIL — `Cannot find module "../src/base-event-bus"`
 
 - [ ] **Step 3: Implement BaseEventBus**
@@ -445,7 +445,7 @@ export class BaseEventBus implements EventBusAdapter {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/shared/tests/base-event-bus.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/shared/tests/base-event-bus.test.ts`
 Expected: All 6 tests PASS
 
 - [ ] **Step 5: Commit**
@@ -557,7 +557,7 @@ describe("BaseWorkflow", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/shared/tests/base-workflow.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/shared/tests/base-workflow.test.ts`
 Expected: FAIL — `Cannot find module "../src/base-workflow"`
 
 - [ ] **Step 3: Implement BaseWorkflow**
@@ -963,7 +963,7 @@ Respond with:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/shared/tests/base-workflow.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/shared/tests/base-workflow.test.ts`
 Expected: All 9 tests PASS
 
 - [ ] **Step 5: Commit**
@@ -1054,7 +1054,7 @@ describe("TerminalUI", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/shared/tests/terminal-ui.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/shared/tests/terminal-ui.test.ts`
 Expected: FAIL — `Cannot find module "../src/terminal-ui"`
 
 - [ ] **Step 3: Implement TerminalUI**
@@ -1234,7 +1234,7 @@ export class TerminalUI implements UIAdapter {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/shared/tests/terminal-ui.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/shared/tests/terminal-ui.test.ts`
 Expected: All 7 tests PASS
 
 - [ ] **Step 5: Commit**
@@ -1371,7 +1371,7 @@ describe("composeAdapter", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/shared/tests/compose.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/shared/tests/compose.test.ts`
 Expected: FAIL — `Cannot find module "../src/compose"`
 
 - [ ] **Step 3: Implement composeAdapter**
@@ -1460,7 +1460,7 @@ export function composeAdapter(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/shared/tests/compose.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/shared/tests/compose.test.ts`
 Expected: All 2 tests PASS
 
 - [ ] **Step 5: Commit**
@@ -1674,7 +1674,7 @@ describe("BaseAgentRuntime", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/shared/tests/base-agent-runtime.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/shared/tests/base-agent-runtime.test.ts`
 Expected: FAIL — `Cannot find module "../src/base-agent-runtime"`
 
 - [ ] **Step 3: Implement BaseAgentRuntime**
@@ -2138,14 +2138,14 @@ export abstract class BaseAgentRuntime implements AgentRuntimeAdapter {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/shared/tests/base-agent-runtime.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/shared/tests/base-agent-runtime.test.ts`
 Expected: All 8 tests PASS
 
 - [ ] **Step 5: Update barrel index.ts**
 
 The barrel file created in Task 1 already references these exports. Verify it imports correctly:
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun x tsc --noEmit --project adapters/shared/tsconfig.json`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun x tsc --noEmit --project adapters/shared/tsconfig.json`
 Expected: No errors
 
 - [ ] **Step 6: Commit**
@@ -2180,7 +2180,7 @@ Edit `adapters/pi/package.json` to add the dependency:
 }
 ```
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun install`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun install`
 
 - [ ] **Step 2: Refactor PiAgentRuntime to extend BaseAgentRuntime**
 
@@ -2438,12 +2438,12 @@ Remove the manual `Object.assign` and the `for` loop that rebinds methods.
 
 - [ ] **Step 6: Run existing tests to verify nothing breaks**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All existing tests PASS
 
 - [ ] **Step 7: Typecheck**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun x tsc --noEmit --project adapters/pi/tsconfig.json`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun x tsc --noEmit --project adapters/pi/tsconfig.json`
 Expected: No type errors
 
 - [ ] **Step 8: Commit**
@@ -2485,7 +2485,7 @@ rm adapters/pi/src/workflow.ts
 
 - [ ] **Step 3: Run tests**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS
 
 - [ ] **Step 4: Commit**
@@ -2630,7 +2630,7 @@ describe("ClaudeCodeAgentRuntime", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/claude-code/tests/agent-runtime.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/claude-code/tests/agent-runtime.test.ts`
 Expected: FAIL
 
 - [ ] **Step 3: Implement ClaudeCodeAgentRuntime**
@@ -2872,16 +2872,16 @@ Rewrite `adapters/claude-code/package.json`:
 }
 ```
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun install`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun install`
 
 - [ ] **Step 7: Run test to verify it passes**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/claude-code/tests/agent-runtime.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/claude-code/tests/agent-runtime.test.ts`
 Expected: All 7 tests PASS
 
 - [ ] **Step 8: Typecheck**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun x tsc --noEmit --project adapters/claude-code/tsconfig.json`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun x tsc --noEmit --project adapters/claude-code/tsconfig.json`
 Expected: No errors
 
 - [ ] **Step 9: Commit**
@@ -2993,7 +2993,7 @@ describe("GeminiAgentRuntime", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/gemini/tests/agent-runtime.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/gemini/tests/agent-runtime.test.ts`
 Expected: FAIL
 
 - [ ] **Step 3: Implement GeminiAgentRuntime**
@@ -3231,11 +3231,11 @@ Rewrite `adapters/gemini/package.json`:
 }
 ```
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun install`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun install`
 
 - [ ] **Step 5: Run tests**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/gemini/tests/agent-runtime.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/gemini/tests/agent-runtime.test.ts`
 Expected: All 6 tests PASS
 
 - [ ] **Step 6: Commit**
@@ -3303,7 +3303,7 @@ Create `adapters/codex/tsconfig.json`:
 }
 ```
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun install`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun install`
 
 - [ ] **Step 2: Write the failing test**
 
@@ -3395,7 +3395,7 @@ describe("CodexAgentRuntime", () => {
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/codex/tests/agent-runtime.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/codex/tests/agent-runtime.test.ts`
 Expected: FAIL
 
 - [ ] **Step 4: Implement CodexAgentRuntime**
@@ -3608,7 +3608,7 @@ export { BaseEventBus, TerminalUI, BaseWorkflow, composeAdapter } from "@aos-har
 
 - [ ] **Step 6: Run tests**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test adapters/codex/tests/agent-runtime.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test adapters/codex/tests/agent-runtime.test.ts`
 Expected: All 6 tests PASS
 
 - [ ] **Step 7: Commit**
@@ -3655,7 +3655,7 @@ Rewrite `core/schema/adapter.schema.json`:
 
 - [ ] **Step 2: Run full test suite**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS (schema change doesn't break anything — no runtime code reads the schema file)
 
 - [ ] **Step 3: Commit**
@@ -3673,7 +3673,7 @@ git commit -m "feat(schema): update adapter config — add codex platform, repla
 
 - [ ] **Step 1: Run all tests**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS
 
 - [ ] **Step 2: Typecheck all adapter packages**
@@ -3681,7 +3681,7 @@ Expected: All tests PASS
 Run all typechecks in parallel:
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework && \
+cd /Users/jkolade/sireskay/github/aos-harness && \
 bun x tsc --noEmit --project adapters/shared/tsconfig.json && \
 bun x tsc --noEmit --project adapters/pi/tsconfig.json && \
 bun x tsc --noEmit --project adapters/claude-code/tsconfig.json && \
@@ -3693,7 +3693,7 @@ Expected: No type errors in any package
 
 - [ ] **Step 3: Run runtime tests to verify Pi refactor didn't break engine**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test --cwd runtime`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test --cwd runtime`
 Expected: All runtime tests PASS
 
 - [ ] **Step 4: Commit (if any fixups were needed)**

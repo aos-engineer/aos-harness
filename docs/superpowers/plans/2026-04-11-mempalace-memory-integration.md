@@ -1931,7 +1931,7 @@ platform_requirements:
 
 - [ ] **Step 3: Validate skills with aos validate**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun run cli/src/index.ts validate`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun run cli/src/index.ts validate`
 Expected: Skills validate without errors (or with expected warnings for missing platform bindings)
 
 - [ ] **Step 4: Commit**
@@ -1977,7 +1977,7 @@ skills:
 
 - [ ] **Step 4: Validate all agent configs**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun run cli/src/index.ts validate`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun run cli/src/index.ts validate`
 Expected: All agents validate with the new skill references
 
 - [ ] **Step 5: Commit**
@@ -2050,7 +2050,7 @@ Add this line before the `aosDir` definition.
 
 - [ ] **Step 3: Run the init command to verify**
 
-Run: `cd /tmp && mkdir test-aos-init && cd test-aos-init && bun run /Users/jkolade/sireskay/github/aos-framework/cli/src/index.ts init`
+Run: `cd /tmp && mkdir test-aos-init && cd test-aos-init && bun run /Users/jkolade/sireskay/github/aos-harness/cli/src/index.ts init`
 Expected: `.aos/memory.yaml` is created alongside `config.yaml`
 
 - [ ] **Step 4: Verify the generated memory.yaml is valid**
@@ -2084,7 +2084,7 @@ Expected: All existing tests PASS, no regressions
 
 - [ ] **Step 3: Run validation**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun run cli/src/index.ts validate`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun run cli/src/index.ts validate`
 Expected: Validation passes
 
 - [ ] **Step 4: Commit any fixes if needed, then tag**

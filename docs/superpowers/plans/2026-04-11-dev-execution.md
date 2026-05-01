@@ -205,7 +205,7 @@ After all workers complete, produce a structured report:
 
 - [ ] **Step 3: Validate the agent loads**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun run cli/src/index.ts validate 2>&1 | head -20`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun run cli/src/index.ts validate 2>&1 | head -20`
 Expected: Engineering Lead should appear in the validation output without errors
 
 - [ ] **Step 4: Commit**
@@ -418,7 +418,7 @@ gates:
 
 - [ ] **Step 2: Validate the workflow loads**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun run cli/src/index.ts validate 2>&1 | grep -i workflow`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun run cli/src/index.ts validate 2>&1 | grep -i workflow`
 Expected: dev-execution-workflow should validate without errors
 
 - [ ] **Step 3: Commit**
@@ -552,7 +552,7 @@ controls:
 
 - [ ] **Step 2: Validate**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun run cli/src/index.ts validate 2>&1 | grep -i "dev-execution"`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun run cli/src/index.ts validate 2>&1 | grep -i "dev-execution"`
 Expected: Profile validates without errors
 
 - [ ] **Step 3: Commit**
@@ -628,7 +628,7 @@ describe("WorkflowRunner — executeWithTools agent resolution", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/workflow-runner.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/workflow-runner.test.ts`
 Expected: FAIL — WorkflowRunner constructor doesn't accept `agents` option
 
 - [ ] **Step 3: Add max_retries to WorkflowStep and agents to constructor**
@@ -802,7 +802,7 @@ const runner = new WorkflowRunner(this.workflowConfig, this.adapter, {
 
 - [ ] **Step 6: Run tests**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS (347+ existing + new test)
 
 - [ ] **Step 7: Commit**
@@ -836,7 +836,7 @@ check(`Expected 14 agents, found ${agents.length}`, () => {
 
 - [ ] **Step 2: Run integration validation**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun run tests/integration/validate-config.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun run tests/integration/validate-config.ts`
 Expected: All checks pass
 
 - [ ] **Step 3: Commit**
@@ -888,7 +888,7 @@ git commit -m "docs: add dev-execution guide and update README"
 
 - [ ] **Step 1: Run full test suite**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS
 
 - [ ] **Step 2: Run integration validation**

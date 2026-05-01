@@ -504,9 +504,8 @@ ${c.bold(`AOS ${sessionType} Session`)}
       env.AOS_WORKFLOWS_DIR = workflowsDir;
     }
     // Pass the resolved ToolPolicy to the Pi adapter as JSON. The Pi adapter
-    // runs in a separate process; this env var is the contract. Pi-side
-    // consumption (gating executeCode + emitting tool-denied transcript
-    // events) is a future follow-up — see adapter-trust-model-plan.md.
+    // runs in a separate process; this env var is the contract consumed by
+    // BaseWorkflow for tool gating and tool-denied transcript events.
     env.AOS_TOOL_POLICY_JSON = JSON.stringify(toolPolicy);
 
     const proc = Bun.spawn(["pi", "-e", adapterEntry], {

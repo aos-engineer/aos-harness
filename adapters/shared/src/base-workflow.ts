@@ -468,8 +468,10 @@ Respond with:
     detail?: unknown,
   ): void {
     if (!this.transcriptPath) return;
+    const timestamp = new Date().toISOString();
     const line = JSON.stringify({
-      ts: new Date().toISOString(),
+      timestamp,
+      ts: timestamp,
       type: "tool-denied",
       agent: agentId,
       tool,

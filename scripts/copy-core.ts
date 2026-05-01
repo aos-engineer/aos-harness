@@ -9,11 +9,14 @@
  */
 
 import { cpSync, rmSync, existsSync, lstatSync } from "node:fs";
-import { resolve, sep } from "node:path";
+import { relative, resolve, sep } from "node:path";
 
 const root = resolve(import.meta.dir, "..");
 const coreSrc = resolve(root, "core");
 const coreDest = resolve(root, "cli", "core");
+const excludedPaths = [
+  `briefs${sep}aos-education-series`,
+];
 
 // Accept --target=<path> override for testing (not for production use).
 const argTarget = process.argv.find((a) => a.startsWith("--target="))?.slice("--target=".length);
@@ -37,14 +40,22 @@ if (existsSync(absTarget)) {
 }
 
 export function copyCore(): void {
+  copyCoreTo(absTarget);
+  console.log(`  Copied core/ → cli/core/`);
+}
+
+export function copyCoreTo(target: string): void {
   if (!existsSync(coreSrc)) {
     throw new Error(`Source core/ not found at ${coreSrc}`);
   }
-  if (existsSync(absTarget)) {
-    rmSync(absTarget, { recursive: true });
+  const resolvedTarget = resolve(target);
+  if (existsSync(resolvedTarget)) {
+    rmSync(resolvedTarget, { recursive: true });
   }
-  cpSync(coreSrc, absTarget, { recursive: true });
-  console.log(`  Copied core/ → cli/core/`);
+  cpSync(coreSrc, resolvedTarget, {
+    recursive: true,
+    filter: (src) => shouldIncludeCorePath(src),
+  });
 }
 
 export function cleanCore(): void {
@@ -52,6 +63,12 @@ export function cleanCore(): void {
     rmSync(absTarget, { recursive: true });
     console.log(`  Cleaned cli/core/`);
   }
+}
+
+function shouldIncludeCorePath(src: string): boolean {
+  const rel = relative(coreSrc, src);
+  if (rel === "") return true;
+  return !excludedPaths.some((excluded) => rel === excluded || rel.startsWith(excluded + sep));
 }
 
 // Allow running directly: bun run scripts/copy-core.ts [copy|clean]

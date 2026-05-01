@@ -18,6 +18,10 @@ import { AOSEngine } from "@aos-harness/runtime";
 import type { AOSAdapter, ConstraintState, ProfileConfig, TranscriptEntry } from "@aos-harness/runtime/types";
 import { resolveTemplate } from "@aos-harness/runtime/template-resolver";
 import { validateBrief } from "@aos-harness/runtime/config-loader";
+import {
+  createRuntimeMemoryProvider,
+  type RuntimeMemoryProvider,
+} from "@aos-harness/runtime/memory-provider-factory";
 import type { ToolPolicy } from "@aos-harness/adapter-shared";
 
 export async function probeAdapterInfo(_opts?: { timeoutMs?: number }) {
@@ -106,18 +110,43 @@ function createTranscriptSink(opts: {
   mkdirSync(opts.sessionDir, { recursive: true });
 
   let flushing: Promise<void> | null = null;
+  let sequence = 0;
 
-  const flush = async (): Promise<void> => {
+  const platformHeaders = (): HeadersInit => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const token = process.env.AOS_PLATFORM_TOKEN ?? process.env.AOS_INGEST_TOKEN;
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+  };
+
+  const stampEntry = (entry: TranscriptEntry): TranscriptEntry => {
+    const existingSequence = typeof entry.sequence === "number" ? entry.sequence : null;
+    const nextSequence = existingSequence ?? ++sequence;
+    sequence = Math.max(sequence, nextSequence);
+    return {
+      ...entry,
+      sequence: nextSequence,
+      event_id: typeof entry.event_id === "string" && entry.event_id
+        ? entry.event_id
+        : `${opts.sessionId}:${nextSequence}`,
+    };
+  };
+
+  const flush = async (requeueOnFailure = true): Promise<void> => {
     if (!opts.platformUrl || buffer.length === 0) return;
     const batch = buffer.splice(0, BATCH_SIZE);
     try {
-      await fetch(`${opts.platformUrl}/api/sessions/${opts.sessionId}/events`, {
+      const response = await fetch(`${opts.platformUrl}/api/sessions/${opts.sessionId}/events`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: platformHeaders(),
         body: JSON.stringify(batch),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
+      if (!response.ok) {
+        throw new Error(`platform ingest failed: HTTP ${response.status}`);
+      }
     } catch {
+      if (requeueOnFailure) buffer.unshift(...batch);
       // Best-effort observability only.
     }
   };
@@ -140,13 +169,14 @@ function createTranscriptSink(opts: {
 
   return {
     enqueue(entry: TranscriptEntry) {
+      const stamped = stampEntry(entry);
       try {
-        appendFileSync(transcriptPath, JSON.stringify(entry) + "\n");
+        appendFileSync(transcriptPath, JSON.stringify(stamped) + "\n");
       } catch {
         // Do not fail the session if transcript append fails.
       }
       if (opts.platformUrl) {
-        buffer.push(entry);
+        buffer.push(stamped);
         if (buffer.length >= BATCH_SIZE) {
           void scheduleFlush();
         }
@@ -156,7 +186,7 @@ function createTranscriptSink(opts: {
       if (interval) clearInterval(interval);
       await scheduleFlush();
       while (buffer.length > 0) {
-        await flush();
+        await flush(false);
       }
     },
   };
@@ -184,6 +214,7 @@ export default function (pi: ExtensionAPI) {
   const ui = new PiUI(pi);
   let workflow = new BaseWorkflow(agentRuntime);
   let transcriptSink: ReturnType<typeof createTranscriptSink> | null = null;
+  let memory: RuntimeMemoryProvider | null = null;
 
   let extensionCtx: any = null;
 
@@ -390,6 +421,27 @@ export default function (pi: ExtensionAPI) {
       // ── Compose adapter ───────────────────────────────────
       const adapter = composeAdapter(agentRuntime, eventBus, ui, workflow);
 
+      // ── Create memory provider ────────────────────────────
+      try {
+        memory = await createRuntimeMemoryProvider(projectRoot, {
+          requireConfiguredProvider: process.env.AOS_REQUIRE_MEMPALACE === "1",
+          onWarning: (message) => ctx.ui.notify(message, "warning"),
+        });
+        ctx.ui.notify(
+          `AOS memory provider: ${memory.providerId}` +
+            (memory.configuredProvider !== memory.providerId
+              ? ` (configured ${memory.configuredProvider})`
+              : ""),
+          "info",
+        );
+      } catch (err: any) {
+        ctx.ui.notify(`Failed to initialize memory provider: ${err.message}`, "error");
+        await transcriptSink?.shutdown();
+        transcriptSink = null;
+        memory = null;
+        return;
+      }
+
       // ── Create engine ─────────────────────────────────────
       try {
         engine = new AOSEngine(adapter, profileDir, {
@@ -397,12 +449,18 @@ export default function (pi: ExtensionAPI) {
           domain: selectedDomain,
           domainDir: selectedDomain ? dirname(domainDir!) : undefined,
           workflowsDir: process.env.AOS_WORKFLOWS_DIR,
+          projectDir: projectRoot,
+          memoryProvider: memory.provider,
           onTranscriptEvent: (entry) => {
             transcriptSink?.enqueue(entry);
           },
         });
       } catch (err: any) {
         ctx.ui.notify(`Failed to create engine: ${err.message}`, "error");
+        await memory?.shutdown();
+        memory = null;
+        await transcriptSink?.shutdown();
+        transcriptSink = null;
         return;
       }
 
@@ -420,6 +478,8 @@ export default function (pi: ExtensionAPI) {
           await transcriptSink.shutdown();
           transcriptSink = null;
         }
+        await memory?.shutdown();
+        memory = null;
         return;
       }
 
@@ -442,6 +502,8 @@ export default function (pi: ExtensionAPI) {
         writeTranscript(deliberationDirPath, engine.getTranscript());
         await transcriptSink?.shutdown();
         transcriptSink = null;
+        await memory?.shutdown();
+        memory = null;
         ctx.ui.setStatus("aos", `AOS: ${basename(profileDir)} complete`);
         ctx.ui.notify(
           `Execution completed.\nProfile: ${basename(profileDir)}\nTranscript: ${transcriptFilePath}`,
@@ -517,7 +579,8 @@ export default function (pi: ExtensionAPI) {
       const briefContent = readFileSync(briefPath, "utf-8");
       const kickoff =
         "Read the brief below and begin the multi-agent deliberation. " +
-        "Use the `delegate` tool to engage perspective agents and `end` when ready to wrap up.\n\n" +
+        "Use the `delegate` tool to engage perspective agents and `end` when ready to wrap up. " +
+        "Use `aos_recall` when past memory would materially help, and `aos_remember` to commit important decisions or lessons before closing.\n\n" +
         `---\n\n## Brief\n\n${briefContent}`;
 
       pi.sendUserMessage(kickoff);
@@ -679,6 +742,8 @@ export default function (pi: ExtensionAPI) {
       resultText += `\n### Available Actions\n`;
       resultText += `- delegate("all", "message") — broadcast\n`;
       resultText += `- delegate(["agent-a", "agent-b"], "message") — targeted\n`;
+      resultText += `- aos_recall("query") — search long-term memory\n`;
+      resultText += `- aos_remember("content", "agent") — commit important memory\n`;
       resultText += `- end("closing message") — end deliberation\n`;
 
       // Conditional warning/limit messages
@@ -749,7 +814,87 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  // ── 4. end tool ───────────────────────────────────────────
+  // ── 4. memory tools ───────────────────────────────────────
+
+  pi.registerTool({
+    name: "aos_recall",
+    label: "Recall Memory",
+    description: "Search long-term AOS memory for relevant past knowledge.",
+    promptSnippet: "Search long-term memory. Use only when past context would materially improve the deliberation.",
+    promptGuidelines: [
+      "Use focused queries tied to the current decision.",
+      "Respect returned result limits and do not repeatedly search for the same thing.",
+    ],
+    parameters: Type.Object({
+      query: Type.String({ description: "Search query" }),
+      agent: Type.Optional(Type.String({ description: "Optional agent id to limit recall" })),
+      hall: Type.Optional(Type.String({ description: "Optional memory hall/category" })),
+      max_results: Type.Optional(Type.Number({ description: "Maximum entries to return" })),
+    }),
+
+    async execute(_toolCallId, params) {
+      if (!engine || !sessionActive) {
+        throw new Error("No active deliberation. Use /aos-run to start a session.");
+      }
+      const result = await engine.recallMemory(params.query as string, {
+        agentId: params.agent as string | undefined,
+        hall: params.hall as string | undefined,
+        maxResults: params.max_results as number | undefined,
+      });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        details: result,
+      };
+    },
+
+    renderCall(args, theme) {
+      const query = ((args.query as string | undefined) ?? "").slice(0, 80);
+      let text = theme.fg("toolTitle", theme.bold("aos_recall "));
+      text += theme.fg("accent", query || "memory");
+      return new Text(text, 0, 0);
+    },
+  });
+
+  pi.registerTool({
+    name: "aos_remember",
+    label: "Remember",
+    description: "Commit an important fact, decision, or lesson to long-term AOS memory.",
+    promptSnippet: "Commit durable decisions, lessons, or facts to long-term memory.",
+    promptGuidelines: [
+      "Store concise, durable information worth carrying into future sessions.",
+      "Set agent to the participant that produced the memory, or arbiter for synthesized decisions.",
+    ],
+    parameters: Type.Object({
+      content: Type.String({ description: "Verbatim content to store" }),
+      agent: Type.String({ description: "Agent that produced the memory" }),
+      hall: Type.Optional(Type.String({ description: "Optional memory hall/category" })),
+      source: Type.Optional(Type.String({ description: "Optional source label" })),
+    }),
+
+    async execute(_toolCallId, params) {
+      if (!engine || !sessionActive) {
+        throw new Error("No active deliberation. Use /aos-run to start a session.");
+      }
+      const id = await engine.rememberMemory(params.content as string, {
+        agentId: (params.agent as string | undefined) ?? "arbiter",
+        hall: params.hall as string | undefined,
+        source: params.source as string | undefined,
+      });
+      return {
+        content: [{ type: "text" as const, text: `Memory committed: ${id}` }],
+        details: { id },
+      };
+    },
+
+    renderCall(args, theme) {
+      const agent = (args.agent as string | undefined) ?? "arbiter";
+      let text = theme.fg("toolTitle", theme.bold("aos_remember "));
+      text += theme.fg("accent", agent);
+      return new Text(text, 0, 0);
+    },
+  });
+
+  // ── 5. end tool ───────────────────────────────────────────
 
   pi.registerTool({
     name: "end",
@@ -870,6 +1015,8 @@ export default function (pi: ExtensionAPI) {
         }
         await transcriptSink?.shutdown();
         transcriptSink = null;
+        await memory?.shutdown();
+        memory = null;
         sessionActive = false;
         engine = null;
         ui.unblockInput();
@@ -973,6 +1120,8 @@ export default function (pi: ExtensionAPI) {
     sessionActive = false;
     await transcriptSink?.shutdown();
     transcriptSink = null;
+    await memory?.shutdown();
+    memory = null;
 
     // Open in editor
     const editor = process.env.AOS_EDITOR || process.env.EDITOR || "code";
@@ -1012,6 +1161,8 @@ export default function (pi: ExtensionAPI) {
     }
     await transcriptSink?.shutdown();
     transcriptSink = null;
+    await memory?.shutdown();
+    memory = null;
 
     sessionActive = false;
     engine = null;

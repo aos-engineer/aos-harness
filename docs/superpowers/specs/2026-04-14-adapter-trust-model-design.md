@@ -31,14 +31,14 @@ Close the two workspace-trust gaps that let a hostile repo or a prompt-injected 
 
 Delete `cli/src/commands/run.ts:325-328`'s `existsSync(join(root, "adapters", adapterName, ...))` branch. Adapter resolution becomes a single call to `getAdapterDir(adapterName)`, which internally checks:
 
-1. The monorepo dev layout rooted at the **CLI's own** `import.meta.dir` (only hits when running from an `aos-framework` checkout, never from an end user's repo).
+1. The monorepo dev layout rooted at the **CLI's own** `import.meta.dir` (only hits when running from an `aos-harness` checkout, never from an end user's repo).
 2. The installed `@aos-harness/<name>-adapter` via `import.meta.resolve`.
 
 That's the complete trust surface. Adapter authors working against the main repo are unaffected (monorepo path still works). Adapter authors in a third-party repo use `npm link @aos-harness/my-adapter` — the link is opt-in, created with `sudo`-equivalent intent, and outside the cloned-repo attack surface.
 
 **Side effect:** the per-project `adapters/` override was undocumented and, as far as we know, unused outside the monorepo. Removing it is source-compatible for every documented workflow. The 0.6.0 CHANGELOG did not promise it.
 
-**`import.meta.dir` + `npm link` verification:** The monorepo-detection path depends on `import.meta.dir` pointing into the real CLI install, not the symlinked mirror. Bun 1.3 follows symlinks when computing `import.meta.dir` (verified empirically), meaning `npm link aos-harness` from an `aos-framework` checkout makes `import.meta.dir` resolve to the source checkout — so monorepo detection still triggers, as intended. However this behavior has drifted across Bun versions. **Before landing this change, run a one-shot verification test** (added to the plan): link the CLI from the monorepo into a sibling empty project, `aos run` from the empty project, assert the monorepo `adapters/` is reached. Pin the minimum Bun version in `cli/package.json` engines if we discover the behavior regresses on a supported Bun version.
+**`import.meta.dir` + `npm link` verification:** The monorepo-detection path depends on `import.meta.dir` pointing into the real CLI install, not the symlinked mirror. Bun 1.3 follows symlinks when computing `import.meta.dir` (verified empirically), meaning `npm link aos-harness` from an `aos-harness` checkout makes `import.meta.dir` resolve to the source checkout — so monorepo detection still triggers, as intended. However this behavior has drifted across Bun versions. **Before landing this change, run a one-shot verification test** (added to the plan): link the CLI from the monorepo into a sibling empty project, `aos run` from the empty project, assert the monorepo `adapters/` is reached. Pin the minimum Bun version in `cli/package.json` engines if we discover the behavior regresses on a supported Bun version.
 
 ### D2 — Validate `adapter` against an allowlist at entry
 
@@ -308,7 +308,7 @@ All new behavior is testable without network, without real LLMs, and without spa
 ### Runtime verification (one-shot, gated)
 
 - `tests/cli/import-meta-dir-symlink.test.ts` — run once in the plan's Step 1 to verify D1's Bun symlink assumption:
-  1. Create a temp `aos-framework-like` checkout (minimal fixture: `package.json` + `cli/src/commands/run.ts` stub that logs `import.meta.dir`).
+  1. Create a temp `aos-harness-like` checkout (minimal fixture: `package.json` + `cli/src/commands/run.ts` stub that logs `import.meta.dir`).
   2. `npm link` it from a sibling empty project.
   3. Run the stub under Bun. Assert `import.meta.dir` points into the checkout, not the global `node_modules/aos-harness` path.
   4. If the assertion fails on the current Bun version, halt the plan and surface a blocker. Pin `engines.bun` accordingly before proceeding.

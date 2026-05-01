@@ -58,7 +58,7 @@ describe("import.meta.dir under npm link (spec D1)", () => {
 
   beforeAll(() => {
     tmpRoot = mkdtempSync(join(tmpdir(), "aos-bun-symlink-"));
-    fakeRepo = join(tmpRoot, "aos-framework");
+    fakeRepo = join(tmpRoot, "aos-harness");
     siblingProject = join(tmpRoot, "consumer");
     mkdirSync(join(fakeRepo, "cli", "src"), { recursive: true });
     mkdirSync(join(fakeRepo, "adapters", "pi"), { recursive: true });
@@ -1658,7 +1658,7 @@ mkdir -p core/agents/arbiter adapters/pi/src
 echo "id: arbiter" > core/agents/arbiter/agent.yaml
 echo "process.exit(99);" > adapters/pi/src/index.ts
 echo "# test" > brief.md
-bun run /path/to/aos-framework/cli/src/index.ts run default --brief brief.md
+bun run /path/to/aos-harness/cli/src/index.ts run default --brief brief.md
 echo "Exit: $?"
 ```
 

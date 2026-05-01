@@ -1,6 +1,6 @@
 {
   "name": "aos-harness",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Run AOS Harness deliberation and execution workflows from Codex.",
   "author": {
     "name": "AOS Engineer",

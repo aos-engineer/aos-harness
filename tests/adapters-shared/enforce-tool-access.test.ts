@@ -73,6 +73,7 @@ describe("BaseWorkflow.enforceToolAccess (spec D3.3)", () => {
       expect(lines).toHaveLength(1);
       const entry = JSON.parse(lines[0]);
       expect(entry.type).toBe("tool-denied");
+      expect(entry.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(entry.tool).toBe("execute_code");
       expect(entry.agent).toBe("arbiter");
       expect(entry.reason).toMatch(/not enabled/);

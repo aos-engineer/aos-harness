@@ -10,34 +10,34 @@ Use this when creating a dedicated NotebookLM notebook for the AOS educational s
 
 1. [../brief.md](../brief.md)
 2. [../editorial-plan.md](../editorial-plan.md)
-3. [README.md](/Users/jkolade/sireskay/github/aos-framework/README.md)
-4. [docs/white-paper/aos-harness-features.md](/Users/jkolade/sireskay/github/aos-framework/docs/white-paper/aos-harness-features.md)
+3. [README.md](/Users/jkolade/sireskay/github/aos-harness/README.md)
+4. [docs/white-paper/aos-harness-features.md](/Users/jkolade/sireskay/github/aos-harness/docs/white-paper/aos-harness-features.md)
 
 ## Secondary Sources By Topic
 
 ### Foundations
 
-- [docs/getting-started/README.md](/Users/jkolade/sireskay/github/aos-framework/docs/getting-started/README.md)
-- [core/profiles/strategic-council/README.md](/Users/jkolade/sireskay/github/aos-framework/core/profiles/strategic-council/README.md)
-- [core/profiles/cto-execution/README.md](/Users/jkolade/sireskay/github/aos-framework/core/profiles/cto-execution/README.md)
+- [docs/getting-started/README.md](/Users/jkolade/sireskay/github/aos-harness/docs/getting-started/README.md)
+- [core/profiles/strategic-council/README.md](/Users/jkolade/sireskay/github/aos-harness/core/profiles/strategic-council/README.md)
+- [core/profiles/cto-execution/README.md](/Users/jkolade/sireskay/github/aos-harness/core/profiles/cto-execution/README.md)
 
 ### Structure And Safety
 
-- [docs/domain-enforcement/README.md](/Users/jkolade/sireskay/github/aos-framework/docs/domain-enforcement/README.md)
-- [docs/creating-domains/README.md](/Users/jkolade/sireskay/github/aos-framework/docs/creating-domains/README.md)
-- [docs/creating-agents/README.md](/Users/jkolade/sireskay/github/aos-framework/docs/creating-agents/README.md)
-- [docs/creating-workflows/README.md](/Users/jkolade/sireskay/github/aos-framework/docs/creating-workflows/README.md)
+- [docs/domain-enforcement/README.md](/Users/jkolade/sireskay/github/aos-harness/docs/domain-enforcement/README.md)
+- [docs/creating-domains/README.md](/Users/jkolade/sireskay/github/aos-harness/docs/creating-domains/README.md)
+- [docs/creating-agents/README.md](/Users/jkolade/sireskay/github/aos-harness/docs/creating-agents/README.md)
+- [docs/creating-workflows/README.md](/Users/jkolade/sireskay/github/aos-harness/docs/creating-workflows/README.md)
 
 ### Execution And Delegation
 
-- [docs/dev-execution/README.md](/Users/jkolade/sireskay/github/aos-framework/docs/dev-execution/README.md)
-- [docs/hierarchical-delegation/README.md](/Users/jkolade/sireskay/github/aos-framework/docs/hierarchical-delegation/README.md)
+- [docs/dev-execution/README.md](/Users/jkolade/sireskay/github/aos-harness/docs/dev-execution/README.md)
+- [docs/hierarchical-delegation/README.md](/Users/jkolade/sireskay/github/aos-harness/docs/hierarchical-delegation/README.md)
 
 ### Continuity And Learning
 
-- [docs/persistent-expertise/README.md](/Users/jkolade/sireskay/github/aos-framework/docs/persistent-expertise/README.md)
-- [docs/session-resumption/README.md](/Users/jkolade/sireskay/github/aos-framework/docs/session-resumption/README.md)
-- [docs/event-summarization/README.md](/Users/jkolade/sireskay/github/aos-framework/docs/event-summarization/README.md)
+- [docs/persistent-expertise/README.md](/Users/jkolade/sireskay/github/aos-harness/docs/persistent-expertise/README.md)
+- [docs/session-resumption/README.md](/Users/jkolade/sireskay/github/aos-harness/docs/session-resumption/README.md)
+- [docs/event-summarization/README.md](/Users/jkolade/sireskay/github/aos-harness/docs/event-summarization/README.md)
 
 ## Ingestion Recommendation
 

@@ -35,7 +35,7 @@ import { WorkflowRunner } from "./workflow-runner";
 import type { WorkflowConfig } from "./workflow-runner";
 import { renderArtifactGallery, renderExecutionPackage } from "./output-renderer";
 import type { ArtifactManifest } from "./types";
-import type { MemoryProvider, MemoryConfig } from "./memory-provider";
+import type { MemoryProvider, MemoryConfig, RecallResult, RememberId } from "./memory-provider";
 import { loadMemoryConfig } from "./memory-config";
 
 export interface EngineOpts {
@@ -72,6 +72,7 @@ export class AOSEngine {
   private memoryProvider: MemoryProvider | null = null;
   private memoryConfig: MemoryConfig | null = null;
   private recallCount: number = 0;
+  private projectDir: string;
 
   private resolveOutputPathTemplate(template: string, briefPath: string): string {
     return template
@@ -93,6 +94,7 @@ export class AOSEngine {
     this.adapter = adapter;
     this.sessionId = this.generateSessionId();
     this.onTranscriptEvent = opts.onTranscriptEvent;
+    this.projectDir = opts.projectDir ?? process.cwd();
 
     // Load profile
     this.profile = loadProfile(profilePath);
@@ -195,8 +197,7 @@ export class AOSEngine {
 
     // Initialize memory
     if (this.memoryProvider && !this.memoryConfig) {
-      const projectDir = opts?.deliberationDir ?? process.cwd();
-      this.memoryConfig = loadMemoryConfig(projectDir);
+      this.memoryConfig = loadMemoryConfig(this.projectDir);
       await this.memoryProvider.initialize(this.memoryConfig);
 
       const wakeCtx = await this.memoryProvider.wake(
@@ -313,6 +314,89 @@ export class AOSEngine {
         roundsCompleted: this.roundNumber,
         mode: "workflow",
       });
+    }
+  }
+
+  async recallMemory(
+    query: string,
+    opts: { agentId?: string; hall?: string; maxResults?: number } = {},
+  ): Promise<RecallResult> {
+    if (!this.memoryProvider || !this.memoryConfig) {
+      throw new Error("Memory provider is not initialized.");
+    }
+
+    const maxRecall = this.memoryConfig.orchestrator.maxRecallPerSession;
+    if (this.recallCount >= maxRecall) {
+      this.pushTranscript({
+        type: "memory_recall_denied",
+        timestamp: new Date().toISOString(),
+        query,
+        reason: "max_recall_per_session",
+        maxRecallPerSession: maxRecall,
+      });
+      throw new Error(`Memory recall limit reached (${maxRecall} per session).`);
+    }
+
+    const projectId = this.memoryConfig.mempalace?.projectWing ?? this.profile.id;
+    const result = await this.memoryProvider.recall(query, {
+      projectId,
+      agentId: opts.agentId,
+      hall: opts.hall,
+      maxResults: opts.maxResults,
+    });
+    this.recallCount += 1;
+
+    this.pushTranscript({
+      type: "memory_recall",
+      timestamp: new Date().toISOString(),
+      query,
+      projectId,
+      agentId: opts.agentId ?? null,
+      hall: opts.hall ?? null,
+      resultCount: result.entries.length,
+      tokenEstimate: result.tokenEstimate,
+    });
+
+    return result;
+  }
+
+  async rememberMemory(
+    content: string,
+    opts: { agentId: string; hall?: string; source?: string } = { agentId: "arbiter" },
+  ): Promise<RememberId> {
+    if (!this.memoryProvider || !this.memoryConfig) {
+      throw new Error("Memory provider is not initialized.");
+    }
+
+    const projectId = this.memoryConfig.mempalace?.projectWing ?? this.profile.id;
+    try {
+      const id = await this.memoryProvider.remember(content, {
+        projectId,
+        agentId: opts.agentId,
+        hall: opts.hall,
+        source: opts.source,
+        sessionId: this.sessionId,
+      });
+      this.pushTranscript({
+        type: "memory_committed",
+        timestamp: new Date().toISOString(),
+        memoryId: id,
+        projectId,
+        agentId: opts.agentId,
+        hall: opts.hall ?? null,
+        source: opts.source ?? null,
+      });
+      return id;
+    } catch (err) {
+      this.pushTranscript({
+        type: "memory_commit_failed",
+        timestamp: new Date().toISOString(),
+        projectId,
+        agentId: opts.agentId,
+        hall: opts.hall ?? null,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
     }
   }
 

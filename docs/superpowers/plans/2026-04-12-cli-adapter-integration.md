@@ -82,7 +82,7 @@ test("findProjectRoot walks up to find core/ or .aos/", () => {
 
 - [ ] **Step 3: Run test to verify failure**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test tests/agent-discovery.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test tests/agent-discovery.test.ts`
 Expected: FAIL — `discoverAgents` not exported.
 
 - [ ] **Step 4: Create the helper file**
@@ -155,7 +155,7 @@ git commit -m "refactor(pi): import agent discovery helpers from adapter-shared"
 
 - [ ] **Step 1: Add the dependency**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework/cli && bun add @modelcontextprotocol/sdk`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness/cli && bun add @modelcontextprotocol/sdk`
 Expected: package added, lockfile updated.
 
 - [ ] **Step 2: Verify the SDK imports work**

@@ -124,7 +124,7 @@ describe("Domain & Delegation types", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/types.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/types.test.ts`
 Expected: FAIL — types `DomainRule`, `DomainRules`, etc. don't exist yet
 
 - [ ] **Step 3: Add new types to runtime/src/types.ts**
@@ -252,18 +252,18 @@ export type TranscriptEventType =
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/types.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/types.test.ts`
 Expected: PASS
 
 - [ ] **Step 5: Run full test suite to verify no regressions**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All 194+ tests PASS
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 git add runtime/src/types.ts runtime/tests/types.test.ts
 git commit -m "feat(runtime): add domain enforcement and delegation types
 
@@ -346,7 +346,7 @@ describe("DomainEnforcer — path matching", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/domain-enforcer.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/domain-enforcer.test.ts`
 Expected: FAIL — module `domain-enforcer` doesn't exist
 
 - [ ] **Step 3: Implement DomainEnforcer with path matching**
@@ -507,13 +507,13 @@ export class DomainEnforcer {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/domain-enforcer.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/domain-enforcer.test.ts`
 Expected: All 8 tests PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 git add runtime/src/domain-enforcer.ts runtime/tests/domain-enforcer.test.ts
 git commit -m "feat(runtime): implement DomainEnforcer with path matching
 
@@ -634,18 +634,18 @@ describe("DomainEnforcer — bash token analysis", () => {
 
 - [ ] **Step 2: Run tests to verify they pass**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/domain-enforcer.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/domain-enforcer.test.ts`
 Expected: All tests PASS (implementation was written in Task 2 — this task adds comprehensive test coverage)
 
 - [ ] **Step 3: Run full test suite**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS
 
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 git add runtime/tests/domain-enforcer.test.ts
 git commit -m "test(runtime): add tool access and bash token analysis tests
 
@@ -671,13 +671,13 @@ Add to the `"exports"` field in `runtime/package.json`:
 
 - [ ] **Step 2: Verify import works**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun -e "import { DomainEnforcer } from './runtime/src/domain-enforcer'; console.log(typeof DomainEnforcer)"`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun -e "import { DomainEnforcer } from './runtime/src/domain-enforcer'; console.log(typeof DomainEnforcer)"`
 Expected: `function`
 
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 git add runtime/package.json
 git commit -m "feat(runtime): export domain-enforcer module"
 ```
@@ -766,18 +766,18 @@ Add to the `properties` object in `core/schema/agent.schema.json` (after `capabi
 
 - [ ] **Step 2: Validate schema is valid JSON**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun -e "const s = require('./core/schema/agent.schema.json'); console.log('Schema valid, properties:', Object.keys(s.properties).length)"`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun -e "const s = require('./core/schema/agent.schema.json'); console.log('Schema valid, properties:', Object.keys(s.properties).length)"`
 Expected: Prints property count (no JSON parse error)
 
 - [ ] **Step 3: Run existing validation tests**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS (existing agents don't have domain/delegation, which is fine — fields are optional)
 
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 git add core/schema/agent.schema.json
 git commit -m "feat(schema): add domain and delegation properties to agent schema
 
@@ -821,7 +821,7 @@ describe("AOSEngine — domain enforcement events", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/engine.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/engine.test.ts`
 Expected: FAIL — `getDomainEnforcer` doesn't exist on AOSEngine
 
 - [ ] **Step 3: Add getDomainEnforcer to AOSEngine**
@@ -860,18 +860,18 @@ getDomainEnforcer(agentId: string): DomainEnforcer | null {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/engine.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/engine.test.ts`
 Expected: All tests PASS
 
 - [ ] **Step 5: Run full test suite**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 git add runtime/src/engine.ts runtime/tests/engine.test.ts
 git commit -m "feat(runtime): add getDomainEnforcer to AOSEngine
 
@@ -908,7 +908,7 @@ describe("MockAdapter — enforceToolAccess", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/engine.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/engine.test.ts`
 Expected: FAIL — `enforceToolAccess` doesn't exist on MockAdapter
 
 - [ ] **Step 3: Add enforceToolAccess to WorkflowAdapter interface**
@@ -951,13 +951,13 @@ Add the import for `EnforcementResult` at the top of the file.
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 git add runtime/src/types.ts runtime/tests/mock-adapter.ts runtime/tests/engine.test.ts
 git commit -m "feat(runtime): add enforceToolAccess to WorkflowAdapter contract
 
@@ -1325,18 +1325,18 @@ describe("DomainEnforcer integration with AOSEngine", () => {
 
 - [ ] **Step 2: Run integration test**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test runtime/tests/domain-enforcer.integration.test.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test runtime/tests/domain-enforcer.integration.test.ts`
 Expected: All tests PASS
 
 - [ ] **Step 3: Run full suite**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS
 
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework
+cd /Users/jkolade/sireskay/github/aos-harness
 git add runtime/tests/domain-enforcer.integration.test.ts runtime/fixtures/agents/domain-test-agent/
 git commit -m "test(runtime): add DomainEnforcer integration tests
 
@@ -1350,12 +1350,12 @@ and combined path + tool checking scenarios."
 
 - [ ] **Step 1: Run full harness test suite**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All tests PASS (194+ existing + ~25 new)
 
 - [ ] **Step 2: Run TypeScript type checking**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun run typecheck`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun run typecheck`
 Expected: No type errors
 
 - [ ] **Step 3: Run platform type checking**
@@ -1365,5 +1365,5 @@ Expected: No type errors (or only pre-existing ones)
 
 - [ ] **Step 4: Verify git status is clean in both repos**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && git status && cd /Users/jkolade/sireskay/github/aos-platform && git status`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && git status && cd /Users/jkolade/sireskay/github/aos-platform && git status`
 Expected: Both repos have clean working trees (all changes committed)

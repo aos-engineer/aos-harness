@@ -1,4 +1,4 @@
-# Security Scan Report — aos-framework
+# Security Scan Report — aos-harness
 
 **Date:** 2026-04-14
 **Scanner Version:** appsec-scanner v1.0 (scoped pass)

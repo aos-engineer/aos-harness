@@ -1,8 +1,8 @@
-# Session Resumption
+# Session Checkpointing
 
-Sessions can be paused at any point and resumed later with full agent context intact. When a session resumes, each agent wakes up with a curated tail of recent transcript events covering its own activity, so it can continue reasoning without starting from scratch.
+The runtime currently implements session pause/checkpoint creation. A checkpoint captures constraint state, active agent handles, and per-agent conversation tails so a later resume implementation has the data it needs to reconstruct context.
 
-Resumption is designed for long-running deliberations that span multiple work sessions, for situations where a session must be suspended due to budget or time constraints, and for human-in-the-loop workflows where a gate decision requires an overnight review.
+Full automatic resume is still a roadmap item. The docs below separate what exists today from the intended restore flow so operators do not mistake checkpoint support for complete pause/resume orchestration.
 
 ## How Checkpoints Work
 
@@ -46,7 +46,7 @@ The default tail depth is 50 events. This is configurable via `transcriptReplayD
 
 The filtering ensures agents do not receive unrelated content from other agents' delegations or file operations. A cost analyst agent waking up after a pause sees its own reasoning history, not the legal agent's domain access log.
 
-## Pause/Resume Flow
+## Pause and Planned Resume Flow
 
 ### Pausing
 
@@ -58,9 +58,11 @@ The filtering ensures agents do not receive unrelated content from other agents'
 6. A `session_paused` transcript event is emitted with the checkpoint timestamp.
 7. All agent processes are torn down cleanly.
 
-### Resuming
+### Planned Resuming
 
-1. The resume API call loads the `SessionCheckpoint` for the given session ID.
+The following flow describes the target resume behavior. It is not currently exposed as a complete CLI/API workflow.
+
+1. The resume command or API call loads the `SessionCheckpoint` for the given session ID.
 2. Agents listed in `activeAgents` are re-spawned using the same agent definitions and model configuration as the original session.
 3. Expertise scratch pads are reloaded from `expertiseSnapshot` so each agent's memory is current.
 4. Each agent's `conversationTail` is replayed into its context as a structured prompt section:
@@ -79,7 +81,7 @@ you were involved in before the pause.
 
 ## Constraint Behavior
 
-Constraint handling differs across the three tracked dimensions when a session resumes:
+When full resume support lands, constraint handling should differ across the three tracked dimensions:
 
 | Constraint | Behavior on resume |
 |---|---|
@@ -87,11 +89,13 @@ Constraint handling differs across the three tracked dimensions when a session r
 | Budget spent | Continues from checkpoint value -- cumulative spend is preserved |
 | Rounds | Continues from checkpoint value -- no rounds are credited for free |
 
-This design means a session paused at $4.80 of a $5.00 budget resumes with only $0.20 remaining, but a session paused after 45 minutes of a 60-minute limit gets a full fresh 60 minutes on resume. Time limits are intended to bound individual working sessions, not total calendar time.
+This intended design means a session paused at $4.80 of a $5.00 budget would resume with only $0.20 remaining, but a session paused after 45 minutes of a 60-minute limit would get a fresh 60-minute working window. Time limits are intended to bound individual working sessions, not total calendar time.
 
 ## Limitations
 
-**Agent context window is not preserved.** Only the conversation tail is replayed. The full internal context the LLM held at pause time -- intermediate reasoning chains, cached attention -- is gone. The replay prompt reconstructs working context as accurately as possible, but very long chains of reasoning within a single round may not fully survive a pause.
+**Automatic resume is not complete.** The runtime can create checkpoints; it does not yet provide an end-to-end CLI/API resume flow that re-spawns every agent and continues orchestration.
+
+**Agent context window is not preserved.** Only the conversation tail can be replayed. The full internal context the LLM held at pause time -- intermediate reasoning chains, cached attention -- is gone. A future replay prompt can reconstruct working context, but very long chains of reasoning within a single round may not fully survive a pause.
 
 **Long sessions may lose nuance.** The tail depth is a fixed window. A session with 200 rounds of dense deliberation will have its early reasoning compressed to whatever fits in the tail. For sessions expected to run long, increase `transcriptReplayDepth` in the execution profile.
 

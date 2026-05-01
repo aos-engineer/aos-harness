@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.9.1 — Platform stream hardening and memory observability
+
+### Added
+
+- Broader `test:all` release gate covering runtime, root tests, shared adapter tests, and first-party adapter runtimes.
+- Arbiter memory bridge tools (`aos_recall`, `aos_remember`) and Pi adapter equivalents, wired through the runtime memory provider.
+- Stable transcript `event_id` and `sequence` stamping for local JSONL and platform streaming, enabling idempotent platform ingest.
+- Release-readiness checklist for local, platform, and live adapter checks.
+
+### Changed
+
+- Platform transcript sinks now retry failed batches during a session and avoid hanging indefinitely during shutdown.
+- Platform streaming supports bearer-token auth via `AOS_PLATFORM_TOKEN` / `AOS_INGEST_TOKEN`.
+- AOS branding references were normalized to `aos-harness`.
+- Release versions bumped in lockstep to `0.9.1`.
+
+### Fixed
+
+- Bridge-server RPC now validates request shapes, returns parse errors for malformed JSON, and caps request size.
+- Replay formatting now renders governance events such as `steer` and `tool-denied` without falling back to raw JSON.
+- Runtime and packaging hardening around memory provider fallback, publish safety, and core-copy exclusions.
+
 ## 0.9.0 — Brief authoring, plugin parity, validate cleanup
 
 ### Added

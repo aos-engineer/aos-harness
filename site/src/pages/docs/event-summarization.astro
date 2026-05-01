@@ -3,7 +3,7 @@ import Base from '../../layouts/Base.astro';
 
 const sidebarLinks = [
   { id: 'template-summaries', label: 'Template Summaries' },
-  { id: 'llm-summaries', label: 'LLM Summaries' },
+  { id: 'llm-summaries', label: 'LLM Classification' },
   { id: 'event-reference', label: 'Event Type Reference' },
   { id: 'platform-integration', label: 'Platform Integration' },
 ];
@@ -54,7 +54,7 @@ const sidebarLinks = [
 
         <!-- Page Header -->
         <h1 class="text-4xl md:text-[48px] font-extrabold text-[var(--color-text)] leading-tight tracking-tight">Event Summarization</h1>
-        <p class="text-[15px] text-[var(--color-text-secondary)] mt-2 mb-12">Human-readable summaries for every transcript event</p>
+        <p class="text-[15px] text-[var(--color-text-secondary)] mt-2 mb-12">Template summaries and LLM-needed classification for transcript events</p>
 
         <!-- Template Summaries -->
         <section id="template-summaries" class="mb-12">
@@ -62,10 +62,10 @@ const sidebarLinks = [
             <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">Template Summaries</h2>
           </div>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
-            Every event written to a session transcript gets a human-readable summary. Summaries appear in the platform UI, in log streams, and in audit exports. The harness produces them in two ways: zero-cost string templates for simple structural events, and economy-tier LLM calls for complex events that require language understanding.
+            The runtime includes an <code>EventSummarizer</code> that classifies transcript events into two groups: events that can be summarized with deterministic templates and events that need language understanding. Template summaries are implemented locally. Batched economy-tier LLM summarization is the intended platform behavior, but the worker/API that performs those LLM calls is not part of the current local harness package.
           </p>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
-            Eleven event types carry enough information in their own fields to produce a useful summary without an LLM. The harness fills the <code>summary</code> column immediately at write time using a string template &mdash; no network call, no latency, no cost.
+            Eleven event types carry enough information in their own fields to produce a useful summary without an LLM. The runtime can produce these summaries with string templates &mdash; no network call, no latency, no cost.
           </p>
 
           <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden mb-6">
@@ -135,10 +135,10 @@ const sidebarLinks = [
         <!-- LLM Summaries -->
         <section id="llm-summaries" class="mb-12">
           <div class="border-t border-[var(--color-border)] pt-12 mb-6">
-            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">LLM Summaries</h2>
+            <h2 class="text-2xl md:text-[28px] font-bold text-[var(--color-text)]">LLM Classification</h2>
           </div>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-6">
-            Ten event types carry free-form content &mdash; agent reasoning, delegations, domain violations, gate decisions &mdash; where a template would either truncate meaning or produce noise. These are summarized by an economy-tier LLM.
+            Ten event types carry free-form content &mdash; agent reasoning, delegations, domain violations, gate decisions &mdash; where a template would either truncate meaning or produce noise. The runtime marks these as needing an LLM. In the current repo, they are classified; they are not automatically summarized by a bundled LLM worker.
           </p>
 
           <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden mb-8">
@@ -196,9 +196,9 @@ const sidebarLinks = [
             </div>
           </div>
 
-          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-3">Batching</h3>
+          <h3 class="text-lg font-semibold text-[var(--color-text)] mb-3">Planned Batching</h3>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">
-            LLM summarization uses <strong class="text-[var(--color-text)]">10-second collection windows</strong> to minimize API calls:
+            The intended platform implementation uses <strong class="text-[var(--color-text)]">10-second collection windows</strong> to minimize API calls:
           </p>
           <ol class="space-y-2 text-[15px] text-[var(--color-text-secondary)] leading-relaxed list-decimal list-inside mb-6">
             <li>Events arrive and are written to the transcript with <code>summary = null</code>.</li>
@@ -209,7 +209,7 @@ const sidebarLinks = [
           </ol>
           <div class="bg-[var(--color-bg)] border-l-4 border-[var(--color-signal)] rounded-r-lg px-5 py-4">
             <p class="text-[12px] font-semibold uppercase text-[var(--color-signal)] mb-1">Cost Efficiency</p>
-            <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">A burst of 20 <code>response</code> events during a high-activity round costs one LLM call, not twenty. The 10-second window is configurable per execution profile.</p>
+            <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">A burst of 20 <code>response</code> events during a high-activity round would cost one LLM call, not twenty. That batching behavior should be treated as platform design guidance until the worker is present in the deployed platform.</p>
           </div>
         </section>
 
@@ -441,10 +441,10 @@ const sidebarLinks = [
           <pre><code>{`Engine emits event
   → onTranscriptEvent callback
   → POST /api/sessions/:id/events
-  → transcript_events table (summary column populated)`}</code></pre>
+  → transcript_events table (summary column populated when available)`}</code></pre>
 
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mt-6 mb-4">
-            Template-summarized events arrive with <code>summary</code> already filled. LLM-summarized events arrive with <code>summary: null</code> and are updated within 10 seconds by the batch summarizer.
+            Template-summarized events can arrive with <code>summary</code> already filled. LLM-classified events should arrive with <code>summary: null</code> and remain pending until an external/platform summarizer backfills them.
           </p>
           <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed mb-4">The <code>transcript_events</code> table schema includes:</p>
 
@@ -489,7 +489,7 @@ const sidebarLinks = [
 
           <div class="bg-[var(--color-bg)] border-l-4 border-[var(--color-signal)] rounded-r-lg px-5 py-4">
             <p class="text-[12px] font-semibold uppercase text-[var(--color-signal)] mb-1">Consumer Guidance</p>
-            <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">Consumers that display a session feed should render <code>summary</code> when present and fall back to a skeleton or loading state while LLM summarization is pending.</p>
+            <p class="text-[15px] text-[var(--color-text-secondary)] leading-relaxed">Consumers that display a session feed should render <code>summary</code> when present and fall back to a compact raw-event preview or loading state while LLM summarization is pending.</p>
           </div>
         </section>
 

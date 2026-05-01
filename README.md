@@ -91,9 +91,9 @@ aos init
 
 Release line:
 
-- Current repo version: `0.8.5`
+- Current repo version: `0.9.1`
 - npm latest is published separately via the tag-driven release workflow
-- Site image tag: `novashock/aos-harness-site:0.8.5-20260423`
+- Site image tag: `novashock/aos-harness-site:0.9.1-20260501-platform-stream-hardening`
 
 `aos init` prints the adapter install commands at the end as a reminder.
 It also scans vendor CLI readiness, writes v2 `.aos/config.yaml`, and supports:
@@ -253,8 +253,8 @@ AOS Harness includes advanced features for production orchestration:
 | [Domain Enforcement](docs/domain-enforcement/README.md) | Structural file/tool permission boundaries per agent | Path matching, tool allowlists, bash restrictions |
 | [Hierarchical Delegation](docs/hierarchical-delegation/README.md) | Agents spawn and manage sub-agents in Lead→Worker chains | Depth limits, domain inheritance |
 | [Memory System](docs/persistent-expertise/README.md) | Pluggable memory with MemPalace and expertise fallback | Orchestrator-gated recall, session curation, MCP integration |
-| [Event Summarization](docs/event-summarization/README.md) | Human-readable event summaries via templates and LLM | Template and batched LLM approach |
-| [Session Resumption](docs/session-resumption/README.md) | Pause and resume sessions with full context | Checkpoints, conversation tails |
+| [Event Summarization](docs/event-summarization/README.md) | Template summaries plus LLM-needed classification | Platform LLM batching is planned |
+| [Session Checkpointing](docs/session-resumption/README.md) | Pause checkpoints with conversation tails | Full automatic resume is planned |
 
 ---
 
@@ -271,7 +271,8 @@ AOS Harness includes advanced features for production orchestration:
 - **Hierarchical Delegation:** `docs/hierarchical-delegation/README.md`
 - **Memory System:** `docs/persistent-expertise/README.md`
 - **Event Summarization:** `docs/event-summarization/README.md`
-- **Session Resumption:** `docs/session-resumption/README.md`
+- **Session Checkpointing:** `docs/session-resumption/README.md`
+- **Release Readiness:** `docs/testing/release-readiness-checklist.md`
 
 ---
 

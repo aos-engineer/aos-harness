@@ -70,7 +70,7 @@ if (typeof Bun === "undefined") {
 
 - [ ] **Step 2: Verify it still works**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun run cli/src/index.ts --help`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun run cli/src/index.ts --help`
 Expected: Normal help output (Bun is present, guard passes)
 
 - [ ] **Step 3: Commit**
@@ -178,7 +178,7 @@ With:
 
 Run from a directory without an AOS project:
 ```bash
-cd /tmp && bun /Users/jkolade/sireskay/github/aos-framework/cli/src/index.ts
+cd /tmp && bun /Users/jkolade/sireskay/github/aos-harness/cli/src/index.ts
 ```
 Expected: Shows "No AOS project detected" prompt
 
@@ -186,7 +186,7 @@ Expected: Shows "No AOS project detected" prompt
 
 Run:
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework && bun run cli/src/index.ts
+cd /Users/jkolade/sireskay/github/aos-harness && bun run cli/src/index.ts
 ```
 Expected: Normal help output (project detected)
 
@@ -299,19 +299,19 @@ ${c.bold("EXAMPLES")}
 
 Run:
 ```bash
-cd /tmp && mkdir test-init && cd test-init && bun /Users/jkolade/sireskay/github/aos-framework/cli/src/index.ts init
+cd /tmp && mkdir test-init && cd test-init && bun /Users/jkolade/sireskay/github/aos-harness/cli/src/index.ts init
 ```
 Expected: Creates `.aos/` and copies `core/`
 
 Run again without --force:
 ```bash
-bun /Users/jkolade/sireskay/github/aos-framework/cli/src/index.ts init
+bun /Users/jkolade/sireskay/github/aos-harness/cli/src/index.ts init
 ```
 Expected: "AOS project already exists" error
 
 Run with --force:
 ```bash
-bun /Users/jkolade/sireskay/github/aos-framework/cli/src/index.ts init --force
+bun /Users/jkolade/sireskay/github/aos-harness/cli/src/index.ts init --force
 ```
 Expected: Reinitializes successfully
 
@@ -386,7 +386,7 @@ if (import.meta.main) {
 
 Run:
 ```bash
-cd /Users/jkolade/sireskay/github/aos-framework && bun run scripts/copy-core.ts copy
+cd /Users/jkolade/sireskay/github/aos-harness && bun run scripts/copy-core.ts copy
 ls cli/core/agents/ | head -3
 bun run scripts/copy-core.ts clean
 ls cli/core/ 2>/dev/null || echo "cleaned"
@@ -542,7 +542,7 @@ The root `package.json` has `"bin": { "aos": "./cli/src/index.ts" }`. Since the 
 
 - [ ] **Step 4: Run tests to verify nothing broke**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All 347 tests pass
 
 - [ ] **Step 5: Commit**
@@ -715,7 +715,7 @@ main().catch((err) => {
 
 - [ ] **Step 2: Test dry-run**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun run scripts/publish.ts`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun run scripts/publish.ts`
 Expected: Tests pass, shows "would publish" for both packages, copies and cleans core/
 
 - [ ] **Step 3: Verify cli/package.json is restored after dry-run**
@@ -866,7 +866,7 @@ git commit -m "docs: update install instructions to bun add -g aos-harness"
 
 - [ ] **Step 1: Run full test suite**
 
-Run: `cd /Users/jkolade/sireskay/github/aos-framework && bun test`
+Run: `cd /Users/jkolade/sireskay/github/aos-harness && bun test`
 Expected: All 347 tests pass
 
 - [ ] **Step 2: Run publish dry-run**
@@ -882,7 +882,7 @@ bun run cli/src/index.ts
 
 # From a clean directory (should show wizard)
 cd /tmp && mkdir npm-test && cd npm-test
-bun /Users/jkolade/sireskay/github/aos-framework/cli/src/index.ts
+bun /Users/jkolade/sireskay/github/aos-harness/cli/src/index.ts
 # Answer N to skip init, verify prompt appears
 
 # Clean up

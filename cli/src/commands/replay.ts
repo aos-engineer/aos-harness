@@ -149,6 +149,27 @@ function formatError(entry: Record<string, unknown>): string {
   return `${RED}${BOLD}ERROR${aid}${RESET} ${RED}${msg}${RESET}`;
 }
 
+function formatSteer(entry: Record<string, unknown>): string {
+  const source = entry.source ? ` from ${entry.source}` : "";
+  const target = entry.target ? ` -> ${entry.target}` : "";
+  const message = preview(String(entry.message || ""), 180);
+  return `${MAGENTA}${BOLD}STEER${RESET}${DIM}${source}${target}${RESET}\n  ${message}`;
+}
+
+function formatToolDenied(entry: Record<string, unknown>): string {
+  const agent = entry.agent || entry.agentId || "system";
+  const tool = entry.tool || "unknown";
+  const reason = entry.reason || entry.message || "Denied by active tool policy";
+  const detail = entry.detail ? `\n  ${DIM}Detail:${RESET} ${preview(JSON.stringify(entry.detail), 140)}` : "";
+  return `${RED}${BOLD}TOOL DENIED${RESET} ${RED}${tool}${RESET} ${DIM}for ${agent}${RESET}\n  ${reason}${detail}`;
+}
+
+function formatLifecycle(entry: Record<string, unknown>): string {
+  const label = entry.type === "session_resumed" ? "SESSION RESUMED" : "SESSION PAUSED";
+  const session = entry.sessionId ? ` ${DIM}${entry.sessionId}${RESET}` : "";
+  return `${CYAN}${BOLD}${label}${RESET}${session}`;
+}
+
 function formatGeneric(entry: Record<string, unknown>): string {
   const type = entry.type || "unknown";
   const timestamp = entry.timestamp || "";
@@ -216,6 +237,16 @@ export async function replayCommand(args: ParsedArgs): Promise<void> {
         break;
       case "error":
         output = formatError(entry);
+        break;
+      case "steer":
+        output = formatSteer(entry);
+        break;
+      case "tool-denied":
+        output = formatToolDenied(entry);
+        break;
+      case "session_paused":
+      case "session_resumed":
+        output = formatLifecycle(entry);
         break;
       default:
         output = formatGeneric(entry);

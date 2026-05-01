@@ -1,8 +1,9 @@
 import { describe, test, expect } from "bun:test";
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { $ } from "bun";
+import { copyCoreTo } from "../../scripts/copy-core";
 
 const SCRIPT = join(process.cwd(), "scripts/copy-core.ts");
 
@@ -26,5 +27,17 @@ describe("copy-core.ts hardening (spec D5)", () => {
     const r = await $`bun run ${SCRIPT} --target=/tmp/out-of-scope`.nothrow().quiet();
     expect(r.exitCode).toBe(1);
     expect(r.stderr.toString()).toMatch(/outside.*cli\/core/i);
+  });
+
+  test("excludes non-shipping education series briefs from packaged core", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "copy-core-filter-"));
+    const target = join(tmp, "core");
+    try {
+      copyCoreTo(target);
+      expect(existsSync(join(target, "briefs", "sample-product-decision", "brief.md"))).toBe(true);
+      expect(existsSync(join(target, "briefs", "aos-education-series"))).toBe(false);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });

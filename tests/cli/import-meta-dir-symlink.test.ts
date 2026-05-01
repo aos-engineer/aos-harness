@@ -12,7 +12,7 @@ describe("import.meta.dir under npm link (spec D1)", () => {
 
   beforeAll(() => {
     tmpRoot = mkdtempSync(join(tmpdir(), "aos-bun-symlink-"));
-    fakeRepo = join(tmpRoot, "aos-framework");
+    fakeRepo = join(tmpRoot, "aos-harness");
     siblingProject = join(tmpRoot, "consumer");
     mkdirSync(join(fakeRepo, "cli", "src"), { recursive: true });
     mkdirSync(join(fakeRepo, "adapters", "pi"), { recursive: true });

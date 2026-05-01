@@ -150,6 +150,14 @@ aos run strategic-council \
   --platform-url http://localhost:3001
 ```
 
+If the platform requires ingest authentication, set `AOS_PLATFORM_TOKEN` in the harness process. The platform expects the same value in `AOS_INGEST_TOKEN`:
+
+```bash
+AOS_PLATFORM_TOKEN=your-shared-token aos run strategic-council \
+  --brief core/briefs/sample-product-decision/brief.md \
+  --platform-url http://localhost:3001
+```
+
 ## Replay a Transcript
 
 ```bash
